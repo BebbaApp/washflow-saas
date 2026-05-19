@@ -105,7 +105,7 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/reset-password") {
-        window.location.replace("/reset-password" + window.location.hash);
+        window.location.replace("/reset-password" + window.location.search + window.location.hash);
         return;
       }
       resolveSession(session);
