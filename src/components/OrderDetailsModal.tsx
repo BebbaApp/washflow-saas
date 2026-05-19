@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
+import { PrintReceiptButton } from "@/components/PrintReceiptButton";
 
 interface OrderDetailsModalProps {
   order: WashOrder | null;
