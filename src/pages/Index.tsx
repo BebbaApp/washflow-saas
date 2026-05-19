@@ -265,7 +265,21 @@ const Index = () => {
       {/* Main Content */}
       <main className="flex-1 md:pt-0 pt-16 overflow-auto">
         {/* Top Nav Bar */}
-        <div className="hidden md:flex sticky top-0 z-30 h-14 items-center justify-end gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
+        <div className="hidden md:flex sticky top-0 z-30 h-14 items-center justify-between gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold text-foreground truncate" title={workspaceName}>{workspaceName}</span>
+            {tenant?.status === "trialing" && daysUntilTrialEnd !== null && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                Trial · {Math.max(daysUntilTrialEnd, 0)}d left
+              </span>
+            )}
+            {tenant?.status === "past_due" && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+                Payment past due
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary transition-colors text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
