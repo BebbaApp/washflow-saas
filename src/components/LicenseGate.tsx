@@ -60,22 +60,28 @@ export function LicenseGate({ children }: { children: ReactNode }) {
   }
 
   if (!licenseActive) {
+    const isCancelled = tenant.status === "cancelled";
+    const isPastDueExpired = tenant.status === "past_due";
+    const title = isCancelled ? "Workspace cancelled" : isPastDueExpired ? "Access paused — payment overdue" : "Workspace suspended";
+    const body = isCancelled
+      ? "Your subscription has been cancelled. Renew billing to restore access to your data."
+      : isPastDueExpired
+        ? "Your grace period ended without a successful payment. Update billing to restore access."
+        : `${tenant.name} is currently ${tenant.status}. Renew your subscription to restore access.`;
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <Card className="max-w-md w-full border-destructive">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-destructive" />
-              Workspace suspended
+              {title}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              <strong>{tenant.name}</strong> is currently <em>{tenant.status}</em>.
-              Renew your subscription to restore access.
-            </p>
+            <p className="text-sm text-muted-foreground">{body}</p>
             <div className="flex gap-2">
-              <Button onClick={() => window.location.href = "/settings/billing"}>
+              <Button onClick={openBillingPortal} disabled={portalLoading}>
+                {portalLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Manage billing
               </Button>
               <Button variant="outline" onClick={() => logout()}>Sign out</Button>
@@ -95,14 +101,14 @@ export function LicenseGate({ children }: { children: ReactNode }) {
         <div className="bg-amber-500/15 text-amber-900 dark:text-amber-200 px-4 py-2 text-sm flex items-center gap-2 justify-center">
           <AlertTriangle className="h-4 w-4" />
           Trial ends in {daysUntilTrialEnd} day{daysUntilTrialEnd === 1 ? "" : "s"}.
-          <a href="/settings/billing" className="underline font-medium">Add billing</a>
+          <button onClick={openBillingPortal} className="underline font-medium" disabled={portalLoading}>Add billing</button>
         </div>
       )}
       {showPastDueBanner && (
         <div className="bg-destructive/15 text-destructive px-4 py-2 text-sm flex items-center gap-2 justify-center">
           <AlertTriangle className="h-4 w-4" />
           Payment failed. Update billing to avoid losing access.
-          <a href="/settings/billing" className="underline font-medium">Update billing</a>
+          <button onClick={openBillingPortal} className="underline font-medium" disabled={portalLoading}>Update billing</button>
         </div>
       )}
       <div className="flex-1">{children}</div>
