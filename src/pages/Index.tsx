@@ -139,7 +139,7 @@ const Index = () => {
 
   const renderSidebarBody = (onNavigate?: () => void) => (
     <>
-      <div className="flex items-center gap-3 px-2 py-2 mb-6">
+      <div className="flex items-center gap-3 px-2 py-2 mb-4">
         <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-sm overflow-hidden">
           {logo ? (
             <img src={logo} alt="App logo" className="w-full h-full object-contain" />
@@ -155,6 +155,9 @@ const Index = () => {
               : "Management"}
           </p>
         </div>
+      </div>
+      <div className="px-2 mb-4">
+        <TenantSwitcher compact />
       </div>
 
       <nav className="flex flex-col gap-1 flex-1">
