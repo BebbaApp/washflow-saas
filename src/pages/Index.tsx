@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
-  Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint,
+  Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint, AlertCircle,
 } from "lucide-react";
+import { ProfileDialog } from "@/components/ProfileDialog";
 import type { StaffRole } from "@/hooks/useAuth";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { WashQueue } from "@/components/WashQueue";
