@@ -93,7 +93,8 @@ Deno.serve(async (req) => {
       if (!user_id || !phone || !pin) return json({ error: "user_id, phone and pin are required" }, 400);
       if (!/^\d{4,6}$/.test(String(pin))) return json({ error: "PIN must be 4-6 digits" }, 400);
       const normalizedPhone = String(phone).replace(/\s+/g, "");
-      const pin_hash = await bcrypt.hash(String(pin));
+      const salt = await bcrypt.genSalt(8);
+      const pin_hash = await bcrypt.hash(String(pin), salt);
       // Ensure phone uniqueness across other users
       const { data: existing } = await adminClient
         .from("staff_pins")
