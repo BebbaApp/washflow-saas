@@ -261,9 +261,12 @@ export function BillingSection() {
         )}
       </div>
 
-      {/* Platform admin: edit Stripe price IDs */}
+      {/* Platform admin: edit Stripe price IDs + view license events */}
       {isPlatformAdmin && (
-        <PlanPriceAdmin plans={plans} onSaved={loadPlans} />
+        <>
+          <PlanPriceAdmin plans={plans} onSaved={loadPlans} />
+          <LicenseEventsAdmin />
+        </>
       )}
     </div>
   );
