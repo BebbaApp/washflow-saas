@@ -40,11 +40,13 @@ export function useAuth() {
     const bestRole = priority.find((r) => userRoles.includes(r));
 
     if (bestRole) {
+      const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
       return {
         id: authUser.id,
         email: authUser.email || "",
-        name: profile?.name || authUser.email || "",
+        name: profile?.name || meta.name || authUser.email || "",
         role: bestRole,
+        phone: (meta.phone as string) || authUser.phone || null,
       };
     }
 
