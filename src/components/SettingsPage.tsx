@@ -26,6 +26,26 @@ const ROLE_OPTIONS: { value: WorkerRole; label: string }[] = [
   { value: "admin", label: "Admin" },
 ];
 
+async function extractFnError(res: { error: any; data: any }): Promise<{ message: string; version?: string; accepted?: string[] }> {
+  let payload: any = res.data && res.data.error ? res.data : null;
+  if (!payload && res.error) {
+    try {
+      const resp = (res.error as any)?.context?.response ?? (res.error as any)?.context;
+      if (resp && typeof resp.json === "function") payload = await resp.clone().json();
+      else if (resp && typeof resp.text === "function") payload = JSON.parse(await resp.clone().text());
+    } catch { /* ignore */ }
+  }
+  const message = payload?.error || res.error?.message || "Unknown error";
+  return { message, version: payload?.function_version, accepted: payload?.accepted_actions };
+}
+
+function fnErrorDescription(info: { message: string; version?: string; accepted?: string[] }): string {
+  const parts = [info.message];
+  if (info.version) parts.push(`version: ${info.version}`);
+  if (info.accepted?.length) parts.push(`accepts: ${info.accepted.join(", ")}`);
+  return parts.join(" • ");
+}
+
 export function SettingsPage() {
   const { can } = usePermissions();
   const tabs = ([
