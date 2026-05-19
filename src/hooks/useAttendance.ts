@@ -134,6 +134,8 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
       const msg = (vErr as any).message || String(vErr);
       if (msg.includes("no_enrollment")) {
         toast.error("No enrolled face. Ask an admin to enroll your face first.");
+      } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
+        toast.error("Face verification service is busy. Please try again in a few seconds.");
       } else {
         toast.error("Face verification failed: " + msg);
       }
