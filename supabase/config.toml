@@ -1,0 +1,10 @@
+project_id = "cypvhsqyvxxcknmqltqj"
+
+[functions.create-worker]
+verify_jwt = false
+
+[functions.pin-login]
+verify_jwt = false
+
+[functions.verify-attendance-face]
+verify_jwt = true
