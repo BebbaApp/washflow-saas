@@ -1,9 +1,11 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Lock } from "lucide-react";
+import { AlertTriangle, Lock, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 /**
  * Wraps the app. Blocks UI when the tenant license is not active.
@@ -12,6 +14,29 @@ import { AlertTriangle, Lock } from "lucide-react";
 export function LicenseGate({ children }: { children: ReactNode }) {
   const { tenant, loading, licenseActive, daysUntilTrialEnd } = useTenant();
   const { logout } = useAuth();
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const openBillingPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-billing-portal", {
+        body: { tenant_id: tenant?.id, return_url: window.location.origin },
+      });
+      if (error || !data?.url) {
+        toast({
+          title: "Billing not available yet",
+          description: "Stripe billing isn't configured for this workspace. Contact support to renew.",
+          variant: "destructive",
+        });
+        return;
+      }
+      window.location.href = data.url as string;
+    } catch (e: any) {
+      toast({ title: "Could not open billing portal", description: e?.message ?? "Unknown error", variant: "destructive" });
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   if (loading) {
     return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading workspace…</div>;
