@@ -271,6 +271,9 @@ const Index = () => {
             <DropdownMenuContent align="end" className="w-56 bg-card border-border">
               <DropdownMenuLabel className="truncate">{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+                <UserIcon className="w-4 h-4 mr-2" /> My profile
+              </DropdownMenuItem>
               {can("settings.view") && (
                 <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                   <SettingsIcon className="w-4 h-4 mr-2" /> Settings
