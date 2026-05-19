@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
-  Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint,
+  Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint, AlertCircle,
 } from "lucide-react";
+import { ProfileDialog } from "@/components/ProfileDialog";
 import type { StaffRole } from "@/hooks/useAuth";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { WashQueue } from "@/components/WashQueue";
@@ -57,8 +58,9 @@ const Index = () => {
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const { orders, addOrder, updateStatus, updateNotes } = useOrders();
-  const { user, login, signup, logout, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
+  const { user, login, signup, logout, updateProfile, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { processCompletedOrders } = useInventory();
   const { logo } = useAppLogo();
@@ -269,6 +271,9 @@ const Index = () => {
             <DropdownMenuContent align="end" className="w-56 bg-card border-border">
               <DropdownMenuLabel className="truncate">{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+                <UserIcon className="w-4 h-4 mr-2" /> My profile
+              </DropdownMenuItem>
               {can("settings.view") && (
                 <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                   <SettingsIcon className="w-4 h-4 mr-2" /> Settings
@@ -287,6 +292,21 @@ const Index = () => {
         </div>
 
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
+          {user && !user.phone && (
+            <div className="mb-4 glass-card p-4 flex items-center gap-3 border-l-4 border-warning bg-warning/5">
+              <AlertCircle className="w-5 h-5 text-warning shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">Your profile is missing a phone number</p>
+                <p className="text-xs text-muted-foreground">Add one so admins and teammates can reach you.</p>
+              </div>
+              <button
+                onClick={() => setProfileOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                Update details
+              </button>
+            </div>
+          )}
           {activeTab === "dashboard" && (
             <DashboardOverview
               orders={orders}
@@ -405,6 +425,17 @@ const Index = () => {
             </div>
           </div>
         </div>
+      )}
+      {user && (
+        <ProfileDialog
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          initialName={user.name || ""}
+          initialPhone={user.phone || ""}
+          email={user.email}
+          onSave={updateProfile}
+          reason={user.phone ? "edit" : "missing_phone"}
+        />
       )}
     </div>
   );

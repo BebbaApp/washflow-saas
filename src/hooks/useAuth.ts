@@ -9,6 +9,7 @@ export interface StaffUser {
   email: string;
   name: string;
   role: StaffRole;
+  phone: string | null;
 }
 
 export function useAuth() {
@@ -39,11 +40,13 @@ export function useAuth() {
     const bestRole = priority.find((r) => userRoles.includes(r));
 
     if (bestRole) {
+      const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
       return {
         id: authUser.id,
         email: authUser.email || "",
-        name: profile?.name || authUser.email || "",
+        name: profile?.name || meta.name || authUser.email || "",
         role: bestRole,
+        phone: (meta.phone as string) || authUser.phone || null,
       };
     }
 
@@ -130,16 +133,34 @@ export function useAuth() {
     return null;
   }, []);
 
-  const signup = useCallback(async (email: string, password: string, name: string): Promise<string | null> => {
+  const signup = useCallback(async (email: string, password: string, name: string, phone?: string): Promise<string | null> => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      phone: phone || undefined,
       options: {
-        data: { name },
+        data: { name, ...(phone ? { phone } : {}) },
         emailRedirectTo: window.location.origin,
       },
     });
     if (error) return error.message;
+    return null;
+  }, []);
+
+  const updateProfile = useCallback(async (updates: { name?: string; phone?: string }): Promise<string | null> => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return "Not signed in";
+    const meta = { ...(authUser.user_metadata ?? {}), ...updates };
+    const { error: authErr } = await supabase.auth.updateUser({ data: meta });
+    if (authErr) return authErr.message;
+    if (updates.name !== undefined) {
+      const { error: profErr } = await supabase
+        .from("profiles")
+        .update({ name: updates.name })
+        .eq("user_id", authUser.id);
+      if (profErr) return profErr.message;
+    }
+    setUser((prev) => prev ? { ...prev, name: updates.name ?? prev.name, phone: updates.phone ?? prev.phone } : prev);
     return null;
   }, []);
 
@@ -151,5 +172,5 @@ export function useAuth() {
   const isAdmin = user?.role === "admin";
   const authedNoRole = !!authedEmail && !user;
 
-  return { user, login, signup, logout, isAuthenticated: !!user, isAdmin, loading, authedEmail, authedNoRole };
+  return { user, login, signup, logout, updateProfile, isAuthenticated: !!user, isAdmin, loading, authedEmail, authedNoRole };
 }
