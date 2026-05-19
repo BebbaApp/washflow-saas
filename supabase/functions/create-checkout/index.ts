@@ -6,10 +6,11 @@ import { z } from "npm:zod@3";
 
 const BodySchema = z.object({
   tenant_id: z.string().uuid(),
-  plan_code: z.string().min(1),
+  plan_id: z.string().uuid().optional(),
+  plan_code: z.string().min(1).optional(),
   success_url: z.string().url(),
   cancel_url: z.string().url(),
-});
+}).refine((v) => v.plan_id || v.plan_code, { message: "plan_id or plan_code required" });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
     if (!parsed.success) {
       return json({ error: parsed.error.flatten().fieldErrors }, 400);
     }
-    const { tenant_id, plan_code, success_url, cancel_url } = parsed.data;
+    const { tenant_id, plan_id, plan_code, success_url, cancel_url } = parsed.data;
 
     const admin = createClient(supabaseUrl, serviceKey);
 
@@ -61,11 +62,11 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (tenantErr || !tenant) return json({ error: "Tenant not found" }, 404);
 
-    const { data: plan, error: planErr } = await admin
-      .from("plans")
-      .select("id, code, name, stripe_price_id")
-      .eq("code", plan_code)
-      .maybeSingle();
+    const planQuery = admin.from("plans").select("id, code, name, stripe_price_id");
+    const { data: plan, error: planErr } = await (plan_id
+      ? planQuery.eq("id", plan_id)
+      : planQuery.eq("code", plan_code!)
+    ).maybeSingle();
     if (planErr || !plan) return json({ error: "Plan not found" }, 404);
     if (!plan.stripe_price_id) {
       return json({ error: `Plan ${plan.code} is missing stripe_price_id` }, 400);
