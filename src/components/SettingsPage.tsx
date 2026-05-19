@@ -196,7 +196,8 @@ function WorkersSection() {
 
     const res = await supabase.functions.invoke("manage-staff", { body: { action: "list" } });
     if (res.error || res.data?.error) {
-      toast({ title: "Could not load staff", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Could not load staff", description: fnErrorDescription(info), variant: "destructive" });
       setLoading(false);
       return;
     }
