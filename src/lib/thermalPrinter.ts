@@ -6,19 +6,186 @@
 import type { WashOrder } from "@/hooks/useOrders";
 
 // Known GATT service UUIDs used by common BT thermal printers.
-// We request several so most cheap ESC/POS printers are discoverable.
 const PRINTER_SERVICES: BluetoothServiceUUID[] = [
-  "000018f0-0000-1000-8000-00805f9b34fb", // Common ESC/POS (most cheap printers)
-  "0000ff00-0000-1000-8000-00805f9b34fb", // Older Chinese printers
+  "000018f0-0000-1000-8000-00805f9b34fb",
+  "0000ff00-0000-1000-8000-00805f9b34fb",
   "0000fee7-0000-1000-8000-00805f9b34fb",
   "0000ffe0-0000-1000-8000-00805f9b34fb",
-  "49535343-fe7d-4ae5-8fa9-9fafd205e455", // ISSC / Microchip
+  "49535343-fe7d-4ae5-8fa9-9fafd205e455",
 ];
 
 const STORAGE_KEY = "aquawash-thermal-printer";
-const LINE_WIDTH = 48; // 80mm @ Font A
+export const LINE_WIDTH = 48; // 80mm @ Font A
 
-// ESC/POS byte sequences -----------------------------------------------------
+// ── Receipt model ──────────────────────────────────────────────────────────
+export type ReceiptAlign = "left" | "center" | "right";
+
+export interface ReceiptLine {
+  kind: "text";
+  text: string;
+  align?: ReceiptAlign;
+  bold?: boolean;
+  double?: boolean;
+}
+export interface ReceiptRule { kind: "rule"; char: "-" | "="; }
+export interface ReceiptBlank { kind: "blank"; }
+export interface ReceiptCols { kind: "cols"; left: string; right: string; bold?: boolean; double?: boolean; }
+
+export type ReceiptSegment = ReceiptLine | ReceiptRule | ReceiptBlank | ReceiptCols;
+
+export interface ReceiptSettings {
+  businessName: string;
+  businessLine2: string;
+  footer: string;
+}
+
+export interface ReceiptBuildOpts {
+  settings: ReceiptSettings;
+  currencySymbol: string;
+  vatPercent: number; // 0 to disable VAT line
+}
+
+const DEFAULT_SETTINGS: ReceiptSettings = {
+  businessName: "AquaWash",
+  businessLine2: "Premium Car Wash",
+  footer: "Thank you for your business!",
+};
+
+export function getDefaultReceiptSettings(): ReceiptSettings {
+  return { ...DEFAULT_SETTINGS };
+}
+
+export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): ReceiptSegment[] {
+  const { settings, currencySymbol, vatPercent } = opts;
+  const segs: ReceiptSegment[] = [];
+
+  // Header
+  segs.push({ kind: "text", text: settings.businessName, align: "center", bold: true, double: true });
+  if (settings.businessLine2.trim()) {
+    segs.push({ kind: "text", text: settings.businessLine2, align: "center", bold: true });
+  }
+  segs.push({ kind: "blank" });
+
+  // Order info
+  segs.push({ kind: "cols", left: "Order:", right: order.orderNumber });
+  const completed = order.completedAt ? new Date(order.completedAt) : new Date();
+  segs.push({ kind: "cols", left: "Date:", right: completed.toLocaleDateString() });
+  segs.push({
+    kind: "cols",
+    left: "Time:",
+    right: completed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  });
+  segs.push({ kind: "rule", char: "-" });
+
+  // Customer
+  segs.push({ kind: "text", text: "CUSTOMER", bold: true });
+  segs.push({ kind: "text", text: order.customer });
+  if (order.customerPhone) segs.push({ kind: "text", text: order.customerPhone });
+  segs.push({ kind: "rule", char: "-" });
+
+  // Vehicle
+  segs.push({ kind: "text", text: "VEHICLE", bold: true });
+  segs.push({ kind: "text", text: order.vehicle });
+  segs.push({ kind: "text", text: `Plate: ${order.plate}` });
+  segs.push({ kind: "rule", char: "-" });
+
+  // Service / pricing
+  segs.push({ kind: "text", text: "SERVICE", bold: true });
+  const priceStr = `${currencySymbol}${order.servicePrice.toFixed(2)}`;
+  segs.push({ kind: "cols", left: order.service, right: priceStr });
+
+  if (vatPercent > 0) {
+    const sub = order.servicePrice / (1 + vatPercent / 100);
+    const vat = order.servicePrice - sub;
+    segs.push({ kind: "cols", left: "Subtotal", right: `${currencySymbol}${sub.toFixed(2)}` });
+    segs.push({ kind: "cols", left: `VAT (${vatPercent}%)`, right: `${currencySymbol}${vat.toFixed(2)}` });
+  }
+
+  segs.push({ kind: "rule", char: "=" });
+  segs.push({ kind: "cols", left: "TOTAL", right: priceStr, bold: true, double: true });
+  segs.push({ kind: "rule", char: "=" });
+
+  if (typeof order.waitMinutes === "number") {
+    segs.push({ kind: "text", text: `Service time: ${order.waitMinutes} min` });
+  }
+
+  if (order.notes && order.notes.trim()) {
+    segs.push({ kind: "blank" });
+    segs.push({ kind: "text", text: "Notes:", bold: true });
+    for (const line of wrap(order.notes.trim(), LINE_WIDTH)) {
+      segs.push({ kind: "text", text: line });
+    }
+  }
+
+  segs.push({ kind: "blank" });
+  if (settings.footer.trim()) {
+    for (const line of wrap(settings.footer.trim(), LINE_WIDTH)) {
+      segs.push({ kind: "text", text: line, align: "center" });
+    }
+  }
+
+  return segs;
+}
+
+// ── Plain-text rendering (used in preview) ─────────────────────────────────
+function wrap(text: string, width: number): string[] {
+  return text
+    .split(/\r?\n/)
+    .flatMap((para) => {
+      if (!para.trim()) return [""];
+      const words = para.split(/\s+/);
+      const out: string[] = [];
+      let line = "";
+      for (const w of words) {
+        const candidate = line ? `${line} ${w}` : w;
+        if (candidate.length > width) {
+          if (line) out.push(line);
+          line = w;
+        } else {
+          line = candidate;
+        }
+      }
+      if (line) out.push(line);
+      return out;
+    });
+}
+
+function colsLine(left: string, right: string, width: number): string {
+  if (left.length + right.length + 1 > width) {
+    // wrap left onto two lines
+    return left.slice(0, width) + "\n" + " ".repeat(Math.max(0, width - right.length)) + right;
+  }
+  const space = width - left.length - right.length;
+  return left + " ".repeat(space) + right;
+}
+
+function alignLine(text: string, align: ReceiptAlign | undefined, width: number): string {
+  if (!align || align === "left") return text;
+  if (text.length >= width) return text;
+  if (align === "center") {
+    const pad = Math.floor((width - text.length) / 2);
+    return " ".repeat(pad) + text;
+  }
+  return " ".repeat(width - text.length) + text;
+}
+
+/** Render the receipt as plain monospace text (for preview only). */
+export function renderReceiptText(model: ReceiptSegment[]): string {
+  const lines: string[] = [];
+  for (const s of model) {
+    if (s.kind === "blank") lines.push("");
+    else if (s.kind === "rule") lines.push(s.char.repeat(LINE_WIDTH));
+    else if (s.kind === "cols") {
+      const width = s.double ? Math.floor(LINE_WIDTH / 2) : LINE_WIDTH;
+      lines.push(colsLine(s.left, s.right, width));
+    } else {
+      lines.push(alignLine(s.text, s.align, LINE_WIDTH));
+    }
+  }
+  return lines.join("\n");
+}
+
+// ── ESC/POS rendering ──────────────────────────────────────────────────────
 const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
@@ -37,9 +204,7 @@ const CMD = {
   newline: new Uint8Array([LF]),
 };
 
-// Helpers --------------------------------------------------------------------
 const enc = new TextEncoder();
-
 function concat(parts: Uint8Array[]): Uint8Array {
   const total = parts.reduce((n, p) => n + p.length, 0);
   const out = new Uint8Array(total);
@@ -48,167 +213,73 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-function pad(s: string, len = LINE_WIDTH, char = " "): string {
-  if (s.length >= len) return s.slice(0, len);
-  return s + char.repeat(len - s.length);
-}
-
-function row(left: string, right: string, width = LINE_WIDTH): string {
-  const space = Math.max(1, width - left.length - right.length);
-  return left + " ".repeat(space) + right;
-}
-
-function rule(char = "-", width = LINE_WIDTH) {
-  return char.repeat(width) + "\n";
-}
-
-function wrap(text: string, width = LINE_WIDTH): string {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    if ((line + " " + w).trim().length > width) {
-      if (line) lines.push(line);
-      line = w;
-    } else {
-      line = (line ? line + " " : "") + w;
+export function renderReceiptBytes(model: ReceiptSegment[]): Uint8Array {
+  const parts: Uint8Array[] = [CMD.init];
+  const writeAlign = (a: ReceiptAlign | undefined) => {
+    parts.push(a === "center" ? CMD.alignCenter : a === "right" ? CMD.alignRight : CMD.alignLeft);
+  };
+  for (const s of model) {
+    if (s.kind === "blank") { parts.push(CMD.newline); continue; }
+    if (s.kind === "rule") {
+      writeAlign("left");
+      parts.push(enc.encode(s.char.repeat(LINE_WIDTH) + "\n"));
+      continue;
     }
+    if (s.kind === "cols") {
+      writeAlign("left");
+      if (s.bold) parts.push(CMD.boldOn);
+      if (s.double) parts.push(CMD.doubleOn);
+      const width = s.double ? Math.floor(LINE_WIDTH / 2) : LINE_WIDTH;
+      parts.push(enc.encode(colsLine(s.left, s.right, width) + "\n"));
+      if (s.double) parts.push(CMD.doubleOff);
+      if (s.bold) parts.push(CMD.boldOff);
+      continue;
+    }
+    writeAlign(s.align);
+    if (s.bold) parts.push(CMD.boldOn);
+    if (s.double) parts.push(CMD.doubleOn);
+    parts.push(enc.encode(s.text + "\n"));
+    if (s.double) parts.push(CMD.doubleOff);
+    if (s.bold) parts.push(CMD.boldOff);
   }
-  if (line) lines.push(line);
-  return lines.join("\n") + "\n";
-}
-
-// Receipt builder ------------------------------------------------------------
-export interface ReceiptOptions {
-  businessName?: string;
-  businessLine2?: string;
-  footer?: string;
-  currencySymbol?: string;
-  vatPercent?: number; // if > 0, show VAT line
-}
-
-export function buildReceiptBytes(order: WashOrder, opts: ReceiptOptions = {}): Uint8Array {
-  const {
-    businessName = "AquaWash",
-    businessLine2 = "Premium Car Wash",
-    footer = "Thank you for your business!",
-    currencySymbol = "R",
-    vatPercent = 0,
-  } = opts;
-
-  const parts: Uint8Array[] = [];
-  const text = (s: string) => parts.push(enc.encode(s));
-
-  parts.push(CMD.init);
-
-  // Header
-  parts.push(CMD.alignCenter, CMD.doubleOn, CMD.boldOn);
-  text(businessName + "\n");
-  parts.push(CMD.doubleOff);
-  if (businessLine2) text(businessLine2 + "\n");
-  parts.push(CMD.boldOff);
-  text("\n");
-
-  // Order info
-  parts.push(CMD.alignLeft);
-  text(row("Order:", order.orderNumber) + "\n");
-  const completed = order.completedAt ? new Date(order.completedAt) : new Date();
-  text(row("Date:", completed.toLocaleDateString()) + "\n");
-  text(row("Time:", completed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) + "\n");
-  text(rule());
-
-  // Customer
-  parts.push(CMD.boldOn);
-  text("CUSTOMER\n");
-  parts.push(CMD.boldOff);
-  text(order.customer + "\n");
-  if (order.customerPhone) text(order.customerPhone + "\n");
-  text(rule());
-
-  // Vehicle
-  parts.push(CMD.boldOn);
-  text("VEHICLE\n");
-  parts.push(CMD.boldOff);
-  text(order.vehicle + "\n");
-  text("Plate: " + order.plate + "\n");
-  text(rule());
-
-  // Service / total
-  parts.push(CMD.boldOn);
-  text("SERVICE\n");
-  parts.push(CMD.boldOff);
-  const priceStr = `${currencySymbol}${order.servicePrice.toFixed(2)}`;
-  text(row(order.service, priceStr) + "\n");
-
-  if (vatPercent > 0) {
-    const sub = order.servicePrice / (1 + vatPercent / 100);
-    const vat = order.servicePrice - sub;
-    text(row("Subtotal", `${currencySymbol}${sub.toFixed(2)}`) + "\n");
-    text(row(`VAT (${vatPercent}%)`, `${currencySymbol}${vat.toFixed(2)}`) + "\n");
-  }
-
-  text(rule("="));
-  parts.push(CMD.boldOn, CMD.doubleOn);
-  text(row("TOTAL", priceStr, Math.floor(LINE_WIDTH / 2)) + "\n");
-  parts.push(CMD.doubleOff, CMD.boldOff);
-  text(rule("="));
-
-  if (typeof order.waitMinutes === "number") {
-    text(`Service time: ${order.waitMinutes} min\n`);
-  }
-
-  if (order.notes && order.notes.trim()) {
-    text("\nNotes:\n");
-    text(wrap(order.notes.trim()));
-  }
-
-  // Footer
-  text("\n");
-  parts.push(CMD.alignCenter);
-  text(wrap(footer));
-  text("\n");
-
   parts.push(CMD.feed(3));
   parts.push(CMD.cut);
-
   return concat(parts);
 }
 
-// Bluetooth connection -------------------------------------------------------
-interface SavedPrinter { name?: string; id?: string; }
+// ── Bluetooth ──────────────────────────────────────────────────────────────
+interface SavedPrinter { name?: string; id?: string; pairedAt?: string; }
 
 function loadSaved(): SavedPrinter | null {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch { return null; }
 }
-
 function saveDevice(device: BluetoothDevice) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: device.name, id: device.id }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ name: device.name, id: device.id, pairedAt: new Date().toISOString() }),
+    );
   } catch {}
 }
-
-export function getSavedPrinterName(): string | null {
-  return loadSaved()?.name ?? null;
-}
-
-export function forgetPrinter() {
-  localStorage.removeItem(STORAGE_KEY);
-}
+export function getSavedPrinter(): SavedPrinter | null { return loadSaved(); }
+export function getSavedPrinterName(): string | null { return loadSaved()?.name ?? null; }
+export function forgetPrinter() { localStorage.removeItem(STORAGE_KEY); }
 
 export function isBluetoothSupported(): boolean {
   return typeof navigator !== "undefined" && !!(navigator as any).bluetooth;
 }
 
-async function findDevice(): Promise<BluetoothDevice> {
-  // Prefer previously-paired device if browser supports getDevices()
+async function findDevice(forcePicker = false): Promise<BluetoothDevice> {
   const bt: any = (navigator as any).bluetooth;
-  const saved = loadSaved();
-  if (saved?.id && typeof bt.getDevices === "function") {
-    try {
-      const devices: BluetoothDevice[] = await bt.getDevices();
-      const match = devices.find((d) => d.id === saved.id);
-      if (match) return match;
-    } catch { /* fall through to picker */ }
+  if (!forcePicker) {
+    const saved = loadSaved();
+    if (saved?.id && typeof bt.getDevices === "function") {
+      try {
+        const devices: BluetoothDevice[] = await bt.getDevices();
+        const match = devices.find((d) => d.id === saved.id);
+        if (match) return match;
+      } catch { /* fall through */ }
+    }
   }
   return bt.requestDevice({
     acceptAllDevices: true,
@@ -225,7 +296,7 @@ async function findWriteCharacteristic(server: BluetoothRemoteGATTServer) {
         (c) => c.properties.write || c.properties.writeWithoutResponse,
       );
       if (writable) return writable;
-    } catch { /* skip restricted services */ }
+    } catch { /* skip */ }
   }
   throw new Error("No writable characteristic on this device.");
 }
@@ -238,17 +309,24 @@ async function writeChunks(
   const useNoResponse = characteristic.properties.writeWithoutResponse;
   for (let i = 0; i < data.length; i += chunkSize) {
     const slice = data.slice(i, i + chunkSize);
-    if (useNoResponse) {
-      await characteristic.writeValueWithoutResponse(slice);
-    } else {
-      await characteristic.writeValue(slice);
-    }
-    // Small breather lets cheap printers' buffers drain
+    if (useNoResponse) await characteristic.writeValueWithoutResponse(slice);
+    else await characteristic.writeValue(slice);
     await new Promise((r) => setTimeout(r, 20));
   }
 }
 
-export async function printReceipt(order: WashOrder, opts?: ReceiptOptions): Promise<string> {
+/** Pair a new device. Returns the device name. */
+export async function pairPrinter(): Promise<string> {
+  if (!isBluetoothSupported()) {
+    throw new Error("Web Bluetooth is not available in this browser.");
+  }
+  const device = await findDevice(true);
+  saveDevice(device);
+  return device.name || "Unnamed printer";
+}
+
+/** Send raw bytes to the (saved or newly-picked) printer. */
+export async function sendToPrinter(bytes: Uint8Array): Promise<string> {
   if (!isBluetoothSupported()) {
     throw new Error(
       "Web Bluetooth is not available in this browser. Use Chrome on Android/desktop, or Bluefy on iOS.",
@@ -259,10 +337,15 @@ export async function printReceipt(order: WashOrder, opts?: ReceiptOptions): Pro
   const server = await device.gatt!.connect();
   try {
     const characteristic = await findWriteCharacteristic(server);
-    const bytes = buildReceiptBytes(order, opts);
     await writeChunks(characteristic, bytes);
     return device.name || "printer";
   } finally {
     try { server.disconnect(); } catch { /* noop */ }
   }
+}
+
+/** Convenience: build + send a receipt. */
+export async function printReceipt(order: WashOrder, opts: ReceiptBuildOpts): Promise<string> {
+  const model = buildReceiptModel(order, opts);
+  return sendToPrinter(renderReceiptBytes(model));
 }
