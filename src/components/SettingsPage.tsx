@@ -436,8 +436,6 @@ function WorkersSection() {
     </div>
   );
 }
-  );
-}
 
 /* ───── Logo Uploader ───── */
 const LOGO_TARGET = 256;
