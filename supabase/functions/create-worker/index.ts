@@ -1,0 +1,132 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Verify caller is admin
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const anonClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claims, error: claimsErr } = await anonClient.auth.getClaims(token);
+    if (claimsErr || !claims?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const callerId = claims.claims.sub as string;
+
+    // Check caller is admin
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: callerRole } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId)
+      .maybeSingle();
+
+    if (callerRole?.role !== "admin") {
+      return new Response(JSON.stringify({ error: "Only admins can create workers" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { email, password, name, role, phone, pin } = await req.json();
+
+    if (!email || !password || !name || !role) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const validRoles = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
+    if (!validRoles.includes(role)) {
+      return new Response(JSON.stringify({ error: "Invalid role" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Create auth user
+    const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name },
+    });
+
+    if (createErr) {
+      return new Response(JSON.stringify({ error: createErr.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Assign role
+    const { error: roleErr } = await adminClient.from("user_roles").insert({
+      user_id: newUser.user.id,
+      role,
+    });
+
+    if (roleErr) {
+      return new Response(JSON.stringify({ error: roleErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Optional phone + PIN for PIN-based login
+    if (phone && pin && /^\d{4,6}$/.test(String(pin))) {
+      const pin_hash = await bcrypt.hash(String(pin));
+      const normalizedPhone = String(phone).replace(/\s+/g, "");
+      const { error: pinErr } = await adminClient.from("staff_pins").insert({
+        user_id: newUser.user.id,
+        phone: normalizedPhone,
+        pin_hash,
+      });
+      if (pinErr) {
+        return new Response(JSON.stringify({ error: `User created but PIN failed: ${pinErr.message}`, user_id: newUser.user.id }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, user_id: newUser.user.id }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
