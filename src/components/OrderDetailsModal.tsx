@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
+import { PrintReceiptButton } from "@/components/PrintReceiptButton";
 
 interface OrderDetailsModalProps {
   order: WashOrder | null;
@@ -158,37 +159,42 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
             )}
           </div>
 
-          {onUpdateStatus && nextStatus && (
-            <div className="flex justify-end gap-2 pt-2">
+          {(onUpdateStatus && nextStatus) || order.status === "completed" ? (
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              {order.status === "completed" && (
+                <PrintReceiptButton order={order} variant="ghost" className="mr-auto" />
+              )}
               <button
                 onClick={() => onOpenChange(false)}
                 className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 Close
               </button>
-              <button
-                onClick={() => {
-                  onUpdateStatus(order.id, nextStatus);
-                  if (nextStatus === "completed") onOpenChange(false);
-                }}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity ${
-                  nextStatus === "completed"
-                    ? "bg-success text-success-foreground"
-                    : "bg-primary text-primary-foreground"
-                }`}
-              >
-                {nextStatus === "completed" ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" /> Mark Complete
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" /> Start Wash
-                  </>
-                )}
-              </button>
+              {onUpdateStatus && nextStatus && (
+                <button
+                  onClick={() => {
+                    onUpdateStatus(order.id, nextStatus);
+                    if (nextStatus === "completed") onOpenChange(false);
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity ${
+                    nextStatus === "completed"
+                      ? "bg-success text-success-foreground"
+                      : "bg-primary text-primary-foreground"
+                  }`}
+                >
+                  {nextStatus === "completed" ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Mark Complete
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" /> Start Wash
+                    </>
+                  )}
+                </button>
+              )}
             </div>
-          )}
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

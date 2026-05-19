@@ -399,8 +399,37 @@ const Index = () => {
         onConfirmed={async () => {
           if (!pendingComplete) return;
           const id = pendingComplete.id;
+          const customer = pendingComplete.customer;
           setPendingComplete(null);
           await updateStatus(id, "completed");
+          // Offer to print a thermal receipt for the just-completed job
+          const { toast } = await import("sonner");
+          const { printReceipt, isBluetoothSupported } = await import("@/lib/thermalPrinter");
+          toast.success(`Wash complete for ${customer}`, {
+            description: "Print a Bluetooth receipt?",
+            duration: 8000,
+            action: {
+              label: "Print receipt",
+              onClick: async () => {
+                if (!isBluetoothSupported()) {
+                  toast.error("Bluetooth printing not supported in this browser.");
+                  return;
+                }
+                // Pull the freshly-updated order from state
+                const fresh = orders.find((o) => o.id === id);
+                if (!fresh) {
+                  toast.error("Order not found");
+                  return;
+                }
+                try {
+                  const name = await printReceipt(fresh);
+                  toast.success(`Receipt sent to ${name}`);
+                } catch (err: any) {
+                  toast.error("Print failed", { description: err?.message || "Unknown error" });
+                }
+              },
+            },
+          });
         }}
       />
 
