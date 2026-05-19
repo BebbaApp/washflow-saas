@@ -105,7 +105,8 @@ Deno.serve(async (req) => {
 
     // Optional phone + PIN for PIN-based login
     if (phone && pin && /^\d{4,6}$/.test(String(pin))) {
-      const pin_hash = await bcrypt.hash(String(pin));
+      const salt = bcrypt.genSaltSync(8);
+      const pin_hash = bcrypt.hashSync(String(pin), salt);
       const normalizedPhone = String(phone).replace(/\s+/g, "");
       const { error: pinErr } = await adminClient.from("staff_pins").insert({
         user_id: newUser.user.id,
