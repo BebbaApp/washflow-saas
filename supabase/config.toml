@@ -1,9 +1,12 @@
-project_id = "cypvhsqyvxxcknmqltqj"
+project_id = "kldcnrnkyurwcbxvnhku"
 
 [functions.create-worker]
 verify_jwt = false
 
 [functions.pin-login]
+verify_jwt = false
+
+[functions.manage-staff]
 verify_jwt = false
 
 [functions.verify-attendance-face]
