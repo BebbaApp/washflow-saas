@@ -8,6 +8,25 @@ const corsHeaders = {
 };
 
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
+const FUNCTION_VERSION = "manage-staff-pin-actions-2026-05-19";
+const ACTION_ALIASES: Record<string, string> = {
+  list_staff: "list",
+  staff_list: "list",
+  set_pin: "set_pin",
+  setPin: "set_pin",
+  save_pin: "set_pin",
+  savePin: "set_pin",
+  update_pin: "set_pin",
+  updatePin: "set_pin",
+  clear_pin: "clear_pin",
+  clearPin: "clear_pin",
+  remove_pin: "clear_pin",
+  removePin: "clear_pin",
+  update_role: "update_role",
+  updateRole: "update_role",
+  delete_user: "delete",
+  deleteUser: "delete",
+};
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -46,7 +65,9 @@ Deno.serve(async (req) => {
     if (!isAdmin) return json({ error: "Only admins can manage staff" }, 403);
 
     const body = await req.json().catch(() => ({}));
-    const action = body?.action as string;
+    const requestedAction = typeof body?.action === "string" ? body.action.trim() : "";
+    const inferredAction = !requestedAction && body?.user_id && body?.phone && body?.pin ? "set_pin" : "";
+    const action = ACTION_ALIASES[requestedAction] ?? inferredAction;
 
     if (action === "list") {
       const { data: usersList, error: usersErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
@@ -148,7 +169,12 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    return json({ error: "Unknown action" }, 400);
+    return json({
+      error: "Unknown action",
+      action: requestedAction || null,
+      function_version: FUNCTION_VERSION,
+      accepted_actions: ["list", "set_pin", "clear_pin", "update_role", "delete"],
+    }, 400);
   } catch (err) {
     return json({ error: (err as Error).message }, 500);
   }
