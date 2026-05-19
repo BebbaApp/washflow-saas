@@ -61,11 +61,10 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
       });
       if (invokeErr || data?.error) {
         setError(data?.error || invokeErr?.message || "Login failed");
-      } else if (data?.email && data?.token_hash) {
+      } else if (data?.token_hash) {
         const { error: verifyErr } = await supabase.auth.verifyOtp({
-          type: "magiclink",
-          email: data.email,
           token_hash: data.token_hash,
+          type: "magiclink",
         });
         if (verifyErr) setError(verifyErr.message);
       }
