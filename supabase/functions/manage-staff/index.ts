@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
-const FUNCTION_VERSION = "manage-staff-pin-actions-2026-05-19";
+const FUNCTION_VERSION = "manage-staff-pin-actions-2026-05-19-r2";
 const ACTION_ALIASES: Record<string, string> = {
   list_staff: "list",
   staff_list: "list",
