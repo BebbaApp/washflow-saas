@@ -230,18 +230,28 @@ const Index = () => {
       </aside>
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center overflow-hidden">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center overflow-hidden shrink-0">
             {logo ? (
               <img src={logo} alt="App logo" className="w-full h-full object-contain" />
             ) : (
               <Droplets className="w-4 h-4 text-primary-foreground" />
             )}
           </div>
-          <span className="font-bold text-foreground truncate max-w-[40vw]">{workspaceName}</span>
+          <span className="font-bold text-foreground truncate" title={workspaceName}>{workspaceName}</span>
+          {tenant?.status === "trialing" && daysUntilTrialEnd !== null && (
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              Trial · {Math.max(daysUntilTrialEnd, 0)}d
+            </span>
+          )}
+          {tenant?.status === "past_due" && (
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+              Past due
+            </span>
+          )}
         </div>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground">
+        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground shrink-0">
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
