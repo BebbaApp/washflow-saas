@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,12 +53,14 @@ Deno.serve(async (req) => {
       if (usersErr) return json({ error: usersErr.message }, 500);
 
       const ids = usersList.users.map((u) => u.id);
-      const [{ data: profiles }, { data: roles }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: pins }] = await Promise.all([
         adminClient.from("profiles").select("user_id,name").in("user_id", ids),
         adminClient.from("user_roles").select("user_id,role").in("user_id", ids),
+        adminClient.from("staff_pins").select("user_id,phone").in("user_id", ids),
       ]);
 
       const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p.name]));
+      const pinMap = new Map((pins ?? []).map((p) => [p.user_id, p.phone]));
       const rolesMap = new Map<string, string[]>();
       (roles ?? []).forEach((r) => {
         const arr = rolesMap.get(r.user_id) ?? [];
@@ -75,12 +78,45 @@ Deno.serve(async (req) => {
           name: profileMap.get(u.id) ?? (u.user_metadata?.name as string) ?? "",
           role: primary,
           roles: userRoles,
+          phone: pinMap.get(u.id) ?? null,
+          has_pin: pinMap.has(u.id),
           email_confirmed: !!u.email_confirmed_at,
           created_at: u.created_at,
         };
       });
 
       return json({ users });
+    }
+
+    if (action === "set_pin") {
+      const { user_id, phone, pin } = body;
+      if (!user_id || !phone || !pin) return json({ error: "user_id, phone and pin are required" }, 400);
+      if (!/^\d{4,6}$/.test(String(pin))) return json({ error: "PIN must be 4-6 digits" }, 400);
+      const normalizedPhone = String(phone).replace(/\s+/g, "");
+      const pin_hash = await bcrypt.hash(String(pin));
+      // Ensure phone uniqueness across other users
+      const { data: existing } = await adminClient
+        .from("staff_pins")
+        .select("user_id")
+        .eq("phone", normalizedPhone)
+        .maybeSingle();
+      if (existing && existing.user_id !== user_id) {
+        return json({ error: "This phone number is already used by another worker" }, 400);
+      }
+      await adminClient.from("staff_pins").delete().eq("user_id", user_id);
+      const { error } = await adminClient
+        .from("staff_pins")
+        .insert({ user_id, phone: normalizedPhone, pin_hash });
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true });
+    }
+
+    if (action === "clear_pin") {
+      const { user_id } = body;
+      if (!user_id) return json({ error: "Missing user_id" }, 400);
+      const { error } = await adminClient.from("staff_pins").delete().eq("user_id", user_id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true });
     }
 
     if (action === "update_role") {

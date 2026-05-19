@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck } from "lucide-react";
+import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone } from "lucide-react";
 import { RolePermissions } from "@/components/RolePermissions";
 import { useAppLogo } from "@/hooks/useAppLogo";
 import { Input } from "@/components/ui/input";
@@ -93,6 +93,8 @@ interface StaffUser {
   role: WorkerRole | null;
   email_confirmed: boolean;
   created_at: string;
+  phone?: string | null;
+  has_pin?: boolean;
 }
 
 function WorkersSection() {
@@ -114,6 +116,56 @@ function WorkersSection() {
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<WorkerRole>("washer");
   const [creating, setCreating] = useState(false);
+
+  // PIN management for existing workers
+  const [pinTarget, setPinTarget] = useState<StaffUser | null>(null);
+  const [pinPhone, setPinPhone] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
+
+  const openPinDialog = (u: StaffUser) => {
+    setPinTarget(u);
+    setPinPhone(u.phone ?? "");
+    setNewPin("");
+  };
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pinTarget) return;
+    if (!pinPhone.trim() || !/^\d{4,6}$/.test(newPin)) {
+      toast({ title: "Enter a phone number and a 4-6 digit PIN", variant: "destructive" });
+      return;
+    }
+    setSavingPin(true);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: { action: "set_pin", user_id: pinTarget.id, phone: pinPhone.trim(), pin: newPin },
+    });
+    setSavingPin(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Could not set PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "PIN updated", description: `${pinTarget.name || pinTarget.email} can now log in with phone + PIN` });
+    setUsers((prev) => prev.map((x) => x.id === pinTarget.id ? { ...x, phone: pinPhone.trim(), has_pin: true } : x));
+    setPinTarget(null);
+  };
+
+  const handleClearPin = async () => {
+    if (!pinTarget) return;
+    if (!confirm(`Remove phone + PIN login for ${pinTarget.name || pinTarget.email}?`)) return;
+    setSavingPin(true);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: { action: "clear_pin", user_id: pinTarget.id },
+    });
+    setSavingPin(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Could not remove PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "PIN removed" });
+    setUsers((prev) => prev.map((x) => x.id === pinTarget.id ? { ...x, phone: null, has_pin: false } : x));
+    setPinTarget(null);
+  };
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -222,7 +274,25 @@ function WorkersSection() {
                 <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
                   <Mail className="w-3 h-3" /> {u.email}
                 </p>
+                {u.has_pin && u.phone && (
+                  <p className="text-[11px] text-primary flex items-center gap-1 truncate mt-0.5">
+                    <Smartphone className="w-3 h-3" /> PIN login: {u.phone}
+                  </p>
+                )}
               </div>
+
+              <button
+                onClick={() => openPinDialog(u)}
+                title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
+                className={`h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                  u.has_pin
+                    ? "bg-primary/10 text-primary hover:bg-primary/20"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                {u.has_pin ? "PIN set" : "Set PIN"}
+              </button>
 
               <Select
                 value={u.role ?? ""}
@@ -302,6 +372,64 @@ function WorkersSection() {
               {creating && <Loader2 className="w-4 h-4 animate-spin" />}
               {creating ? "Creating..." : "Add Worker"}
             </button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pinTarget} onOpenChange={(open) => !open && setPinTarget(null)}>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary" />
+              {pinTarget?.has_pin ? "Update PIN login" : "Set up PIN login"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSavePin} className="space-y-4 mt-2">
+            <p className="text-xs text-muted-foreground">
+              Allow <span className="text-foreground font-medium">{pinTarget?.name || pinTarget?.email}</span> to log in with a phone number and PIN instead of email + password.
+            </p>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Phone Number</Label>
+              <Input
+                value={pinPhone}
+                onChange={(e) => setPinPhone(e.target.value)}
+                placeholder="+1 234 567 8900"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">New PIN</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="4-6 digits"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground tracking-widest"
+              />
+              <p className="text-xs text-muted-foreground">The PIN is hashed before being stored. The worker won't see the old PIN.</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                disabled={savingPin}
+                className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {savingPin && <Loader2 className="w-4 h-4 animate-spin" />}
+                {savingPin ? "Saving..." : "Save PIN"}
+              </button>
+              {pinTarget?.has_pin && (
+                <button
+                  type="button"
+                  onClick={handleClearPin}
+                  disabled={savingPin}
+                  className="px-3 py-2.5 rounded-lg bg-secondary text-destructive font-medium text-sm hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
           </form>
         </DialogContent>
       </Dialog>
