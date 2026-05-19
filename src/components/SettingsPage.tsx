@@ -62,9 +62,10 @@ export function SettingsPage() {
     { id: "currency" as const, label: "Currency", icon: DollarSign, perm: "settings.currency" },
     { id: "receipt" as const, label: "Receipt", icon: FileText, perm: "settings.currency" },
     { id: "printer" as const, label: "Printer", icon: Printer, perm: "settings.currency" },
+    { id: "billing" as const, label: "Billing", icon: CreditCard, perm: "settings.workers" },
   ]).filter((t) => can(t.perm));
 
-  const [section, setSection] = useState<"workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer">(
+  const [section, setSection] = useState<"workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing">(
     (tabs[0]?.id as any) ?? "workers",
   );
 
