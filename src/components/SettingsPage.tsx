@@ -93,6 +93,8 @@ interface StaffUser {
   role: WorkerRole | null;
   email_confirmed: boolean;
   created_at: string;
+  phone?: string | null;
+  has_pin?: boolean;
 }
 
 function WorkersSection() {
