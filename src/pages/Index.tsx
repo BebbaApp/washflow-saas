@@ -239,7 +239,7 @@ const Index = () => {
               <Droplets className="w-4 h-4 text-primary-foreground" />
             )}
           </div>
-          <span className="font-bold text-foreground">AquaWash</span>
+          <span className="font-bold text-foreground truncate max-w-[40vw]">{workspaceName}</span>
         </div>
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground">
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
