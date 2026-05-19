@@ -103,11 +103,11 @@ Deno.serve(async (req) => {
     // ============================================================
     // Gemini face comparison via Google's OpenAI-compatible endpoint
     // ============================================================
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) return json({ error: "AI not configured" }, 500);
 
     const aiResp = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       {
         method: "POST",
         headers: {
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "gemini-flash-latest",
           messages: [
             {
               role: "system",
