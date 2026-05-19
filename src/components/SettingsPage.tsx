@@ -214,7 +214,8 @@ function WorkersSection() {
     });
     setSavingId(null);
     if (res.error || res.data?.error) {
-      toast({ title: "Failed to update role", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Failed to update role", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
