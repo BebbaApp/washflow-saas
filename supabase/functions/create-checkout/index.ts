@@ -86,6 +86,13 @@ Deno.serve(async (req) => {
       await admin.from("tenants").update({ stripe_customer_id: customerId }).eq("id", tenant.id);
     }
 
+    // Hard-assert metadata so every Checkout session carries tenant_id + plan_id.
+    // The webhook relies on these to map back to the right tenant/plan.
+    const metadata = { tenant_id: tenant.id, plan_id: plan.id, plan_code: plan.code };
+    if (!metadata.tenant_id || !metadata.plan_id || !metadata.plan_code) {
+      return json({ error: "Failed to resolve tenant/plan mapping for checkout metadata" }, 500);
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -94,10 +101,8 @@ Deno.serve(async (req) => {
       cancel_url,
       allow_promotion_codes: true,
       client_reference_id: tenant.id,
-      subscription_data: {
-        metadata: { tenant_id: tenant.id, plan_id: plan.id, plan_code: plan.code },
-      },
-      metadata: { tenant_id: tenant.id, plan_id: plan.id, plan_code: plan.code },
+      subscription_data: { metadata },
+      metadata,
     });
 
     return json({ url: session.url, id: session.id }, 200);
