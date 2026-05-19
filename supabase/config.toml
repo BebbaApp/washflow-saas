@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.verify-attendance-face]
 verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
