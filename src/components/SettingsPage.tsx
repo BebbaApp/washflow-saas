@@ -67,7 +67,7 @@ export function SettingsPage() {
     { id: "workspace" as const, label: "Workspace", icon: Building2, perm: "settings.workers" },
   ]).filter((t) => can(t.perm));
 
-  const [section, setSection] = useState<"workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing">(
+  const [section, setSection] = useState<"workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace">(
     (tabs[0]?.id as any) ?? "workers",
   );
 
