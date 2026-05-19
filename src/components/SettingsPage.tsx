@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck } from "lucide-react";
+import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone } from "lucide-react";
 import { RolePermissions } from "@/components/RolePermissions";
 import { useAppLogo } from "@/hooks/useAppLogo";
 import { Input } from "@/components/ui/input";
