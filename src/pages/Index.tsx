@@ -58,8 +58,9 @@ const Index = () => {
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const { orders, addOrder, updateStatus, updateNotes } = useOrders();
-  const { user, login, signup, logout, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
+  const { user, login, signup, logout, updateProfile, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { processCompletedOrders } = useInventory();
   const { logo } = useAppLogo();
