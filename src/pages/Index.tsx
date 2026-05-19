@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Login from "@/pages/Login";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTenant } from "@/hooks/useTenant";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
