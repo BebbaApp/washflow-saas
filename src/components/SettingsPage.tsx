@@ -26,6 +26,26 @@ const ROLE_OPTIONS: { value: WorkerRole; label: string }[] = [
   { value: "admin", label: "Admin" },
 ];
 
+async function extractFnError(res: { error: any; data: any }): Promise<{ message: string; version?: string; accepted?: string[] }> {
+  let payload: any = res.data && res.data.error ? res.data : null;
+  if (!payload && res.error) {
+    try {
+      const resp = (res.error as any)?.context?.response ?? (res.error as any)?.context;
+      if (resp && typeof resp.json === "function") payload = await resp.clone().json();
+      else if (resp && typeof resp.text === "function") payload = JSON.parse(await resp.clone().text());
+    } catch { /* ignore */ }
+  }
+  const message = payload?.error || res.error?.message || "Unknown error";
+  return { message, version: payload?.function_version, accepted: payload?.accepted_actions };
+}
+
+function fnErrorDescription(info: { message: string; version?: string; accepted?: string[] }): string {
+  const parts = [info.message];
+  if (info.version) parts.push(`version: ${info.version}`);
+  if (info.accepted?.length) parts.push(`accepts: ${info.accepted.join(", ")}`);
+  return parts.join(" • ");
+}
+
 export function SettingsPage() {
   const { can } = usePermissions();
   const tabs = ([
@@ -142,7 +162,8 @@ function WorkersSection() {
     });
     setSavingPin(false);
     if (res.error || res.data?.error) {
-      toast({ title: "Could not set PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Could not set PIN", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     toast({ title: "PIN updated", description: `${pinTarget.name || pinTarget.email} can now log in with phone + PIN` });
@@ -159,7 +180,8 @@ function WorkersSection() {
     });
     setSavingPin(false);
     if (res.error || res.data?.error) {
-      toast({ title: "Could not remove PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Could not remove PIN", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     toast({ title: "PIN removed" });
@@ -174,7 +196,8 @@ function WorkersSection() {
 
     const res = await supabase.functions.invoke("manage-staff", { body: { action: "list" } });
     if (res.error || res.data?.error) {
-      toast({ title: "Could not load staff", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Could not load staff", description: fnErrorDescription(info), variant: "destructive" });
       setLoading(false);
       return;
     }
@@ -191,7 +214,8 @@ function WorkersSection() {
     });
     setSavingId(null);
     if (res.error || res.data?.error) {
-      toast({ title: "Failed to update role", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Failed to update role", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
@@ -206,7 +230,8 @@ function WorkersSection() {
     });
     setDeletingId(null);
     if (res.error || res.data?.error) {
-      toast({ title: "Delete failed", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Delete failed", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     setUsers((prev) => prev.filter((x) => x.id !== u.id));
