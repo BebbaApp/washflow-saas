@@ -14,6 +14,7 @@ import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { LoyaltyDashboard } from "@/components/LoyaltyDashboard";
 import { SchedulingDashboard } from "@/components/SchedulingDashboard";
 import { SettingsPage } from "@/components/SettingsPage";
+import { TenantSwitcher } from "@/components/TenantSwitcher";
 import { ComingSoon } from "@/components/ComingSoon";
 import { HistoryPage } from "@/components/HistoryPage";
 import { InventoryPage } from "@/components/InventoryPage";
