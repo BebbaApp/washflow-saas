@@ -274,7 +274,25 @@ function WorkersSection() {
                 <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
                   <Mail className="w-3 h-3" /> {u.email}
                 </p>
+                {u.has_pin && u.phone && (
+                  <p className="text-[11px] text-primary flex items-center gap-1 truncate mt-0.5">
+                    <Smartphone className="w-3 h-3" /> PIN login: {u.phone}
+                  </p>
+                )}
               </div>
+
+              <button
+                onClick={() => openPinDialog(u)}
+                title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
+                className={`h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                  u.has_pin
+                    ? "bg-primary/10 text-primary hover:bg-primary/20"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                {u.has_pin ? "PIN set" : "Set PIN"}
+              </button>
 
               <Select
                 value={u.role ?? ""}
