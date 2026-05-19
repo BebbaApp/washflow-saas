@@ -1,38 +1,25 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// manage-staff edge function — rebuilt from scratch
+// Deployed via the connected Supabase project.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
+
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-19";
+const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
+const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
-const FUNCTION_VERSION = "manage-staff-pin-actions-2026-05-19-r2";
-const ACTION_ALIASES: Record<string, string> = {
-  list_staff: "list",
-  staff_list: "list",
-  set_pin: "set_pin",
-  setPin: "set_pin",
-  save_pin: "set_pin",
-  savePin: "set_pin",
-  update_pin: "set_pin",
-  updatePin: "set_pin",
-  clear_pin: "clear_pin",
-  clearPin: "clear_pin",
-  remove_pin: "clear_pin",
-  removePin: "clear_pin",
-  update_role: "update_role",
-  updateRole: "update_role",
-  delete_user: "delete",
-  deleteUser: "delete",
-};
-
-function json(body: unknown, status = 200) {
-  const payload = (body && typeof body === "object" && (body as any).error)
-    ? { ...(body as object), function_version: FUNCTION_VERSION, accepted_actions: ["list", "set_pin", "clear_pin", "update_role", "delete"] }
-    : body;
-  return new Response(JSON.stringify(payload), {
+function reply(body: Record<string, unknown>, status = 200) {
+  const enriched =
+    body.error !== undefined
+      ? { ...body, function_version: FUNCTION_VERSION, accepted_actions: ACCEPTED_ACTIONS }
+      : body;
+  return new Response(JSON.stringify(enriched), {
     status,
     headers: {
       ...corsHeaders,
@@ -42,69 +29,102 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Normalize any incoming action string to a canonical action name.
+function normalizeAction(raw: unknown, body: Record<string, any>): string {
+  const s = String(raw ?? "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+  const map: Record<string, string> = {
+    list: "list",
+    list_staff: "list",
+    list_users: "list",
+    staff_list: "list",
+    get_staff: "list",
+
+    set_pin: "set_pin",
+    save_pin: "set_pin",
+    update_pin: "set_pin",
+    create_pin: "set_pin",
+    upsert_pin: "set_pin",
+
+    clear_pin: "clear_pin",
+    remove_pin: "clear_pin",
+    delete_pin: "clear_pin",
+
+    update_role: "update_role",
+    set_role: "update_role",
+    change_role: "update_role",
+
+    delete: "delete",
+    delete_user: "delete",
+    remove_user: "delete",
+  };
+  if (map[s]) return map[s];
+  // Infer from payload shape if no/unknown action.
+  if (body?.user_id && body?.pin) return "set_pin";
+  if (body?.user_id && body?.role && !body?.pin) return "update_role";
+  return "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) return reply({ error: "Unauthorized" }, 401);
 
-    const anonClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser(
+      authHeader.replace("Bearer ", "")
     );
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsErr } = await anonClient.auth.getClaims(token);
-    if (claimsErr || !claims?.claims) return json({ error: "Unauthorized" }, 401);
-    const callerId = claims.claims.sub as string;
+    if (userErr || !userData?.user) return reply({ error: "Unauthorized" }, 401);
+    const callerId = userData.user.id;
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const { data: callerRoles } = await adminClient
+    const { data: callerRoles } = await admin
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId);
-    const isAdmin = (callerRoles ?? []).some((r) => r.role === "admin");
-    if (!isAdmin) return json({ error: "Only admins can manage staff" }, 403);
+    if (!(callerRoles ?? []).some((r: any) => r.role === "admin")) {
+      return reply({ error: "Only admins can manage staff" }, 403);
+    }
 
     const body = await req.json().catch(() => ({}));
-    const requestedAction = typeof body?.action === "string" ? body.action.trim() : "";
-    const inferredAction = !requestedAction && body?.user_id && body?.phone && body?.pin ? "set_pin" : "";
-    const action = ACTION_ALIASES[requestedAction] ?? inferredAction;
+    const action = normalizeAction(body?.action, body);
+
+    if (!action) {
+      return reply({ error: "Unknown action", received: body?.action ?? null }, 400);
+    }
 
     if (action === "list") {
-      const { data: usersList, error: usersErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-      if (usersErr) return json({ error: usersErr.message }, 500);
-
-      const ids = usersList.users.map((u) => u.id);
+      const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (error) return reply({ error: error.message }, 500);
+      const ids = list.users.map((u) => u.id);
       const [{ data: profiles }, { data: roles }, { data: pins }] = await Promise.all([
-        adminClient.from("profiles").select("user_id,name").in("user_id", ids),
-        adminClient.from("user_roles").select("user_id,role").in("user_id", ids),
-        adminClient.from("staff_pins").select("user_id,phone").in("user_id", ids),
+        admin.from("profiles").select("user_id,name").in("user_id", ids),
+        admin.from("user_roles").select("user_id,role").in("user_id", ids),
+        admin.from("staff_pins").select("user_id,phone").in("user_id", ids),
       ]);
-
-      const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p.name]));
-      const pinMap = new Map((pins ?? []).map((p) => [p.user_id, p.phone]));
-      const rolesMap = new Map<string, string[]>();
-      (roles ?? []).forEach((r) => {
-        const arr = rolesMap.get(r.user_id) ?? [];
+      const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
+      const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
+      const rMap = new Map<string, string[]>();
+      (roles ?? []).forEach((r: any) => {
+        const arr = rMap.get(r.user_id) ?? [];
         arr.push(r.role);
-        rolesMap.set(r.user_id, arr);
+        rMap.set(r.user_id, arr);
       });
-      const priority = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-
-      const users = usersList.users.map((u) => {
-        const userRoles = rolesMap.get(u.id) ?? [];
-        const primary = priority.find((p) => userRoles.includes(p)) ?? null;
+      const users = list.users.map((u) => {
+        const userRoles = rMap.get(u.id) ?? [];
         return {
           id: u.id,
           email: u.email ?? "",
-          name: profileMap.get(u.id) ?? (u.user_metadata?.name as string) ?? "",
-          role: primary,
+          name: pMap.get(u.id) ?? (u.user_metadata?.name as string) ?? "",
+          role: ROLE_PRIORITY.find((p) => userRoles.includes(p)) ?? null,
           roles: userRoles,
           phone: pinMap.get(u.id) ?? null,
           has_pin: pinMap.has(u.id),
@@ -112,77 +132,74 @@ Deno.serve(async (req) => {
           created_at: u.created_at,
         };
       });
-
-      return json({ users });
+      return reply({ users });
     }
 
     if (action === "set_pin") {
-      const { user_id, phone, pin } = body;
-      if (!user_id || !phone || !pin) return json({ error: "user_id, phone and pin are required" }, 400);
-      if (!/^\d{4,6}$/.test(String(pin))) return json({ error: "PIN must be 4-6 digits" }, 400);
+      const { user_id, phone, pin } = body ?? {};
+      if (!user_id || !phone || !pin) {
+        return reply({ error: "user_id, phone and pin are required" }, 400);
+      }
+      if (!/^\d{4,6}$/.test(String(pin))) {
+        return reply({ error: "PIN must be 4-6 digits" }, 400);
+      }
       const normalizedPhone = String(phone).replace(/\s+/g, "");
-      const salt = bcrypt.genSaltSync(8);
-      const pin_hash = bcrypt.hashSync(String(pin), salt);
-      // Ensure phone uniqueness across other users
-      const { data: existing } = await adminClient
+      const pin_hash = bcrypt.hashSync(String(pin), bcrypt.genSaltSync(8));
+      const { data: existing } = await admin
         .from("staff_pins")
         .select("user_id")
         .eq("phone", normalizedPhone)
         .maybeSingle();
       if (existing && existing.user_id !== user_id) {
-        return json({ error: "This phone number is already used by another worker" }, 400);
+        return reply({ error: "This phone number is already used by another worker" }, 400);
       }
-      await adminClient.from("staff_pins").delete().eq("user_id", user_id);
-      const { error } = await adminClient
+      await admin.from("staff_pins").delete().eq("user_id", user_id);
+      const { error } = await admin
         .from("staff_pins")
         .insert({ user_id, phone: normalizedPhone, pin_hash });
-      if (error) return json({ error: error.message }, 500);
-      return json({ success: true });
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
     }
 
     if (action === "clear_pin") {
-      const { user_id } = body;
-      if (!user_id) return json({ error: "Missing user_id" }, 400);
-      const { error } = await adminClient.from("staff_pins").delete().eq("user_id", user_id);
-      if (error) return json({ error: error.message }, 500);
-      return json({ success: true });
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      const { error } = await admin.from("staff_pins").delete().eq("user_id", user_id);
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
     }
 
     if (action === "update_role") {
-      const { user_id, role } = body;
-      if (!user_id || !VALID_ROLES.includes(role)) return json({ error: "Invalid input" }, 400);
-      // Replace all role rows with the single new role
-      await adminClient.from("user_roles").delete().eq("user_id", user_id);
-      const { error } = await adminClient.from("user_roles").insert({ user_id, role });
-      if (error) return json({ error: error.message }, 500);
-      return json({ success: true });
+      const { user_id, role } = body ?? {};
+      if (!user_id || !VALID_ROLES.includes(role)) {
+        return reply({ error: "Invalid input" }, 400);
+      }
+      await admin.from("user_roles").delete().eq("user_id", user_id);
+      const { error } = await admin.from("user_roles").insert({ user_id, role });
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
     }
 
     if (action === "delete") {
-      const { user_id } = body;
-      if (!user_id) return json({ error: "Missing user_id" }, 400);
-      if (user_id === callerId) return json({ error: "You cannot delete your own account" }, 400);
-
-      const { data: targetRoles } = await adminClient
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      if (user_id === callerId) {
+        return reply({ error: "You cannot delete your own account" }, 400);
+      }
+      const { data: targetRoles } = await admin
         .from("user_roles")
         .select("role")
         .eq("user_id", user_id);
-      if ((targetRoles ?? []).some((r) => r.role === "admin")) {
-        return json({ error: "Admin users cannot be deleted" }, 400);
+      if ((targetRoles ?? []).some((r: any) => r.role === "admin")) {
+        return reply({ error: "Admin users cannot be deleted" }, 400);
       }
-
-      const { error } = await adminClient.auth.admin.deleteUser(user_id);
-      if (error) return json({ error: error.message }, 500);
-      return json({ success: true });
+      const { error } = await admin.auth.admin.deleteUser(user_id);
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
     }
 
-    return json({
-      error: "Unknown action",
-      action: requestedAction || null,
-      function_version: FUNCTION_VERSION,
-      accepted_actions: ["list", "set_pin", "clear_pin", "update_role", "delete"],
-    }, 400);
+    return reply({ error: "Unknown action" }, 400);
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    return reply({ error: (err as Error).message }, 500);
   }
 });
