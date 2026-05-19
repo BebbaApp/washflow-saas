@@ -375,7 +375,67 @@ function WorkersSection() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!pinTarget} onOpenChange={(open) => !open && setPinTarget(null)}>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary" />
+              {pinTarget?.has_pin ? "Update PIN login" : "Set up PIN login"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSavePin} className="space-y-4 mt-2">
+            <p className="text-xs text-muted-foreground">
+              Allow <span className="text-foreground font-medium">{pinTarget?.name || pinTarget?.email}</span> to log in with a phone number and PIN instead of email + password.
+            </p>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Phone Number</Label>
+              <Input
+                value={pinPhone}
+                onChange={(e) => setPinPhone(e.target.value)}
+                placeholder="+1 234 567 8900"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">New PIN</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="4-6 digits"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground tracking-widest"
+              />
+              <p className="text-xs text-muted-foreground">The PIN is hashed before being stored. The worker won't see the old PIN.</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                disabled={savingPin}
+                className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {savingPin && <Loader2 className="w-4 h-4 animate-spin" />}
+                {savingPin ? "Saving..." : "Save PIN"}
+              </button>
+              {pinTarget?.has_pin && (
+                <button
+                  type="button"
+                  onClick={handleClearPin}
+                  disabled={savingPin}
+                  className="px-3 py-2.5 rounded-lg bg-secondary text-destructive font-medium text-sm hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
   );
 }
 
