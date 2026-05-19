@@ -1,0 +1,290 @@
+import { useMemo, useState } from "react";
+import { Car, DollarSign, Clock, CheckCircle2, Phone, Hash, Loader2, Play, Gift } from "lucide-react";
+import { useRewardEligibility } from "@/hooks/useRewardEligibility";
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import type { WashOrder } from "@/hooks/useOrders";
+import { useCurrency } from "@/hooks/useCurrency";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
+import { InventoryTrendsPanel } from "@/components/InventoryTrendsPanel";
+
+interface DashboardOverviewProps {
+  orders: WashOrder[];
+  onUpdateStatus: (id: string, status: WashOrder["status"]) => void;
+  onUpdateNotes?: (id: string, notes: string) => Promise<boolean> | void;
+  onViewAll: () => void;
+}
+
+type TabKey = "overview" | "inventory";
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onViewAll }: DashboardOverviewProps) => {
+  const { formatPrice } = useCurrency();
+  const { eligibleOrderIds } = useRewardEligibility(orders);
+  const [tab, setTab] = useState<TabKey>("overview");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const todayOrders = orders.filter((o) => new Date(o.createdAt) >= today);
+  const todayCompleted = todayOrders.filter((o) => o.status === "completed");
+  const todayRevenue = todayCompleted.reduce((s, o) => s + o.servicePrice, 0);
+  const inQueue = orders.filter((o) => o.status === "waiting").length;
+  const activeNow = orders.filter((o) => o.status === "in-progress");
+  const activeJobs = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
+
+  const revenueLast7Days = useMemo(() => {
+    const buckets: { day: string; revenue: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const next = new Date(d);
+      next.setDate(d.getDate() + 1);
+      const dayRevenue = orders
+        .filter((o) => o.status === "completed")
+        .filter((o) => {
+          const od = new Date(o.completedAt ?? o.createdAt);
+          return od >= d && od < next;
+        })
+        .reduce((s, o) => s + o.servicePrice, 0);
+      buckets.push({ day: DAYS[d.getDay()], revenue: dayRevenue });
+    }
+    return buckets;
+  }, [orders]);
+
+  const stats = [
+    {
+      label: "Today's Washes",
+      value: String(todayOrders.length),
+      sub: `${todayCompleted.length} completed`,
+      icon: Car,
+      iconBg: "bg-info/10",
+      iconColor: "text-info",
+    },
+    {
+      label: "Revenue Today",
+      value: formatPrice(todayRevenue),
+      sub: `${todayCompleted.length} paid jobs`,
+      icon: DollarSign,
+      iconBg: "bg-success/10",
+      iconColor: "text-success",
+    },
+    {
+      label: "In Queue",
+      value: String(inQueue),
+      sub: "Waiting to start",
+      icon: Clock,
+      iconBg: "bg-warning/10",
+      iconColor: "text-warning",
+    },
+    {
+      label: "Active Now",
+      value: String(activeNow.length),
+      sub: "Currently washing",
+      icon: CheckCircle2,
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header row with tabs */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground text-sm mt-1">Today's overview at a glance</p>
+        </div>
+        <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border">
+          {(["overview", "inventory"] as TabKey[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                tab === t
+                  ? "bg-card text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "overview" ? "Overview" : "Inventory Trends"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "inventory" ? (
+        <InventoryTrendsPanel />
+      ) : (
+        <>
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {stats.map((s) => (
+          <div key={s.label} className="glass-card p-5">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-sm text-muted-foreground font-medium">{s.label}</p>
+              <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.iconColor}`} />
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-foreground tracking-tight">{s.value}</p>
+            <p className="text-xs text-muted-foreground mt-2">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart + active jobs */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="glass-card p-6 lg:col-span-2">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Revenue (Last 7 Days)</h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueLast7Days} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="day"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  tickFormatter={(v) => formatPrice(v)}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(value: number) => [formatPrice(value), "Revenue"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2.5}
+                  fill="url(#revGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Active Jobs */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-lg font-semibold text-foreground">Active Jobs</h3>
+            <button
+              onClick={onViewAll}
+              className="text-sm text-primary font-medium hover:underline"
+            >
+              View all
+            </button>
+          </div>
+          <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+            {activeJobs.length === 0 && (
+              <div className="glass-card p-6 text-center text-sm text-muted-foreground">
+                No active jobs right now.
+              </div>
+            )}
+            {activeJobs.map((o) => {
+              const isWaiting = o.status === "waiting";
+              const StatusIcon = isWaiting ? Clock : Loader2;
+              const statusClasses = isWaiting
+                ? "bg-warning/10 text-warning border-warning/20"
+                : "bg-info/10 text-info border-info/20";
+              const iconWrapClasses = isWaiting ? "bg-warning/10" : "bg-info/10";
+              const iconColor = isWaiting ? "text-warning" : "text-info";
+              return (
+                <div
+                  key={o.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedId(o.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(o.id); } }}
+                  className="glass-card p-4 space-y-3 cursor-pointer hover:border-primary/40 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-9 h-9 rounded-lg ${iconWrapClasses} flex items-center justify-center shrink-0`}>
+                        <Car className={`w-4 h-4 ${iconColor}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{o.customer}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Hash className="w-3 h-3" />
+                          {o.plate}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`status-badge border shrink-0 inline-flex items-center gap-1 ${statusClasses}`}>
+                      <StatusIcon className={`w-3 h-3 ${isWaiting ? "" : "animate-spin"}`} />
+                      {isWaiting ? "Waiting" : "In Progress"}
+                    </span>
+                  </div>
+                  {eligibleOrderIds.has(o.id) && (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/15 text-success text-[10px] font-bold border border-success/40 w-fit">
+                      <Gift className="w-3 h-3" /> FREE WASH REWARD
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-foreground capitalize">
+                      {o.service} <span className="text-primary ml-1">{formatPrice(o.servicePrice)}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-muted-foreground flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {o.orderNumber}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onUpdateStatus(o.id, isWaiting ? "in-progress" : "completed"); }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity ${
+                        isWaiting
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-success text-success-foreground"
+                      }`}
+                    >
+                      {isWaiting ? <Play className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {isWaiting ? "Start" : "Complete"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+        </>
+      )}
+
+      <OrderDetailsModal
+        order={orders.find((o) => o.id === selectedId) ?? null}
+        open={selectedId !== null}
+        onOpenChange={(open) => { if (!open) setSelectedId(null); }}
+        onUpdateStatus={onUpdateStatus}
+        onUpdateNotes={onUpdateNotes}
+      />
+    </div>
+  );
+};

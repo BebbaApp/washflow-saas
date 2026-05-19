@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS notes text; ALTER TABLE public.orders REPLICA IDENTITY FULL;
