@@ -125,6 +125,11 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                     <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="company" className="text-sm text-secondary-foreground">Company / Workspace Name</Label>
+                    <Input id="company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Car Wash" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+                    <p className="text-[11px] text-muted-foreground">Your 30-day free trial starts on signup.</p>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="signup-phone" className="text-sm text-secondary-foreground">Phone Number</Label>
                     <Input id="signup-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="tel" />
                   </div>
