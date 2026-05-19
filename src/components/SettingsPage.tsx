@@ -1007,3 +1007,239 @@ function CurrencySection() {
     </div>
   );
 }
+
+
+/* ───── Receipt content ───── */
+const SAMPLE_ORDER: WashOrder = {
+  id: "sample",
+  orderNumber: "W-1042",
+  customer: "Sample Customer",
+  customerPhone: "+27 82 123 4567",
+  vehicle: "Toyota Hilux",
+  plate: "CA 123-456",
+  service: "Premium Wash",
+  servicePrice: 250,
+  status: "completed",
+  createdAt: new Date(Date.now() - 25 * 60_000).toISOString(),
+  completedAt: new Date().toISOString(),
+  waitMinutes: 25,
+  notes: "Extra attention to alloy wheels.",
+};
+
+function ReceiptSection() {
+  const { settings, update, reset } = useReceiptSettings();
+  const { currency } = useCurrency();
+
+  const model = buildReceiptModel(SAMPLE_ORDER, {
+    settings,
+    currencySymbol: currency.symbol,
+    vatPercent: currency.vatEnabled ? currency.vatPercent : 0,
+  });
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-6">
+      <div className="glass-card p-6 space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" /> Receipt content
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              These values appear at the top and bottom of every thermal receipt.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={reset}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs text-secondary-foreground">Business name</Label>
+          <Input
+            value={settings.businessName}
+            onChange={(e) => update({ businessName: e.target.value })}
+            placeholder="AquaWash"
+            maxLength={32}
+            className="bg-secondary border-border text-foreground"
+          />
+          <p className="text-[11px] text-muted-foreground">Printed large + bold at the top.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs text-secondary-foreground">Tagline / second line</Label>
+          <Input
+            value={settings.businessLine2}
+            onChange={(e) => update({ businessLine2: e.target.value })}
+            placeholder="Premium Car Wash"
+            maxLength={48}
+            className="bg-secondary border-border text-foreground"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs text-secondary-foreground">Footer message</Label>
+          <textarea
+            value={settings.footer}
+            onChange={(e) => update({ footer: e.target.value })}
+            placeholder="Thank you for your business!"
+            rows={3}
+            maxLength={240}
+            className="w-full rounded-md bg-secondary border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Printed centered after the totals. Use this for return policies, social handles, or
+            promo codes.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-secondary/40 p-3 text-xs space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">VAT line on receipt</span>
+            <span className={`font-semibold ${currency.vatEnabled ? "text-success" : "text-muted-foreground"}`}>
+              {currency.vatEnabled ? `On (${currency.vatPercent}%)` : "Off"}
+            </span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            VAT is controlled in the Currency tab. When enabled, the receipt shows Subtotal + VAT
+            lines above the total.
+          </p>
+        </div>
+      </div>
+
+      <div className="glass-card p-6 space-y-3">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Eye className="w-4 h-4 text-primary" /> Live preview (sample order)
+        </h3>
+        <div className="bg-muted/40 rounded-md py-4">
+          <ReceiptPreview model={model} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ───── Printer ───── */
+function PrinterSection() {
+  const [saved, setSaved] = useState(() => getSavedPrinter());
+  const [pairing, setPairing] = useState(false);
+  const supported = isBluetoothSupported();
+
+  const handlePair = async () => {
+    setPairing(true);
+    try {
+      const name = await pairPrinter();
+      setSaved(getSavedPrinter());
+      sonnerToast.success(`Paired with ${name}`);
+    } catch (err: any) {
+      const msg = err?.message || "Pairing failed";
+      if (!/cancelled|user cancel/i.test(msg)) sonnerToast.error("Pairing failed", { description: msg });
+    } finally {
+      setPairing(false);
+    }
+  };
+
+  const handleForget = () => {
+    forgetPrinter();
+    setSaved(null);
+    sonnerToast.success("Printer forgotten");
+  };
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-6">
+      <div className="glass-card p-6 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Printer className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Bluetooth thermal printer</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Pair an 80mm ESC/POS Bluetooth printer to send receipts after a wash is completed.
+            </p>
+          </div>
+        </div>
+
+        <div className={`rounded-lg border p-3 flex items-start gap-3 ${supported ? "border-success/30 bg-success/5" : "border-warning/30 bg-warning/10"}`}>
+          {supported ? (
+            <Bluetooth className="w-4 h-4 text-success mt-0.5 shrink-0" />
+          ) : (
+            <BluetoothOff className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+          )}
+          <div className="text-xs">
+            {supported ? (
+              <p className="text-foreground">
+                Web Bluetooth is available in this browser.
+              </p>
+            ) : (
+              <p className="text-foreground">
+                Web Bluetooth is <b>not available</b> here. Use Chrome on Android or desktop. On
+                iOS, install <b>Bluefy</b> and open the app there.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-secondary/40 p-4 space-y-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Currently paired</p>
+          {saved?.name ? (
+            <div className="space-y-1">
+              <p className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Bluetooth className="w-4 h-4 text-primary" />
+                {saved.name}
+              </p>
+              {saved.pairedAt && (
+                <p className="text-[11px] text-muted-foreground">
+                  Paired {new Date(saved.pairedAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No printer paired yet.</p>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handlePair}
+              disabled={!supported || pairing}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {pairing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bluetooth className="w-4 h-4" />}
+              {saved?.name ? "Pair different printer" : "Pair new printer"}
+            </button>
+            {saved?.name && (
+              <button
+                type="button"
+                onClick={handleForget}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-destructive/10 text-destructive text-sm font-semibold hover:bg-destructive/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" /> Forget printer
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card p-6 space-y-3 text-sm text-muted-foreground">
+        <h3 className="text-sm font-semibold text-foreground">Tips</h3>
+        <ul className="list-disc pl-5 space-y-2 text-xs">
+          <li>Turn the printer on and ensure it isn't already connected to another phone.</li>
+          <li>When you tap "Pair", the browser shows a device list — pick the printer.</li>
+          <li>
+            The pairing is remembered for next time. You only need to re-pair if the printer is
+            forgotten or the browser data is cleared.
+          </li>
+          <li>
+            Receipts are 80mm (48 characters). Customise the header & footer in the <b>Receipt</b>{" "}
+            tab.
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
