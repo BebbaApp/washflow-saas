@@ -111,6 +111,7 @@ export function SettingsPage() {
       {section === "currency" && <CurrencySection />}
       {section === "receipt" && <ReceiptSection />}
       {section === "printer" && <PrinterSection />}
+      {section === "billing" && <BillingSection />}
     </div>
   );
 }
