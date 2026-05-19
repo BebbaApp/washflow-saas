@@ -162,7 +162,8 @@ function WorkersSection() {
     });
     setSavingPin(false);
     if (res.error || res.data?.error) {
-      toast({ title: "Could not set PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Could not set PIN", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     toast({ title: "PIN updated", description: `${pinTarget.name || pinTarget.email} can now log in with phone + PIN` });
