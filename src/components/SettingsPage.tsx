@@ -230,7 +230,8 @@ function WorkersSection() {
     });
     setDeletingId(null);
     if (res.error || res.data?.error) {
-      toast({ title: "Delete failed", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Delete failed", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     setUsers((prev) => prev.filter((x) => x.id !== u.id));
