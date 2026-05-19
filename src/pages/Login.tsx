@@ -41,7 +41,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     setError("");
     setSubmitting(true);
     if (isSignup) {
-      const err = await onSignup(email, password, name);
+      const err = await onSignup(email, password, name, phone);
       if (err) setError(err);
       else setSignupSuccess(true);
     } else {
