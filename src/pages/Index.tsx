@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Login from "@/pages/Login";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTenant } from "@/hooks/useTenant";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
@@ -67,6 +68,8 @@ const Index = () => {
   const { processCompletedOrders } = useInventory();
   const { logo } = useAppLogo();
   const { can } = usePermissions();
+  const { tenant, daysUntilTrialEnd } = useTenant();
+  const workspaceName = tenant?.name || "AquaWash";
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
@@ -145,8 +148,12 @@ const Index = () => {
           )}
         </div>
         <div className="min-w-0">
-          <h1 className="text-base font-bold text-foreground leading-tight">AquaWash</h1>
-          <p className="text-xs text-muted-foreground leading-tight">Management</p>
+          <h1 className="text-base font-bold text-foreground leading-tight truncate" title={workspaceName}>{workspaceName}</h1>
+          <p className="text-xs text-muted-foreground leading-tight">
+            {tenant?.status === "trialing" && daysUntilTrialEnd !== null
+              ? `Trial · ${Math.max(daysUntilTrialEnd, 0)}d left`
+              : "Management"}
+          </p>
         </div>
       </div>
 
@@ -232,7 +239,7 @@ const Index = () => {
               <Droplets className="w-4 h-4 text-primary-foreground" />
             )}
           </div>
-          <span className="font-bold text-foreground">AquaWash</span>
+          <span className="font-bold text-foreground truncate max-w-[40vw]">{workspaceName}</span>
         </div>
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground">
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -258,7 +265,21 @@ const Index = () => {
       {/* Main Content */}
       <main className="flex-1 md:pt-0 pt-16 overflow-auto">
         {/* Top Nav Bar */}
-        <div className="hidden md:flex sticky top-0 z-30 h-14 items-center justify-end gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
+        <div className="hidden md:flex sticky top-0 z-30 h-14 items-center justify-between gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold text-foreground truncate" title={workspaceName}>{workspaceName}</span>
+            {tenant?.status === "trialing" && daysUntilTrialEnd !== null && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                Trial · {Math.max(daysUntilTrialEnd, 0)}d left
+              </span>
+            )}
+            {tenant?.status === "past_due" && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+                Payment past due
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary transition-colors text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
@@ -291,6 +312,7 @@ const Index = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         <div className="p-4 md:p-8 max-w-7xl mx-auto">

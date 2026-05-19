@@ -7,13 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface LoginProps {
   onLogin: (email: string, password: string) => Promise<string | null>;
-  onSignup: (email: string, password: string, name: string, phone?: string) => Promise<string | null>;
+  onSignup: (email: string, password: string, name: string, phone?: string, companyName?: string) => Promise<string | null>;
 }
 
 const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -41,7 +42,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     setError("");
     setSubmitting(true);
     if (isSignup) {
-      const err = await onSignup(email, password, name, phone);
+      const err = await onSignup(email, password, name, phone, companyName);
       if (err) setError(err);
       else setSignupSuccess(true);
     } else {
@@ -122,6 +123,11 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm text-secondary-foreground">Full Name</Label>
                     <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company" className="text-sm text-secondary-foreground">Company / Workspace Name</Label>
+                    <Input id="company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Car Wash" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+                    <p className="text-[11px] text-muted-foreground">Your 30-day free trial starts on signup.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-phone" className="text-sm text-secondary-foreground">Phone Number</Label>

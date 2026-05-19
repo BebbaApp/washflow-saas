@@ -133,13 +133,23 @@ export function useAuth() {
     return null;
   }, []);
 
-  const signup = useCallback(async (email: string, password: string, name: string, phone?: string): Promise<string | null> => {
+  const signup = useCallback(async (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    companyName?: string,
+  ): Promise<string | null> => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       phone: phone || undefined,
       options: {
-        data: { name, ...(phone ? { phone } : {}) },
+        data: {
+          name,
+          ...(phone ? { phone } : {}),
+          ...(companyName ? { company_name: companyName } : {}),
+        },
         emailRedirectTo: window.location.origin,
       },
     });
