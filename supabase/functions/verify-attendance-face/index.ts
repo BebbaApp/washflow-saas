@@ -101,38 +101,45 @@ Deno.serve(async (req) => {
     const enrolledDataUrl = `data:${enrolledMime};base64,${enrolledB64}`;
 
     // ============================================================
-    // Gemini face comparison via Google's OpenAI-compatible endpoint
+    // Gemini face comparison via Google's native Generative Language API
+    // (uses GEMINI_API_KEY directly — no Lovable AI Gateway dependency)
     // ============================================================
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) return json({ error: "AI not configured" }, 500);
 
+    const stripDataUrl = (s: string) => {
+      const m = s.match(/^data:([^;]+);base64,(.*)$/);
+      return m ? { mimeType: m[1], data: m[2] } : { mimeType: "image/jpeg", data: s };
+    };
+    const enrolledInline = stripDataUrl(enrolledDataUrl);
+    const selfieInline = stripDataUrl(selfieDataUrl);
+
+    const model = "gemini-flash-latest";
     const aiResp = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          "x-goog-api-key": apiKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-flash-latest",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a face-matching verifier. Given two photos, decide if they show the same person. Reply ONLY with JSON: {\"score\": <0-100>, \"sameFace\": <true|false>, \"reason\": \"...\"}. score is your confidence the faces match. Be strict — different people = score under 40.",
-            },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: "Image A (enrolled reference):" },
-                { type: "image_url", image_url: { url: enrolledDataUrl } },
-                { type: "text", text: "Image B (live selfie):" },
-                { type: "image_url", image_url: { url: selfieDataUrl } },
-                { type: "text", text: "Is Image B the same person as Image A?" },
-              ],
-            },
-          ],
+          systemInstruction: {
+            parts: [{
+              text: "You are a face-matching verifier. Given two photos, decide if they show the same person. Reply ONLY with JSON: {\"score\": <0-100>, \"sameFace\": <true|false>, \"reason\": \"...\"}. score is your confidence the faces match. Be strict — different people = score under 40.",
+            }],
+          },
+          contents: [{
+            role: "user",
+            parts: [
+              { text: "Image A (enrolled reference):" },
+              { inlineData: enrolledInline },
+              { text: "Image B (live selfie):" },
+              { inlineData: selfieInline },
+              { text: "Is Image B the same person as Image A?" },
+            ],
+          }],
+          generationConfig: { responseMimeType: "application/json" },
         }),
       }
     );
@@ -142,7 +149,8 @@ Deno.serve(async (req) => {
       return json({ error: "ai_error", detail: txt }, 502);
     }
     const aiJson = await aiResp.json();
-    const content: string = aiJson?.choices?.[0]?.message?.content ?? "";
+    const content: string =
+      aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
     const m = content.match(/\{[\s\S]*\}/);
     let parsed: { score?: number; sameFace?: boolean; reason?: string } = {};
     if (m) { try { parsed = JSON.parse(m[0]); } catch { /* ignore */ } }
