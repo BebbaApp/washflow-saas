@@ -163,7 +163,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
   const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
-  const paged = tab === "completed" ? visible.slice(pageStart, pageStart + PAGE_SIZE) : visible;
+  const paged = (tab === "completed" || tab === "cancelled") ? visible.slice(pageStart, pageStart + PAGE_SIZE) : visible;
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
