@@ -9,6 +9,7 @@ export interface StaffUser {
   email: string;
   name: string;
   role: StaffRole;
+  phone: string | null;
 }
 
 export function useAuth() {
