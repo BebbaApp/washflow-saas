@@ -1027,7 +1027,7 @@ const SAMPLE_ORDER: WashOrder = {
 };
 
 function ReceiptSection() {
-  const { settings, update, reset, status, error } = useReceiptSettings();
+  const { settings, update, reset } = useReceiptSettings();
   const { currency } = useCurrency();
 
   const model = buildReceiptModel(SAMPLE_ORDER, {
@@ -1036,15 +1036,9 @@ function ReceiptSection() {
     vatPercent: currency.vatEnabled ? currency.vatPercent : 0,
   });
 
-  const statusBadge =
-    status === "loading"
-      ? { icon: Loader2, text: "Loading from database…", cls: "text-muted-foreground", spin: true }
-      : status === "saving"
-        ? { icon: Loader2, text: "Saving to database…", cls: "text-primary", spin: true }
-        : status === "error"
-          ? { icon: AlertCircle, text: error || "Save failed", cls: "text-destructive", spin: false }
-          : { icon: CheckCircle2, text: "Saved to database", cls: "text-success", spin: false };
-  const StatusIcon = statusBadge.icon;
+  const handleReset = () => {
+    if (confirm("Reset receipt header, tagline and footer to their defaults?")) reset();
+  };
 
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -1055,22 +1049,24 @@ function ReceiptSection() {
               <FileText className="w-5 h-5 text-primary" /> Receipt content
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Stored in your Supabase database and shared across every device.
+              Saved in this browser and kept until you change it. Use Reset to restore defaults.
             </p>
           </div>
           <button
             type="button"
-            onClick={reset}
-            className="text-xs text-muted-foreground hover:text-foreground underline"
+            onClick={handleReset}
+            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/70 transition-colors"
           >
-            Reset
+            <RefreshCw className="w-3.5 h-3.5" /> Reset to default
           </button>
         </div>
 
-        <div className={`flex items-center gap-2 text-xs ${statusBadge.cls}`}>
-          <StatusIcon className={`w-3.5 h-3.5 ${statusBadge.spin ? "animate-spin" : ""}`} />
-          <span>{statusBadge.text}</span>
+        <div className="flex items-center gap-2 text-xs text-success">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Saved locally on this device</span>
         </div>
+
+
 
         <div className="space-y-2">
           <Label className="text-xs text-secondary-foreground">Business name</Label>
