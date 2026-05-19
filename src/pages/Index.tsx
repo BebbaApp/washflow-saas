@@ -20,6 +20,7 @@ import { InventoryPage } from "@/components/InventoryPage";
 import { ExpensesPage } from "@/components/ExpensesPage";
 import { AttendancePage } from "@/components/AttendancePage";
 import { CompleteWashDialog } from "@/components/CompleteWashDialog";
+import { ReceiptPreviewDialog } from "@/components/ReceiptPreviewDialog";
 import { useOrders } from "@/hooks/useOrders";
 import { useInventory } from "@/hooks/useInventory";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,6 +60,7 @@ const Index = () => {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [printPreviewId, setPrintPreviewId] = useState<string | null>(null);
   const { orders, addOrder, updateStatus, updateNotes } = useOrders();
   const { user, login, signup, logout, updateProfile, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
@@ -404,33 +406,21 @@ const Index = () => {
           await updateStatus(id, "completed");
           // Offer to print a thermal receipt for the just-completed job
           const { toast } = await import("sonner");
-          const { printReceipt, isBluetoothSupported } = await import("@/lib/thermalPrinter");
           toast.success(`Wash complete for ${customer}`, {
             description: "Print a Bluetooth receipt?",
             duration: 8000,
             action: {
-              label: "Print receipt",
-              onClick: async () => {
-                if (!isBluetoothSupported()) {
-                  toast.error("Bluetooth printing not supported in this browser.");
-                  return;
-                }
-                // Pull the freshly-updated order from state
-                const fresh = orders.find((o) => o.id === id);
-                if (!fresh) {
-                  toast.error("Order not found");
-                  return;
-                }
-                try {
-                  const name = await printReceipt(fresh);
-                  toast.success(`Receipt sent to ${name}`);
-                } catch (err: any) {
-                  toast.error("Print failed", { description: err?.message || "Unknown error" });
-                }
-              },
+              label: "Preview & print",
+              onClick: () => setPrintPreviewId(id),
             },
           });
         }}
+      />
+
+      <ReceiptPreviewDialog
+        order={printPreviewId ? orders.find((o) => o.id === printPreviewId) ?? null : null}
+        open={!!printPreviewId}
+        onOpenChange={(o) => { if (!o) setPrintPreviewId(null); }}
       />
 
       {/* Settings drawer for admins */}
