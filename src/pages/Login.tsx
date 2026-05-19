@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface LoginProps {
   onLogin: (email: string, password: string) => Promise<string | null>;
-  onSignup: (email: string, password: string, name: string) => Promise<string | null>;
+  onSignup: (email: string, password: string, name: string, phone?: string) => Promise<string | null>;
 }
 
 const Login = ({ onLogin, onSignup }: LoginProps) => {
