@@ -29,9 +29,16 @@ const ACTION_ALIASES: Record<string, string> = {
 };
 
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
+  const payload = (body && typeof body === "object" && (body as any).error)
+    ? { ...(body as object), function_version: FUNCTION_VERSION, accepted_actions: ["list", "set_pin", "clear_pin", "update_role", "delete"] }
+    : body;
+  return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      "x-function-version": FUNCTION_VERSION,
+    },
   });
 }
 
