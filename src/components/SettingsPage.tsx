@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye } from "lucide-react";
+import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye, CheckCircle2, AlertCircle, CloudOff, Cloud, RefreshCw } from "lucide-react";
 import { useReceiptSettings } from "@/hooks/useReceiptSettings";
-import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, type ReceiptSettings as ReceiptSettingsType } from "@/lib/thermalPrinter";
+import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, probePrinterConnection, getPrinterEvents, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
 import { ReceiptPreview } from "@/components/ReceiptPreview";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast as sonnerToast } from "sonner";
