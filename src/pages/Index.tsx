@@ -289,6 +289,21 @@ const Index = () => {
         </div>
 
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
+          {user && !user.phone && (
+            <div className="mb-4 glass-card p-4 flex items-center gap-3 border-l-4 border-warning bg-warning/5">
+              <AlertCircle className="w-5 h-5 text-warning shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">Your profile is missing a phone number</p>
+                <p className="text-xs text-muted-foreground">Add one so admins and teammates can reach you.</p>
+              </div>
+              <button
+                onClick={() => setProfileOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                Update details
+              </button>
+            </div>
+          )}
           {activeTab === "dashboard" && (
             <DashboardOverview
               orders={orders}
