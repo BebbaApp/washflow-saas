@@ -426,6 +426,17 @@ const Index = () => {
           </div>
         </div>
       )}
+      {user && (
+        <ProfileDialog
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          initialName={user.name || ""}
+          initialPhone={user.phone || ""}
+          email={user.email}
+          onSave={updateProfile}
+          reason={user.phone ? "edit" : "missing_phone"}
+        />
+      )}
     </div>
   );
 };
