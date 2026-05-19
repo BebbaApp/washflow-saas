@@ -148,8 +148,12 @@ const Index = () => {
           )}
         </div>
         <div className="min-w-0">
-          <h1 className="text-base font-bold text-foreground leading-tight">AquaWash</h1>
-          <p className="text-xs text-muted-foreground leading-tight">Management</p>
+          <h1 className="text-base font-bold text-foreground leading-tight truncate" title={workspaceName}>{workspaceName}</h1>
+          <p className="text-xs text-muted-foreground leading-tight">
+            {tenant?.status === "trialing" && daysUntilTrialEnd !== null
+              ? `Trial · ${Math.max(daysUntilTrialEnd, 0)}d left`
+              : "Management"}
+          </p>
         </div>
       </div>
 
