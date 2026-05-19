@@ -1,3 +1,4 @@
+/// <reference types="web-bluetooth" />
 // Bluetooth thermal printer helper (ESC/POS over Web Bluetooth)
 // Target: 80mm thermal printer (48 chars per line). Receipt length is
 // naturally variable; the 83mm figure is approximate paper feed length.
