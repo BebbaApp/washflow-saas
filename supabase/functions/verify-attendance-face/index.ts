@@ -114,39 +114,53 @@ Deno.serve(async (req) => {
     const enrolledInline = stripDataUrl(enrolledDataUrl);
     const selfieInline = stripDataUrl(selfieDataUrl);
 
-    const model = "gemini-flash-latest";
-    const aiResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{
-              text: "You are a face-matching verifier. Given two photos, decide if they show the same person. Reply ONLY with JSON: {\"score\": <0-100>, \"sameFace\": <true|false>, \"reason\": \"...\"}. score is your confidence the faces match. Be strict — different people = score under 40.",
-            }],
-          },
-          contents: [{
-            role: "user",
-            parts: [
-              { text: "Image A (enrolled reference):" },
-              { inlineData: enrolledInline },
-              { text: "Image B (live selfie):" },
-              { inlineData: selfieInline },
-              { text: "Is Image B the same person as Image A?" },
-            ],
-          }],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
-      }
-    );
+    const reqBody = JSON.stringify({
+      systemInstruction: {
+        parts: [{
+          text: "You are a face-matching verifier. Given two photos, decide if they show the same person. Reply ONLY with JSON: {\"score\": <0-100>, \"sameFace\": <true|false>, \"reason\": \"...\"}. score is your confidence the faces match. Be strict — different people = score under 40.",
+        }],
+      },
+      contents: [{
+        role: "user",
+        parts: [
+          { text: "Image A (enrolled reference):" },
+          { inlineData: enrolledInline },
+          { text: "Image B (live selfie):" },
+          { inlineData: selfieInline },
+          { text: "Is Image B the same person as Image A?" },
+        ],
+      }],
+      generationConfig: { responseMimeType: "application/json" },
+    });
 
-    if (!aiResp.ok) {
-      const txt = await aiResp.text();
-      return json({ error: "ai_error", detail: txt }, 502);
+    const models = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-flash-lite-latest"];
+    let aiResp: Response | null = null;
+    let lastErrTxt = "";
+    outer: for (const model of models) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        aiResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+            body: reqBody,
+          },
+        );
+        if (aiResp.ok) break outer;
+        lastErrTxt = await aiResp.text();
+        // Retry only on 429/5xx (overload / transient). Otherwise stop.
+        if (aiResp.status !== 429 && aiResp.status < 500) break outer;
+        await new Promise((r) => setTimeout(r, 400 * Math.pow(2, attempt)));
+      }
+    }
+
+    if (!aiResp || !aiResp.ok) {
+      const overloaded = /UNAVAILABLE|overloaded|high demand/i.test(lastErrTxt);
+      return json({
+        error: overloaded ? "ai_overloaded" : "ai_error",
+        detail: lastErrTxt,
+        retryable: overloaded,
+      }, overloaded ? 503 : 502);
     }
     const aiJson = await aiResp.json();
     const content: string =
