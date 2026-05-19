@@ -68,6 +68,8 @@ const Index = () => {
   const { processCompletedOrders } = useInventory();
   const { logo } = useAppLogo();
   const { can } = usePermissions();
+  const { tenant, daysUntilTrialEnd } = useTenant();
+  const workspaceName = tenant?.name || "AquaWash";
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
