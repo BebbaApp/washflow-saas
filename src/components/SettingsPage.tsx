@@ -180,7 +180,8 @@ function WorkersSection() {
     });
     setSavingPin(false);
     if (res.error || res.data?.error) {
-      toast({ title: "Could not remove PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      const info = await extractFnError(res);
+      toast({ title: "Could not remove PIN", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     toast({ title: "PIN removed" });
