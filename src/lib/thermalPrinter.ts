@@ -250,6 +250,16 @@ export function renderReceiptBytes(model: ReceiptSegment[]): Uint8Array {
 // ── Bluetooth ──────────────────────────────────────────────────────────────
 interface SavedPrinter { name?: string; id?: string; pairedAt?: string; }
 
+const EVENTS_KEY = "aquawash-thermal-printer-events";
+
+export type PrinterEventKind = "paired" | "print_ok" | "print_failed" | "forgotten";
+export interface PrinterEvent {
+  kind: PrinterEventKind;
+  at: string;          // ISO timestamp
+  device?: string;
+  message?: string;
+}
+
 function loadSaved(): SavedPrinter | null {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch { return null; }
 }
@@ -263,10 +273,63 @@ function saveDevice(device: BluetoothDevice) {
 }
 export function getSavedPrinter(): SavedPrinter | null { return loadSaved(); }
 export function getSavedPrinterName(): string | null { return loadSaved()?.name ?? null; }
-export function forgetPrinter() { localStorage.removeItem(STORAGE_KEY); }
+
+function recordEvent(e: PrinterEvent) {
+  try {
+    const raw = localStorage.getItem(EVENTS_KEY);
+    const list: PrinterEvent[] = raw ? JSON.parse(raw) : [];
+    list.unshift(e);
+    localStorage.setItem(EVENTS_KEY, JSON.stringify(list.slice(0, 10)));
+  } catch {}
+  try { window.dispatchEvent(new CustomEvent("printer-event", { detail: e })); } catch {}
+}
+export function getPrinterEvents(): PrinterEvent[] {
+  try { return JSON.parse(localStorage.getItem(EVENTS_KEY) || "[]"); } catch { return []; }
+}
+export function getLastPrinterEvent(): PrinterEvent | null {
+  return getPrinterEvents()[0] ?? null;
+}
+
+export function forgetPrinter() {
+  const prev = loadSaved();
+  localStorage.removeItem(STORAGE_KEY);
+  recordEvent({ kind: "forgotten", at: new Date().toISOString(), device: prev?.name });
+}
 
 export function isBluetoothSupported(): boolean {
   return typeof navigator !== "undefined" && !!(navigator as any).bluetooth;
+}
+
+/** Non-intrusive probe: never opens the chooser. Reports whether the saved
+ *  device is reachable and whether its GATT server is currently connected. */
+export async function probePrinterConnection(): Promise<{
+  paired: boolean;
+  permitted: boolean;
+  connected: boolean;
+  deviceName?: string;
+}> {
+  const saved = loadSaved();
+  const paired = !!saved?.id;
+  if (!isBluetoothSupported() || !paired) {
+    return { paired, permitted: false, connected: false, deviceName: saved?.name };
+  }
+  const bt: any = (navigator as any).bluetooth;
+  try {
+    if (typeof bt.getDevices !== "function") {
+      return { paired, permitted: false, connected: false, deviceName: saved?.name };
+    }
+    const devices: BluetoothDevice[] = await bt.getDevices();
+    const match = devices.find((d) => d.id === saved!.id);
+    if (!match) return { paired, permitted: false, connected: false, deviceName: saved?.name };
+    return {
+      paired,
+      permitted: true,
+      connected: !!match.gatt?.connected,
+      deviceName: match.name || saved?.name,
+    };
+  } catch {
+    return { paired, permitted: false, connected: false, deviceName: saved?.name };
+  }
 }
 
 async function findDevice(forcePicker = false): Promise<BluetoothDevice> {
@@ -320,9 +383,18 @@ export async function pairPrinter(): Promise<string> {
   if (!isBluetoothSupported()) {
     throw new Error("Web Bluetooth is not available in this browser.");
   }
-  const device = await findDevice(true);
-  saveDevice(device);
-  return device.name || "Unnamed printer";
+  try {
+    const device = await findDevice(true);
+    saveDevice(device);
+    recordEvent({ kind: "paired", at: new Date().toISOString(), device: device.name });
+    return device.name || "Unnamed printer";
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (!/cancelled|user cancel/i.test(msg)) {
+      recordEvent({ kind: "print_failed", at: new Date().toISOString(), message: `Pairing: ${msg}` });
+    }
+    throw err;
+  }
 }
 
 /** Send raw bytes to the (saved or newly-picked) printer. */
@@ -332,15 +404,28 @@ export async function sendToPrinter(bytes: Uint8Array): Promise<string> {
       "Web Bluetooth is not available in this browser. Use Chrome on Android/desktop, or Bluefy on iOS.",
     );
   }
-  const device = await findDevice();
-  saveDevice(device);
-  const server = await device.gatt!.connect();
+  let deviceName = "printer";
   try {
-    const characteristic = await findWriteCharacteristic(server);
-    await writeChunks(characteristic, bytes);
-    return device.name || "printer";
-  } finally {
-    try { server.disconnect(); } catch { /* noop */ }
+    const device = await findDevice();
+    saveDevice(device);
+    deviceName = device.name || "printer";
+    const server = await device.gatt!.connect();
+    try {
+      const characteristic = await findWriteCharacteristic(server);
+      await writeChunks(characteristic, bytes);
+      recordEvent({ kind: "print_ok", at: new Date().toISOString(), device: deviceName });
+      return deviceName;
+    } finally {
+      try { server.disconnect(); } catch { /* noop */ }
+    }
+  } catch (err: any) {
+    recordEvent({
+      kind: "print_failed",
+      at: new Date().toISOString(),
+      device: deviceName,
+      message: err?.message || String(err),
+    });
+    throw err;
   }
 }
 

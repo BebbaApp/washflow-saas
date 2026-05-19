@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye } from "lucide-react";
+import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye, CheckCircle2, AlertCircle, CloudOff, Cloud, RefreshCw } from "lucide-react";
 import { useReceiptSettings } from "@/hooks/useReceiptSettings";
-import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, type ReceiptSettings as ReceiptSettingsType } from "@/lib/thermalPrinter";
+import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, probePrinterConnection, getPrinterEvents, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
 import { ReceiptPreview } from "@/components/ReceiptPreview";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast as sonnerToast } from "sonner";
@@ -1027,7 +1027,7 @@ const SAMPLE_ORDER: WashOrder = {
 };
 
 function ReceiptSection() {
-  const { settings, update, reset } = useReceiptSettings();
+  const { settings, update, reset, status, error } = useReceiptSettings();
   const { currency } = useCurrency();
 
   const model = buildReceiptModel(SAMPLE_ORDER, {
@@ -1035,6 +1035,16 @@ function ReceiptSection() {
     currencySymbol: currency.symbol,
     vatPercent: currency.vatEnabled ? currency.vatPercent : 0,
   });
+
+  const statusBadge =
+    status === "loading"
+      ? { icon: Loader2, text: "Loading from database…", cls: "text-muted-foreground", spin: true }
+      : status === "saving"
+        ? { icon: Loader2, text: "Saving to database…", cls: "text-primary", spin: true }
+        : status === "error"
+          ? { icon: AlertCircle, text: error || "Save failed", cls: "text-destructive", spin: false }
+          : { icon: CheckCircle2, text: "Saved to database", cls: "text-success", spin: false };
+  const StatusIcon = statusBadge.icon;
 
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -1045,7 +1055,7 @@ function ReceiptSection() {
               <FileText className="w-5 h-5 text-primary" /> Receipt content
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              These values appear at the top and bottom of every thermal receipt.
+              Stored in your Supabase database and shared across every device.
             </p>
           </div>
           <button
@@ -1055,6 +1065,11 @@ function ReceiptSection() {
           >
             Reset
           </button>
+        </div>
+
+        <div className={`flex items-center gap-2 text-xs ${statusBadge.cls}`}>
+          <StatusIcon className={`w-3.5 h-3.5 ${statusBadge.spin ? "animate-spin" : ""}`} />
+          <span>{statusBadge.text}</span>
         </div>
 
         <div className="space-y-2">
@@ -1124,16 +1139,53 @@ function ReceiptSection() {
 
 
 /* ───── Printer ───── */
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return new Date(iso).toLocaleString();
+}
+
 function PrinterSection() {
   const [saved, setSaved] = useState(() => getSavedPrinter());
   const [pairing, setPairing] = useState(false);
   const supported = isBluetoothSupported();
+  const [probe, setProbe] = useState<{ paired: boolean; permitted: boolean; connected: boolean; deviceName?: string }>({
+    paired: !!saved, permitted: false, connected: false, deviceName: saved?.name,
+  });
+  const [events, setEvents] = useState<PrinterEvent[]>(() => getPrinterEvents());
+
+  const refreshProbe = useCallback(async () => {
+    const p = await probePrinterConnection();
+    setProbe(p);
+  }, []);
+
+  useEffect(() => {
+    refreshProbe();
+    const interval = window.setInterval(refreshProbe, 4000);
+    const onEvent = () => {
+      setEvents(getPrinterEvents());
+      setSaved(getSavedPrinter());
+      refreshProbe();
+    };
+    window.addEventListener("printer-event", onEvent);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("printer-event", onEvent);
+    };
+  }, [refreshProbe]);
 
   const handlePair = async () => {
     setPairing(true);
     try {
       const name = await pairPrinter();
       setSaved(getSavedPrinter());
+      setEvents(getPrinterEvents());
+      refreshProbe();
       sonnerToast.success(`Paired with ${name}`);
     } catch (err: any) {
       const msg = err?.message || "Pairing failed";
@@ -1146,8 +1198,24 @@ function PrinterSection() {
   const handleForget = () => {
     forgetPrinter();
     setSaved(null);
+    setEvents(getPrinterEvents());
+    refreshProbe();
     sonnerToast.success("Printer forgotten");
   };
+
+  const statusInfo = !supported
+    ? { label: "Bluetooth unavailable", cls: "bg-warning/10 text-warning border-warning/30", Icon: BluetoothOff, dot: "bg-warning" }
+    : !probe.paired
+      ? { label: "Not paired", cls: "bg-muted text-muted-foreground border-border", Icon: BluetoothOff, dot: "bg-muted-foreground/40" }
+      : probe.connected
+        ? { label: "Connected", cls: "bg-success/10 text-success border-success/30", Icon: Bluetooth, dot: "bg-success animate-pulse" }
+        : probe.permitted
+          ? { label: "In range · idle", cls: "bg-primary/10 text-primary border-primary/30", Icon: Bluetooth, dot: "bg-primary" }
+          : { label: "Paired · out of range", cls: "bg-warning/10 text-warning border-warning/30", Icon: BluetoothOff, dot: "bg-warning" };
+  const StatusIcon = statusInfo.Icon;
+
+  const lastEvent = events[0];
+  const recent = events.slice(0, 5);
 
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -1156,7 +1224,7 @@ function PrinterSection() {
           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Printer className="w-5 h-5 text-primary" />
           </div>
-          <div>
+          <div className="flex-1">
             <h3 className="text-lg font-semibold text-foreground">Bluetooth thermal printer</h3>
             <p className="text-sm text-muted-foreground mt-1">
               Pair an 80mm ESC/POS Bluetooth printer to send receipts after a wash is completed.
@@ -1164,25 +1232,33 @@ function PrinterSection() {
           </div>
         </div>
 
-        <div className={`rounded-lg border p-3 flex items-start gap-3 ${supported ? "border-success/30 bg-success/5" : "border-warning/30 bg-warning/10"}`}>
-          {supported ? (
-            <Bluetooth className="w-4 h-4 text-success mt-0.5 shrink-0" />
-          ) : (
-            <BluetoothOff className="w-4 h-4 text-warning mt-0.5 shrink-0" />
-          )}
-          <div className="text-xs">
-            {supported ? (
-              <p className="text-foreground">
-                Web Bluetooth is available in this browser.
-              </p>
-            ) : (
-              <p className="text-foreground">
-                Web Bluetooth is <b>not available</b> here. Use Chrome on Android or desktop. On
-                iOS, install <b>Bluefy</b> and open the app there.
-              </p>
-            )}
+        <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${statusInfo.cls}`}>
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${statusInfo.dot}`} />
+            <StatusIcon className="w-4 h-4" />
+            <div className="text-sm font-semibold leading-tight">
+              {statusInfo.label}
+              {probe.deviceName && (
+                <span className="block text-[11px] font-normal opacity-80">{probe.deviceName}</span>
+              )}
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={refreshProbe}
+            title="Refresh status"
+            className="p-1.5 rounded-md hover:bg-foreground/5 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
         </div>
+
+        {!supported && (
+          <p className="text-xs text-muted-foreground">
+            Web Bluetooth is <b>not available</b> here. Use Chrome on Android or desktop. On iOS,
+            install <b>Bluefy</b> and open the app there.
+          </p>
+        )}
 
         <div className="rounded-lg border border-border bg-secondary/40 p-4 space-y-3">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Currently paired</p>
@@ -1225,20 +1301,75 @@ function PrinterSection() {
         </div>
       </div>
 
-      <div className="glass-card p-6 space-y-3 text-sm text-muted-foreground">
-        <h3 className="text-sm font-semibold text-foreground">Tips</h3>
-        <ul className="list-disc pl-5 space-y-2 text-xs">
-          <li>Turn the printer on and ensure it isn't already connected to another phone.</li>
-          <li>When you tap "Pair", the browser shows a device list — pick the printer.</li>
-          <li>
-            The pairing is remembered for next time. You only need to re-pair if the printer is
-            forgotten or the browser data is cleared.
-          </li>
-          <li>
-            Receipts are 80mm (48 characters). Customise the header & footer in the <b>Receipt</b>{" "}
-            tab.
-          </li>
-        </ul>
+      <div className="glass-card p-6 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <FileText className="w-4 h-4 text-primary" /> Last activity
+        </h3>
+
+        {lastEvent ? (
+          <div
+            className={`rounded-lg border p-3 ${
+              lastEvent.kind === "print_ok" || lastEvent.kind === "paired"
+                ? "border-success/30 bg-success/5"
+                : lastEvent.kind === "print_failed"
+                  ? "border-destructive/30 bg-destructive/5"
+                  : "border-border bg-secondary/40"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {lastEvent.kind === "print_ok" && <CheckCircle2 className="w-4 h-4 text-success" />}
+              {lastEvent.kind === "paired" && <Bluetooth className="w-4 h-4 text-success" />}
+              {lastEvent.kind === "print_failed" && <AlertCircle className="w-4 h-4 text-destructive" />}
+              {lastEvent.kind === "forgotten" && <Trash2 className="w-4 h-4 text-muted-foreground" />}
+              <p className="text-sm font-semibold text-foreground">
+                {lastEvent.kind === "print_ok" && `Printed to ${lastEvent.device ?? "printer"}`}
+                {lastEvent.kind === "paired" && `Paired with ${lastEvent.device ?? "printer"}`}
+                {lastEvent.kind === "print_failed" && "Last print failed"}
+                {lastEvent.kind === "forgotten" && `Forgot ${lastEvent.device ?? "printer"}`}
+              </p>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {relativeTime(lastEvent.at)} · {new Date(lastEvent.at).toLocaleTimeString()}
+            </p>
+            {lastEvent.message && (
+              <p className="text-xs text-destructive mt-2 break-words">{lastEvent.message}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">No print activity yet.</p>
+        )}
+
+        {recent.length > 1 && (
+          <div className="space-y-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">History</p>
+            <ul className="space-y-1.5">
+              {recent.slice(1).map((e, i) => (
+                <li key={i} className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    {e.kind === "print_ok" && <CheckCircle2 className="w-3 h-3 text-success" />}
+                    {e.kind === "paired" && <Bluetooth className="w-3 h-3 text-success" />}
+                    {e.kind === "print_failed" && <AlertCircle className="w-3 h-3 text-destructive" />}
+                    {e.kind === "forgotten" && <Trash2 className="w-3 h-3" />}
+                    <span className="text-foreground">
+                      {e.kind === "print_ok" ? "Print" : e.kind === "print_failed" ? "Failed" : e.kind === "paired" ? "Paired" : "Forgotten"}
+                    </span>
+                    {e.device && <span>· {e.device}</span>}
+                  </span>
+                  <span className="text-muted-foreground">{relativeTime(e.at)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="border-t border-border pt-3 text-xs text-muted-foreground space-y-2">
+          <p className="font-semibold text-foreground">Tips</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Status updates every few seconds; tap refresh to recheck immediately.</li>
+            <li>"In range · idle" means the printer is reachable but no active session is open.</li>
+            <li>Receipts are 80mm (48 characters). Customise the header & footer in the Receipt tab.</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
