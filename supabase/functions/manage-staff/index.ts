@@ -103,9 +103,10 @@ Deno.serve(async (req) => {
       if (existing && existing.user_id !== user_id) {
         return json({ error: "This phone number is already used by another worker" }, 400);
       }
+      await adminClient.from("staff_pins").delete().eq("user_id", user_id);
       const { error } = await adminClient
         .from("staff_pins")
-        .upsert({ user_id, phone: normalizedPhone, pin_hash }, { onConflict: "user_id" });
+        .insert({ user_id, phone: normalizedPhone, pin_hash });
       if (error) return json({ error: error.message }, 500);
       return json({ success: true });
     }
