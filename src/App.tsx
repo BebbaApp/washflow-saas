@@ -9,6 +9,7 @@ import { LicenseGate } from "@/components/LicenseGate";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import ResetPassword from "./pages/ResetPassword";
+import AcceptInvite from "./pages/AcceptInvite";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,10 +20,11 @@ const GatedRoutes = () => {
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
-  // Only gate when authenticated; login/reset pages render freely.
+  // Only gate when authenticated; login/reset/invite pages render freely.
   return isAuthenticated ? <LicenseGate>{routes}</LicenseGate> : routes;
 };
 
