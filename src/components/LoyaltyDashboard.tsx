@@ -571,56 +571,66 @@ export const LoyaltyDashboard = () => {
             )}
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {filtered.map((m, idx) => {
-              const isReward = m.loyaltyPoints >= FREE_WASH_COST;
-              return (
-                <div key={m.key} className="py-3 flex items-center gap-3 sm:gap-4">
-                  {view === "leaderboard" && (
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      idx === 0 ? "bg-warning/20 text-warning" :
-                      idx === 1 ? "bg-muted-foreground/20 text-muted-foreground" :
-                      idx === 2 ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"
-                    }`}>
-                      #{idx + 1}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setSelectedKey(m.key)}
-                    className="flex-1 min-w-0 text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
-                      {isReward && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-success/15 text-success text-[10px] font-bold">
-                          <Award className="w-3 h-3" /> REWARD
-                        </span>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                  {view === "leaderboard" && <th className="text-left font-medium py-2 pr-3 w-10">#</th>}
+                  <th className="text-left font-medium py-2 pr-3">Customer</th>
+                  <th className="text-left font-medium py-2 pr-3 hidden sm:table-cell">Phone</th>
+                  <th className="text-left font-medium py-2 pr-3 hidden md:table-cell">Plates</th>
+                  <th className="text-right font-medium py-2 pr-3">Visits</th>
+                  <th className="text-right font-medium py-2 pr-3 hidden sm:table-cell">Spend</th>
+                  <th className="text-right font-medium py-2 pr-3">Points</th>
+                  <th className="text-right font-medium py-2">Reward</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map((m, idx) => {
+                  const isReward = m.loyaltyPoints >= FREE_WASH_COST;
+                  return (
+                    <tr key={m.key} className="hover:bg-secondary/40 transition-colors">
+                      {view === "leaderboard" && (
+                        <td className="py-2 pr-3">
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold ${
+                            idx === 0 ? "bg-warning/20 text-warning" :
+                            idx === 1 ? "bg-muted-foreground/20 text-muted-foreground" :
+                            idx === 2 ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"
+                          }`}>{idx + 1}</span>
+                        </td>
                       )}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {m.phones[0] ? formatPhone(m.phones[0]) : "No phone"} · {m.totalWashes} visit{m.totalWashes !== 1 ? "s" : ""} · {formatPrice(m.totalSpend)}
-                    </p>
-                    {m.plates.length > 0 && (
-                      <p className="text-[11px] text-muted-foreground/80 truncate flex items-center gap-1 mt-0.5">
-                        <Car className="w-3 h-3" /> {m.plates.join(", ")}
-                      </p>
-                    )}
-                  </button>
-                  <div className="text-right shrink-0">
-                    <p className="text-base font-bold font-mono text-foreground">{m.loyaltyPoints}</p>
-                    <p className="text-[11px] text-muted-foreground">points</p>
-                  </div>
-                  {isReward && (
-                    <button
-                      onClick={() => setRedeemTarget(m)}
-                      className="px-3 py-1.5 rounded-md bg-success/15 text-success text-xs font-semibold hover:bg-success/25 transition-colors shrink-0"
-                    >
-                      Redeem
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                      <td className="py-2 pr-3 max-w-[220px]">
+                        <button onClick={() => setSelectedKey(m.key)} className="text-left">
+                          <span className="font-semibold text-foreground truncate inline-block max-w-full align-middle">{m.name}</span>
+                          {isReward && (
+                            <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-success/15 text-success text-[10px] font-bold align-middle">
+                              <Award className="w-3 h-3" /> REWARD
+                            </span>
+                          )}
+                        </button>
+                      </td>
+                      <td className="py-2 pr-3 text-muted-foreground hidden sm:table-cell">{m.phones[0] ? formatPhone(m.phones[0]) : "—"}</td>
+                      <td className="py-2 pr-3 text-muted-foreground hidden md:table-cell truncate max-w-[160px]">{m.plates.join(", ") || "—"}</td>
+                      <td className="py-2 pr-3 text-right font-mono text-foreground">{m.totalWashes}</td>
+                      <td className="py-2 pr-3 text-right font-mono text-foreground hidden sm:table-cell">{formatPrice(m.totalSpend)}</td>
+                      <td className="py-2 pr-3 text-right font-mono font-bold text-foreground">{m.loyaltyPoints}</td>
+                      <td className="py-2 text-right">
+                        {isReward ? (
+                          <button
+                            onClick={() => setRedeemTarget(m)}
+                            className="px-2.5 py-1 rounded-md bg-success/15 text-success text-xs font-semibold hover:bg-success/25 transition-colors"
+                          >
+                            Redeem
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">{FREE_WASH_COST - m.loyaltyPoints} pts</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
