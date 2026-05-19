@@ -79,8 +79,9 @@ export function useReceiptSettings() {
 
   // Realtime subscription
   useEffect(() => {
+    const chanName = `receipt_settings_changes_${Math.random().toString(36).slice(2, 10)}`;
     const ch = (supabase as any)
-      .channel("receipt_settings_changes")
+      .channel(chanName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "receipt_settings" },
