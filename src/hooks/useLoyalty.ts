@@ -55,6 +55,14 @@ export function useLoyalty() {
 
   useEffect(() => {
     fetchCustomers();
+    const channel = supabase
+      .channel(`loyalty-realtime-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => fetchCustomers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "loyalty_transactions" }, () => fetchCustomers())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchCustomers]);
 
   const addCustomer = useCallback(async (data: { name: string; email?: string; phone?: string }) => {
