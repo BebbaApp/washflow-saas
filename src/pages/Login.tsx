@@ -119,10 +119,16 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
           <TabsContent value="email">
             <form onSubmit={handleEmailSubmit} className="glass-card p-6 space-y-4">
               {isSignup && (
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm text-secondary-foreground">Full Name</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm text-secondary-foreground">Full Name</Label>
+                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-phone" className="text-sm text-secondary-foreground">Phone Number</Label>
+                    <Input id="signup-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="tel" />
+                  </div>
+                </>
               )}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm text-secondary-foreground">Email</Label>
