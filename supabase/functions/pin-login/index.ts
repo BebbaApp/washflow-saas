@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import bcrypt from "npm:bcryptjs@2.4.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const ok = await bcrypt.compare(String(pin), rec.pin_hash);
+    const ok = bcrypt.compareSync(String(pin), rec.pin_hash);
     if (!ok) {
       return new Response(JSON.stringify({ error: "Invalid phone or PIN" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
