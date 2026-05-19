@@ -307,7 +307,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
         </div>
       )}
 
-      {tab === "completed" && visible.length > 0 ? (
+      {(tab === "completed" || tab === "cancelled") && visible.length > 0 ? (
         <div className="glass-card overflow-x-auto">
           <Table>
             <TableHeader>
@@ -322,11 +322,16 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                 <TableHead>Vehicle</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>
-                  <button onClick={() => toggleSort("completed")} className="inline-flex items-center gap-1 hover:text-foreground">
-                    Completed {sortIcon("completed")}
-                  </button>
+                  {tab === "completed" ? (
+                    <button onClick={() => toggleSort("completed")} className="inline-flex items-center gap-1 hover:text-foreground">
+                      Completed {sortIcon("completed")}
+                    </button>
+                  ) : (
+                    "Cancelled"
+                  )}
                 </TableHead>
-                <TableHead>Wait</TableHead>
+                <TableHead>{tab === "completed" ? "Wait" : "Status"}</TableHead>
+                {tab === "cancelled" && <TableHead>Reason</TableHead>}
                 <TableHead className="text-right">
                   <button onClick={() => toggleSort("amount")} className="inline-flex items-center gap-1 hover:text-foreground ml-auto">
                     Amount {sortIcon("amount")}
@@ -336,9 +341,15 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
             </TableHeader>
             <TableBody>
               {paged.map((o) => {
-                const completed = o.completedAt
-                  ? new Date(o.completedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                  : "—";
+                const cancelMatch = tab === "cancelled" && o.notes
+                  ? o.notes.match(/\[CANCELLED ([^\]]+)\]\s*([\s\S]*)$/)
+                  : null;
+                const timeLabel = tab === "completed"
+                  ? (o.completedAt ? new Date(o.completedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—")
+                  : (cancelMatch?.[1]
+                      ? cancelMatch[1]
+                      : new Date(o.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }));
+                const reason = cancelMatch?.[2]?.trim() || "—";
                 return (
                   <TableRow
                     key={o.id}
@@ -372,8 +383,21 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                       </div>
                     </TableCell>
                     <TableCell>{o.service}</TableCell>
-                    <TableCell className="text-muted-foreground">{completed}</TableCell>
-                    <TableCell>{typeof o.waitMinutes === "number" ? `${o.waitMinutes} min` : "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{timeLabel}</TableCell>
+                    <TableCell>
+                      {tab === "completed" ? (
+                        typeof o.waitMinutes === "number" ? `${o.waitMinutes} min` : "—"
+                      ) : (
+                        <span className={`status-badge border ${statusBadge[o.status]}`}>
+                          {statusLabel[o.status]}
+                        </span>
+                      )}
+                    </TableCell>
+                    {tab === "cancelled" && (
+                      <TableCell className="text-muted-foreground max-w-[260px]">
+                        <span className="block truncate" title={reason}>{reason}</span>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-bold text-primary">{formatPrice(o.servicePrice)}</TableCell>
                   </TableRow>
                 );
