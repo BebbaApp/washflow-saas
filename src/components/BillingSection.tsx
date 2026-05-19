@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
 
 interface Plan {
   id: string;
@@ -260,9 +261,12 @@ export function BillingSection() {
         )}
       </div>
 
-      {/* Platform admin: edit Stripe price IDs */}
+      {/* Platform admin: edit Stripe price IDs + view license events */}
       {isPlatformAdmin && (
-        <PlanPriceAdmin plans={plans} onSaved={loadPlans} />
+        <>
+          <PlanPriceAdmin plans={plans} onSaved={loadPlans} />
+          <LicenseEventsAdmin />
+        </>
       )}
     </div>
   );

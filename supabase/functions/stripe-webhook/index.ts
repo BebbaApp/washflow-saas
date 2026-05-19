@@ -29,6 +29,23 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceKey);
 
+  // Idempotency: bail if we've already processed this event id.
+  const { error: dupErr } = await admin
+    .from("processed_stripe_events")
+    .insert({ stripe_event_id: event.id, event_type: event.type });
+  if (dupErr) {
+    // Postgres unique_violation = 23505
+    if ((dupErr as { code?: string }).code === "23505") {
+      console.log("Duplicate Stripe event ignored", event.id);
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    console.error("Failed to record event id", dupErr);
+    // Don't block processing on insert errors other than dup
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
