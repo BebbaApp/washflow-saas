@@ -172,5 +172,5 @@ export function useAuth() {
   const isAdmin = user?.role === "admin";
   const authedNoRole = !!authedEmail && !user;
 
-  return { user, login, signup, logout, isAuthenticated: !!user, isAdmin, loading, authedEmail, authedNoRole };
+  return { user, login, signup, logout, updateProfile, isAuthenticated: !!user, isAdmin, loading, authedEmail, authedNoRole };
 }
