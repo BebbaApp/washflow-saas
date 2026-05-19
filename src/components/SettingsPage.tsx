@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye, CheckCircle2, AlertCircle, CloudOff, Cloud, RefreshCw } from "lucide-react";
+import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye, CheckCircle2, AlertCircle, CloudOff, Cloud, RefreshCw, CreditCard } from "lucide-react";
+import { BillingSection } from "@/components/BillingSection";
 import { useReceiptSettings } from "@/hooks/useReceiptSettings";
 import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, probePrinterConnection, getPrinterEvents, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
 import { ReceiptPreview } from "@/components/ReceiptPreview";
