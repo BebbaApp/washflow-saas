@@ -117,6 +117,56 @@ function WorkersSection() {
   const [role, setRole] = useState<WorkerRole>("washer");
   const [creating, setCreating] = useState(false);
 
+  // PIN management for existing workers
+  const [pinTarget, setPinTarget] = useState<StaffUser | null>(null);
+  const [pinPhone, setPinPhone] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
+
+  const openPinDialog = (u: StaffUser) => {
+    setPinTarget(u);
+    setPinPhone(u.phone ?? "");
+    setNewPin("");
+  };
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pinTarget) return;
+    if (!pinPhone.trim() || !/^\d{4,6}$/.test(newPin)) {
+      toast({ title: "Enter a phone number and a 4-6 digit PIN", variant: "destructive" });
+      return;
+    }
+    setSavingPin(true);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: { action: "set_pin", user_id: pinTarget.id, phone: pinPhone.trim(), pin: newPin },
+    });
+    setSavingPin(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Could not set PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "PIN updated", description: `${pinTarget.name || pinTarget.email} can now log in with phone + PIN` });
+    setUsers((prev) => prev.map((x) => x.id === pinTarget.id ? { ...x, phone: pinPhone.trim(), has_pin: true } : x));
+    setPinTarget(null);
+  };
+
+  const handleClearPin = async () => {
+    if (!pinTarget) return;
+    if (!confirm(`Remove phone + PIN login for ${pinTarget.name || pinTarget.email}?`)) return;
+    setSavingPin(true);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: { action: "clear_pin", user_id: pinTarget.id },
+    });
+    setSavingPin(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Could not remove PIN", description: res.data?.error || res.error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "PIN removed" });
+    setUsers((prev) => prev.map((x) => x.id === pinTarget.id ? { ...x, phone: null, has_pin: false } : x));
+    setPinTarget(null);
+  };
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
