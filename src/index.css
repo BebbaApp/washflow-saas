@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 25% 10%;
+    --foreground: 210 20% 92%;
+
+    --card: 220 22% 14%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 220 22% 14%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 185 72% 48%;
+    --primary-foreground: 220 25% 6%;
+
+    --secondary: 220 20% 20%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 220 18% 18%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 185 72% 48%;
+    --accent-foreground: 220 25% 6%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 20% 98%;
+
+    --success: 152 60% 45%;
+    --success-foreground: 220 25% 6%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 220 25% 6%;
+
+    --info: 210 80% 55%;
+    --info-foreground: 220 25% 6%;
+
+    --border: 220 18% 22%;
+    --input: 220 18% 22%;
+    --ring: 185 72% 48%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 25% 8%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 185 72% 48%;
+    --sidebar-primary-foreground: 220 25% 6%;
+    --sidebar-accent: 220 20% 16%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 220 18% 18%;
+    --sidebar-ring: 185 72% 48%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(185 72% 48%), hsl(195 80% 42%));
+    --gradient-card: linear-gradient(145deg, hsl(220 22% 15%), hsl(220 22% 12%));
+    --shadow-glow: 0 0 20px hsl(185 72% 48% / 0.15);
+    --shadow-card: 0 4px 24px hsl(220 25% 4% / 0.4);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card border border-border rounded-2xl;
+    box-shadow: 0 1px 3px hsl(220 25% 10% / 0.04), 0 1px 2px hsl(220 25% 10% / 0.03);
+  }
+
+  .dark .glass-card { box-shadow: var(--shadow-card); }
+
+  .glow-border {
+    @apply border border-primary/30;
+    box-shadow: var(--shadow-glow);
+  }
+
+  .stat-value { @apply text-3xl font-bold font-mono tracking-tight; }
+
+  .status-badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+
+  .nav-item { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors; }
+
+  .nav-item-active { @apply bg-primary/10 text-primary; }
+
+  .nav-item-inactive { @apply text-muted-foreground hover:text-foreground hover:bg-secondary; }
+}
