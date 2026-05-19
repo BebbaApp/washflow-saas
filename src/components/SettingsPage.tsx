@@ -107,6 +107,8 @@ export function SettingsPage() {
       {section === "theme" && <ThemeSection />}
       {section === "services" && <ServicesSection />}
       {section === "currency" && <CurrencySection />}
+      {section === "receipt" && <ReceiptSection />}
+      {section === "printer" && <PrinterSection />}
     </div>
   );
 }
