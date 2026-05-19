@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const ok = await bcrypt.compare(String(pin), rec.pin_hash);
+    const ok = bcrypt.compareSync(String(pin), rec.pin_hash);
     if (!ok) {
       return new Response(JSON.stringify({ error: "Invalid phone or PIN" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
