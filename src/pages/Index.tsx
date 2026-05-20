@@ -57,7 +57,6 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
@@ -73,6 +72,8 @@ const Index = () => {
   const { tenant, daysUntilTrialEnd } = useTenant();
   const { isPlatformAdmin } = usePlatformAdmin();
   const workspaceName = tenant?.name || "AquaWash";
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
