@@ -13,7 +13,7 @@ const BodySchema = z.object({
   accept_url_base: z.string().url(),
 });
 
-const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
+const RESEND_API_URL = "https://api.resend.com";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
