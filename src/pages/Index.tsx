@@ -82,6 +82,12 @@ const Index = () => {
     if (orders.length > 0) processCompletedOrders(orders);
   }, [orders, processCompletedOrders]);
 
+  // Read active tab from URL query param on mount
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
+
   // Intercept "completed" transitions to show the inventory preview/override.
   const handleStatusUpdate = (id: string, status: import("@/hooks/useOrders").WashStatus) => {
     if (status === "completed") {
