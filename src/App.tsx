@@ -8,6 +8,7 @@ import { TenantProvider } from "@/hooks/useTenant";
 import { LicenseGate } from "@/components/LicenseGate";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
+import Settings from "./pages/Settings";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
 import Platform from "./pages/Platform";
@@ -21,6 +22,7 @@ const GatedRoutes = () => {
   const routes = (
     <Routes>
       <Route path="/" element={<Index />} />
+      <Route path="/settings" element={<Settings />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/platform" element={<Platform />} />

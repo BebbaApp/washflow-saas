@@ -13,7 +13,6 @@ import { NewOrderDialog } from "@/components/NewOrderDialog";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { LoyaltyDashboard } from "@/components/LoyaltyDashboard";
 import { SchedulingDashboard } from "@/components/SchedulingDashboard";
-import { SettingsPage } from "@/components/SettingsPage";
 import { TenantSwitcher } from "@/components/TenantSwitcher";
 import { ComingSoon } from "@/components/ComingSoon";
 import { HistoryPage } from "@/components/HistoryPage";
@@ -35,7 +34,7 @@ import Login from "@/pages/Login";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
@@ -58,7 +57,6 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
@@ -74,6 +72,8 @@ const Index = () => {
   const { tenant, daysUntilTrialEnd } = useTenant();
   const { isPlatformAdmin } = usePlatformAdmin();
   const workspaceName = tenant?.name || "AquaWash";
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
@@ -81,6 +81,12 @@ const Index = () => {
   useEffect(() => {
     if (orders.length > 0) processCompletedOrders(orders);
   }, [orders, processCompletedOrders]);
+
+  // Read active tab from URL query param on mount
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
 
   // Intercept "completed" transitions to show the inventory preview/override.
   const handleStatusUpdate = (id: string, status: import("@/hooks/useOrders").WashStatus) => {
@@ -196,13 +202,14 @@ const Index = () => {
               {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             {can("settings.view") && (
-              <button
-                onClick={() => { setSettingsOpen(true); onNavigate?.(); }}
+              <Link
+                to="/settings"
+                onClick={() => onNavigate?.()}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 title="Settings"
               >
                 <SettingsIcon className="w-4 h-4" />
-              </button>
+              </Link>
             )}
             <button
               onClick={() => { logout(); onNavigate?.(); }}
@@ -315,7 +322,7 @@ const Index = () => {
                 <UserIcon className="w-4 h-4 mr-2" /> My profile
               </DropdownMenuItem>
               {can("settings.view") && (
-                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <SettingsIcon className="w-4 h-4 mr-2" /> Settings
                 </DropdownMenuItem>
               )}
@@ -470,28 +477,6 @@ const Index = () => {
         onOpenChange={(o) => { if (!o) setPrintPreviewId(null); }}
       />
 
-      {/* Settings drawer for admins */}
-      {can("settings.view") && settingsOpen && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm overflow-auto">
-          <div className="min-h-screen p-4 md:p-8">
-            <div className="max-w-5xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground">Settings</h2>
-                  <p className="text-muted-foreground text-sm mt-1">Manage workers, appearance, and services</p>
-                </div>
-                <button
-                  onClick={() => setSettingsOpen(false)}
-                  className="w-10 h-10 rounded-lg bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity flex items-center justify-center"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <SettingsPage />
-            </div>
-          </div>
-        </div>
-      )}
       {user && (
         <ProfileDialog
           open={profileOpen}
