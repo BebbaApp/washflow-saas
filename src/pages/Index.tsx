@@ -174,10 +174,15 @@ const Index = () => {
       <nav className="flex flex-col gap-1 flex-1">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
+          const handleClick = () => {
+            if (item.id === "settings") { navigate("/settings"); onNavigate?.(); return; }
+            setActiveTab(item.id);
+            onNavigate?.();
+          };
           return (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); onNavigate?.(); }}
+              onClick={handleClick}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
