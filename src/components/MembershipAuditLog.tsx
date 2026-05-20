@@ -17,8 +17,12 @@ interface Row {
 }
 
 const ACTIONS = [
-  "all", "invite.created", "invite.accepted", "invite.revoked",
+  "all",
+  "invite.created", "invite.accepted", "invite.revoked",
   "member.role_updated", "member.removed", "member.left",
+  "tenant.settings_updated", "tenant.billing_updated",
+  "platform_admin.granted", "platform_admin.revoked",
+  "receipt_settings.updated",
 ] as const;
 
 const LABEL: Record<string, string> = {
@@ -29,6 +33,11 @@ const LABEL: Record<string, string> = {
   "member.role_updated": "Role updated",
   "member.removed": "Member removed",
   "member.left": "Member left",
+  "tenant.settings_updated": "Workspace settings updated",
+  "tenant.billing_updated": "Billing / plan updated",
+  "platform_admin.granted": "Platform admin granted",
+  "platform_admin.revoked": "Platform admin revoked",
+  "receipt_settings.updated": "Receipt settings updated",
 };
 
 export function MembershipAuditLog() {
