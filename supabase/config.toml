@@ -1,16 +1,1 @@
 project_id = "kldcnrnkyurwcbxvnhku"
-
-[functions.create-worker]
-verify_jwt = false
-
-[functions.pin-login]
-verify_jwt = false
-
-[functions.manage-staff]
-verify_jwt = false
-
-[functions.verify-attendance-face]
-verify_jwt = true
-
-[functions.stripe-webhook]
-verify_jwt = false
