@@ -45,6 +45,7 @@ export function TenantsAdmin() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, number>>({});
+  const [editTenant, setEditTenant] = useState<PlatformTenant | null>(null);
 
   const load = async () => {
     setLoading(true);
