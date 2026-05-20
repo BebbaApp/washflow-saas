@@ -85,25 +85,26 @@ export default function Settings() {
       </div>
 
       <nav className="flex flex-col gap-1 flex-1">
-        {navItems.map((item) => (
-          <Link
-            key={item.id}
-            to={`/?tab=${item.id}`}
-            onClick={() => onNavigate?.()}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary"
-          >
-            <item.icon className="w-4 h-4" />
-            {item.label}
-          </Link>
-        ))}
-
-        {/* Settings — active */}
-        {can("settings.view") && (
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground shadow-sm">
-            <SettingsIcon className="w-4 h-4" />
-            Settings
-          </div>
-        )}
+        {navItems.map((item) => {
+          const isSettings = item.id === "settings";
+          const to = isSettings ? "/settings" : `/?tab=${item.id}`;
+          const active = isSettings;
+          return (
+            <Link
+              key={item.id}
+              to={to}
+              onClick={() => onNavigate?.()}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <item.icon className="w-4 h-4" />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="mt-4 space-y-2 border-t border-border pt-4">
