@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Loader2, Building2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Building2, AlertTriangle } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export function TenantSwitcher({ compact }: Props) {
-  const { tenant, memberships, switchTenant } = useTenant();
+  const { tenant, memberships, switchTenant, switchError, clearSwitchError } = useTenant();
   const { toast } = useToast();
   const [switching, setSwitching] = useState<string | null>(null);
 
@@ -26,11 +26,16 @@ export function TenantSwitcher({ compact }: Props) {
   const handle = async (id: string) => {
     if (id === tenant?.id) return;
     setSwitching(id);
+    clearSwitchError();
     try {
       await switchTenant(id);
       toast({ title: "Workspace switched" });
     } catch (e: any) {
-      toast({ title: "Switch failed", description: e?.message ?? "Unknown error", variant: "destructive" });
+      toast({
+        title: "Switch failed",
+        description: e?.message ?? "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setSwitching(null);
     }
@@ -40,18 +45,35 @@ export function TenantSwitcher({ compact }: Props) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant={switchError ? "destructive" : "outline"}
           size={compact ? "sm" : "default"}
-          className="gap-2 max-w-[200px]"
+          className="gap-2 max-w-[220px]"
         >
-          <Building2 className="w-3.5 h-3.5 shrink-0" />
+          {switchError
+            ? <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            : <Building2 className="w-3.5 h-3.5 shrink-0" />}
           <span className="truncate">{tenant?.name ?? "Workspace"}</span>
           <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel className="text-xs">Switch workspace</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {switchError && (
+          <>
+            <div className="px-2 py-2 text-[11px] text-destructive flex gap-1.5 items-start">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span className="leading-snug">{switchError}</span>
+            </div>
+            <DropdownMenuItem
+              onSelect={(e) => { e.preventDefault(); clearSwitchError(); }}
+              className="text-xs justify-center"
+            >
+              Dismiss
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {memberships.map((m) => (
           <DropdownMenuItem
             key={m.id}

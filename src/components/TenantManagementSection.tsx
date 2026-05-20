@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MembershipAuditLog } from "@/components/MembershipAuditLog";
 
 interface MemberRow {
   user_id: string;
@@ -108,11 +109,21 @@ export function TenantManagementSection() {
       if (error) throw new Error(error.message);
       setInviteEmail("");
       const link = (data as any)?.accept_url as string | undefined;
-      if (link) {
-        try { await navigator.clipboard.writeText(link); } catch { /* ignore */ }
-        toast({ title: "Invite created", description: "Accept link copied to clipboard. Send it to the invitee." });
+      const status = (data as any)?.email_status as "sent" | "skipped" | "failed" | undefined;
+      const emailErr = (data as any)?.email_error as string | undefined;
+
+      if (status === "sent") {
+        toast({ title: "Invite emailed", description: `Sent to ${email}.` });
+      } else if (status === "failed") {
+        if (link) { try { await navigator.clipboard.writeText(link); } catch { /* ignore */ } }
+        toast({
+          title: "Email failed — link copied",
+          description: emailErr ?? "Send the copied link manually.",
+          variant: "destructive",
+        });
       } else {
-        toast({ title: "Invite created" });
+        if (link) { try { await navigator.clipboard.writeText(link); } catch { /* ignore */ } }
+        toast({ title: "Invite created", description: "Email not configured — accept link copied to clipboard." });
       }
       loadLists();
     } catch (e: any) {
@@ -123,8 +134,20 @@ export function TenantManagementSection() {
   };
 
   const revokeInvite = async (inv: InviteRow) => {
+    if (!tenant) return;
     setBusyId(inv.id);
     const { error } = await supabase.from("tenant_invitations" as any).delete().eq("id", inv.id);
+    if (!error) {
+      await supabase.from("membership_audit_log" as any).insert({
+        tenant_id: tenant.id,
+        actor_user_id: user?.id,
+        actor_email: user?.email,
+        target_email: inv.email,
+        action: "invite.revoked",
+        to_role: inv.tenant_role,
+        payload: { invitation_id: inv.id },
+      } as any);
+    }
     setBusyId(null);
     if (error) {
       toast({ title: "Revoke failed", description: error.message, variant: "destructive" });
@@ -283,7 +306,7 @@ export function TenantManagementSection() {
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            On invite, the accept link is copied to your clipboard — share it with the invitee. They must sign up or sign in with that email first, then open the link.
+            Invitees receive an email with an accept link. If email isn't configured (or the send fails), the link is copied to your clipboard as a fallback.
           </p>
 
           <div className="border border-border rounded-lg overflow-hidden">
@@ -325,6 +348,8 @@ export function TenantManagementSection() {
           </div>
         </div>
       )}
+
+      {canManage && <MembershipAuditLog />}
     </div>
   );
 }

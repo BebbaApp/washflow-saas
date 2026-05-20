@@ -30,11 +30,21 @@ interface TenantContextValue {
   loading: boolean;
   licenseActive: boolean;
   daysUntilTrialEnd: number | null;
+  switchError: string | null;
   refresh: () => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
+  clearSwitchError: () => void;
 }
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
+const LS_KEY = "lovable.active_tenant_id";
+
+function readStoredTenant(): string | null {
+  try { return localStorage.getItem(LS_KEY); } catch { return null; }
+}
+function writeStoredTenant(id: string | null) {
+  try { id ? localStorage.setItem(LS_KEY, id) : localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+}
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -42,6 +52,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<TenantMembership[]>([]);
   const [myRole, setMyRole] = useState<TenantRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) {
@@ -50,7 +61,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
 
-    // All tenants the user belongs to
     const { data: members } = await supabase
       .from("tenant_members" as any)
       .select("tenant_id, tenant_role, tenants(id, name, slug)")
@@ -68,14 +78,19 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
     if (list.length === 0) {
       setTenant(null); setMyRole(null); setLoading(false);
+      writeStoredTenant(null);
       return;
     }
 
-    // Prefer JWT claim, else first membership
+    // Priority: JWT claim → localStorage → first membership
+    const jwtId = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
+    const storedId = readStoredTenant();
     const activeId =
-      (user as any)?.app_metadata?.active_tenant_id ??
+      (jwtId && list.find((m) => m.id === jwtId)?.id) ??
+      (storedId && list.find((m) => m.id === storedId)?.id) ??
       list[0].id;
     const activeRow = list.find((m) => m.id === activeId) ?? list[0];
+    writeStoredTenant(activeRow.id);
 
     const { data } = await supabase
       .from("tenants" as any)
@@ -101,11 +116,30 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   }, [tenant?.id]);
 
   const switchTenant = useCallback(async (tenantId: string) => {
-    const { error } = await supabase.functions.invoke("switch-tenant", { body: { tenant_id: tenantId } });
-    if (error) throw new Error(error.message);
-    await supabase.auth.refreshSession();
-    await load();
+    setSwitchError(null);
+    // Optimistic: persist immediately so a refresh mid-switch lands on the
+    // intended workspace even if the JWT refresh fails.
+    writeStoredTenant(tenantId);
+    try {
+      const { error } = await supabase.functions.invoke("switch-tenant", { body: { tenant_id: tenantId } });
+      if (error) throw new Error(error.message || "Server rejected the switch");
+      const { error: refreshErr } = await supabase.auth.refreshSession();
+      if (refreshErr) {
+        throw new Error(
+          `Workspace selected, but session refresh failed: ${refreshErr.message}. Please sign out and back in.`
+        );
+      }
+      await load();
+    } catch (e: any) {
+      const msg = e?.message ?? "Unknown error";
+      setSwitchError(msg);
+      // Re-sync local state in case partial success
+      await load();
+      throw new Error(msg);
+    }
   }, [load]);
+
+  const clearSwitchError = useCallback(() => setSwitchError(null), []);
 
   const value = useMemo<TenantContextValue>(() => {
     const now = Date.now();
@@ -119,8 +153,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const daysUntilTrialEnd = tenant?.trial_ends_at
       ? Math.ceil((new Date(tenant.trial_ends_at).getTime() - now) / 86_400_000)
       : null;
-    return { tenant, memberships, myRole, loading, licenseActive, daysUntilTrialEnd, refresh: load, switchTenant };
-  }, [tenant, memberships, myRole, loading, load, switchTenant]);
+    return {
+      tenant, memberships, myRole, loading, licenseActive, daysUntilTrialEnd,
+      switchError, refresh: load, switchTenant, clearSwitchError,
+    };
+  }, [tenant, memberships, myRole, loading, switchError, load, switchTenant, clearSwitchError]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 }
