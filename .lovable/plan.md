@@ -1,112 +1,79 @@
-# Multi-tenant SaaS + Licensing Plan
+# Phase 6 hardening — per-tenant receipts + extended audit log
 
-Goal: turn the current single-business app into a product you can sell to many companies, with Stripe-billed subscriptions, a 30-day trial, a 14-day grace period after failed payment, and automatic suspension.
+## Goals
+1. Make `receipt_settings` per-tenant instead of a global singleton row.
+2. Extend `membership_audit_log` to capture more sensitive actions:
+   tenant settings updates, billing changes, platform-admin changes,
+   receipt-settings edits.
 
-Decisions already made:
-- Isolation: shared database, `tenant_id` on every row, enforced by RLS.
-- Billing: Stripe Billing (subscriptions + customer portal + webhooks).
-- Trial 30 days, grace 14 days.
-- Existing data migrates into a single "Default Tenant".
+## 1. Per-tenant receipt settings
 
----
+### Schema change (`supabase/sql/phase6_hardening.sql`)
+- Drop the `id BOOLEAN PRIMARY KEY` singleton constraint.
+- Add `tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE`.
+- Make `tenant_id` the primary key (one row per tenant).
+- Backfill: for every existing tenant, insert a default row if missing.
+  Existing singleton row content is preserved by copying it to the
+  current_tenant_id() owner if exactly one tenant exists, otherwise just
+  used as the default template for new rows.
+- Rewrite RLS:
+  - SELECT: any member of the tenant.
+  - INSERT/UPDATE: owners/admins/managers of that tenant.
+- Keep realtime publication.
 
-## Phase 1 — Tenant foundation (schema + RLS)
+### App changes
+- `src/hooks/useReceiptSettings.ts`
+  - Pull `tenant_id` from `useTenant()` and scope every query
+    (`eq("tenant_id", tenant.id)`) and upsert (`onConflict: "tenant_id"`).
+  - Reset and re-fetch when the active tenant changes.
+  - LocalStorage cache key becomes per-tenant
+    (`aquawash-receipt-settings:<tenant_id>`).
+  - Realtime channel filters on `tenant_id=eq.<id>`.
+- No UI changes to `SettingsPage` / `ReceiptPreview` needed — they read
+  through the hook.
 
-New tables:
-- `tenants(id, name, slug unique, status, trial_ends_at, current_period_end, grace_period_ends_at, stripe_customer_id, plan_id, created_at)`
-- `tenant_members(tenant_id, user_id, tenant_role, created_at)` — `tenant_role` enum: `owner | admin | member`.
-- `plans(id, code, name, price_monthly_cents, max_users, features jsonb, stripe_price_id)`
-- `subscriptions(id, tenant_id, plan_id, stripe_sub_id, status, current_period_end, cancel_at)`
-- `invoices(id, tenant_id, stripe_invoice_id, amount_cents, status, due_date, paid_at, hosted_url)`
-- `license_events(id, tenant_id, kind, payload jsonb, created_at)` — audit log.
-- `platform_admins(user_id)` — super-admin (you), outside any tenant.
+## 2. Extended audit logging
 
-Helpers (SECURITY DEFINER, avoid RLS recursion):
-- `public.current_tenant_id() returns uuid` — reads from JWT claim or `tenant_members` for the calling user; if user belongs to multiple tenants, uses `app_metadata.active_tenant_id`.
-- `public.is_tenant_member(_tenant uuid) returns boolean`
-- `public.tenant_has_role(_tenant uuid, _role tenant_role) returns boolean`
-- `public.tenant_license_active(_tenant uuid) returns boolean` — true when status in `(trialing, active)` OR `(past_due AND now() < grace_period_ends_at)`.
-- `public.is_platform_admin(_uid uuid) returns boolean`.
+### Schema change (same migration)
+- Loosen the `action` check constraint on `public.membership_audit_log`
+  to accept the new action codes:
+  - `tenant.settings_updated`
+  - `tenant.billing_updated`
+  - `platform_admin.granted`
+  - `platform_admin.revoked`
+  - `receipt_settings.updated`
+- Add triggers (all `security definer`, write via service-role bypass):
+  - `trg_log_tenant_update` on `public.tenants` (AFTER UPDATE) — diff
+    name/slug/plan_id/status and log `tenant.settings_updated` or
+    `tenant.billing_updated` (when plan/status changes).
+  - `trg_log_platform_admin` on `public.platform_admins`
+    (AFTER INSERT/DELETE) — log granted/revoked. `tenant_id` is set to
+    `current_tenant_id()` when present, else null-skipped (the table
+    requires non-null tenant_id, so platform_admin events are written
+    only when the actor has an active tenant; otherwise inserted via the
+    edge function which always sets one).
+  - `trg_log_receipt_settings` on `public.receipt_settings`
+    (AFTER UPDATE) — log `receipt_settings.updated` with a payload of
+    changed fields.
+- Adjust the `tenant_id` column on `membership_audit_log` to allow
+  cross-tenant platform actions if necessary (we'll only emit when a
+  tenant scope exists, so leave NOT NULL).
 
-Migration of existing tables (orders, services, inventory_items, expenses, attendance, profiles, user_roles, receipt_settings, schedules, loyalty, workers, …):
-1. Add `tenant_id uuid` nullable.
-2. Create one default tenant; backfill `tenant_id` on every row.
-3. Set `tenant_id NOT NULL`, add FK to `tenants(id)`, add index.
-4. Drop old RLS policies, recreate as:
-   - `SELECT`: `tenant_id = current_tenant_id()`
-   - `INSERT/UPDATE/DELETE`: `tenant_id = current_tenant_id() AND tenant_license_active(tenant_id)`
-5. `user_roles` becomes per-tenant: `(user_id, tenant_id, role)` unique.
+### Edge function tweaks
+- None required for triggers to fire; the existing `accept-invite` /
+  `invite-member` functions already emit explicit audit rows and remain
+  the source of truth for invite lifecycle.
 
-Auth hook: on first signup, create a tenant, add the user as `owner`, start a 30-day trial, set their `active_tenant_id` in `app_metadata`.
+### UI
+- `MembershipAuditLog.tsx` — add the new action codes to the `ACTIONS`
+  filter list and `LABEL` map so they render nicely.
 
-## Phase 2 — Frontend tenant awareness
+## Files touched
+- `supabase/sql/phase6_hardening.sql` (new)
+- `src/hooks/useReceiptSettings.ts`
+- `src/components/MembershipAuditLog.tsx`
 
-- `useTenant()` hook → loads current tenant, status, plan, members, license flag. Realtime subscribed.
-- `TenantProvider` at the root; gate routes on it.
-- `useAuth` extended with `activeTenantId` + `switchTenant(id)` (calls an edge function that updates the JWT claim and refreshes session).
-- Every existing `supabase.from(...)` call: no code change needed — RLS does the scoping. But every `insert` adds `tenant_id: current`.
-- `<LicenseGate>` component wraps the app shell:
-  - `trialing` / `active` → render normally, show trial countdown banner when <7 days left.
-  - `past_due` → render normally, red banner "Payment failed, X days left to update billing".
-  - `suspended` / `cancelled` → block the app, show a Billing page (only Settings → Billing and Logout accessible).
-
-## Phase 3 — Stripe Billing
-
-Use the seamless Stripe integration (`enable_stripe_payments`).
-
-- Edge functions:
-  - `create-checkout` — owner picks a plan → Stripe Checkout in subscription mode.
-  - `create-billing-portal` — opens Stripe customer portal.
-  - `stripe-webhook` — handles `checkout.session.completed`, `customer.subscription.updated/deleted`, `invoice.paid`, `invoice.payment_failed`. Updates `subscriptions`, `invoices`, and `tenants.status` + `current_period_end` + `grace_period_ends_at`.
-- A daily `pg_cron` job calls `enforce_licenses()`:
-  - `past_due` with `grace_period_ends_at < now()` → `suspended`.
-  - `trialing` with `trial_ends_at < now()` and no active sub → `suspended`.
-
-New UI: Settings → Billing tab. Shows current plan, next invoice, trial countdown, "Manage billing" (portal), invoice history, "Upgrade/Change plan".
-
-## Phase 4 — Tenant management UI
-
-- Settings → Workspace: rename tenant, slug, logo (reuses existing appearance).
-- Settings → Members: list members, invite by email (edge function generates invite token → email → `/accept-invite/:token`), change role, remove.
-- Tenant switcher in top bar (only if user belongs to multiple tenants).
-
-## Phase 5 — Super-admin console
-
-- New `/platform` route, gated by `is_platform_admin`.
-- Tenants list (status, plan, MRR, signups, last login).
-- Per-tenant: extend trial, suspend/reactivate, change plan, view license events, impersonate (issues a short-lived `active_tenant_id` override).
-- Global metrics: active tenants, trial→paid conversion, churn, MRR.
-
-## Phase 6 — Hardening
-
-- Backfill test: every existing table denies cross-tenant reads (automated test).
-- Edge function unit tests for webhook idempotency (`stripe_event_id` unique).
-- Audit log on tenant role/billing changes.
-- Update receipt VAT/business name to be per-tenant (already in `receipt_settings`, just add `tenant_id`).
-
----
-
-## Technical notes
-
-- **JWT claim**: store `active_tenant_id` in `auth.users.app_metadata` (writable only by service role / edge functions). RLS reads it via `(auth.jwt() -> 'app_metadata' ->> 'active_tenant_id')::uuid`. Fallback to single membership lookup if missing.
-- **Roles**: keep the existing `app_role` (admin/manager/cashier/…) but scope it per tenant in `user_roles(user_id, tenant_id, role)`. The role-permissions matrix stays global per role.
-- **License check on writes**: enforced both by RLS (`tenant_license_active`) and by edge functions, so a suspended tenant truly cannot mutate.
-- **Stripe price IDs**: stored in `plans.stripe_price_id`, seeded via a one-time SQL after you create products in Stripe (or via `batch_create_product`).
-- **Existing single-user assumptions**: a few hooks assume "the workshop" globally — they'll auto-scope once `tenant_id` filtering is in RLS. No code change needed in most places.
-- **Realtime channels**: already use random suffixes — fine. Add tenant filter where used heavily.
-- **Edge function secrets needed**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (handled by `enable_stripe_payments`).
-
----
-
-## Suggested execution order
-
-1. Phase 1 schema + RLS migration (biggest risk, do alone, verify nothing breaks).
-2. Phase 2 frontend tenant context + license gate (no billing yet — trial only).
-3. Phase 3 Stripe integration.
-4. Phase 4 members/invites.
-5. Phase 5 super-admin.
-6. Phase 6 hardening.
-
-I'd ship Phase 1+2 first so you have a working multi-tenant trial product, then layer billing on top. Each phase is a separate prompt — do not try to do all six at once.
-
-Reply "start phase 1" (or with adjustments) and I'll begin the migration.
+## Out of scope
+- Renaming/relabelling receipt UI copy.
+- Adding per-tenant overrides for currency/VAT (already tenant-scoped
+  elsewhere or planned for a later phase).
