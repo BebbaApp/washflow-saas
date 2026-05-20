@@ -167,6 +167,45 @@ export type Database = {
           },
         ]
       }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string
+          id: string
+          notes: string | null
+          tenant_id: string
+          vendor: string | null
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description: string
+          id?: string
+          notes?: string | null
+          tenant_id?: string
+          vendor?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string
+          id?: string
+          notes?: string | null
+          tenant_id?: string
+          vendor?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount_cents: number
@@ -503,6 +542,42 @@ export type Database = {
         Update: {
           created_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          address: string
+          company_name: string
+          contact_email: string
+          contact_phone: string
+          currency: string
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+          vat_rate: number
+        }
+        Insert: {
+          address?: string
+          company_name?: string
+          contact_email?: string
+          contact_phone?: string
+          currency?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number
+        }
+        Update: {
+          address?: string
+          company_name?: string
+          contact_email?: string
+          contact_phone?: string
+          currency?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number
         }
         Relationships: []
       }

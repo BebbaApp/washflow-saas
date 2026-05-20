@@ -66,9 +66,16 @@ export function ConsoleDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fmt = useMemo(() => new Intl.NumberFormat(undefined, {
-    style: "currency", currency, maximumFractionDigits: 0,
-  }), [currency]);
+  const fmt = useMemo(() => {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency", currency, maximumFractionDigits: 0,
+      });
+    } catch {
+      const num = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+      return { format: (v: number) => `${currency} ${num.format(v)}` } as Intl.NumberFormat;
+    }
+  }, [currency]);
 
   const exportCsv = () => {
     if (!data) return;
