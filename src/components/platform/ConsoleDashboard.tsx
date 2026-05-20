@@ -133,6 +133,12 @@ export function ConsoleDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat icon={<DollarSign className="w-4 h-4" />} label="Order revenue"
           value={data ? fmt.format(data.totals.revenue) : "—"} />
+        <Stat icon={<TrendingDown className="w-4 h-4" />} label="Expenses"
+          value={data ? fmt.format(data.totals.expenses) : "—"}
+          valueClass="text-destructive" />
+        <Stat icon={<TrendingUp className="w-4 h-4" />} label="Net profit"
+          value={data ? fmt.format(data.totals.net_profit) : "—"}
+          valueClass={data && data.totals.net_profit < 0 ? "text-destructive" : "text-success"} />
         <Stat icon={<DollarSign className="w-4 h-4" />} label="Invoiced (paid)"
           value={data ? fmt.format(data.totals.invoice_revenue) : "—"} />
         <Stat icon={<ShoppingCart className="w-4 h-4" />} label="Orders"
@@ -141,11 +147,16 @@ export function ConsoleDashboard() {
         <Stat icon={<Users className="w-4 h-4" />} label="Employees"
           value={data ? data.totals.employees.toString() : "—"}
           sub={data ? `${data.totals.tenants} tenants` : undefined} />
+        <Stat icon={<Building2 className="w-4 h-4" />} label="Tenants"
+          value={data ? data.totals.tenants.toString() : "—"} />
+        <Stat icon={<DollarSign className="w-4 h-4" />} label="Avg order"
+          value={data && data.totals.completed_orders > 0
+            ? fmt.format(data.totals.revenue / data.totals.completed_orders) : "—"} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="glass-card p-4 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Revenue over time</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Revenue vs Expenses</h3>
           {data && data.series.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={data.series}>
@@ -153,6 +164,10 @@ export function ConsoleDashboard() {
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
                     <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="exp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -162,7 +177,9 @@ export function ConsoleDashboard() {
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   formatter={(v: any) => fmt.format(Number(v))}
                 />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#rev)" strokeWidth={2} />
+                <Area type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" fill="url(#exp)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -190,12 +207,20 @@ export function ConsoleDashboard() {
         </div>
       </div>
 
-      <div className="glass-card p-4 text-xs text-muted-foreground flex items-start gap-2">
-        <Building2 className="w-4 h-4 mt-0.5 shrink-0" />
-        <p>
-          Expense data is stored per-tenant in browser local storage and is not aggregated centrally.
-          To include expenses in the console dashboard, migrate them to a shared <code>expenses</code> table.
-        </p>
+      <div className="glass-card p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-3">Expenses by category</h3>
+        {data && data.expense_categories.length > 0 ? (
+          <ul className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {data.expense_categories.map((c) => (
+              <li key={c.category} className="flex items-center justify-between gap-2 text-sm border border-border rounded-lg px-3 py-2">
+                <span className="text-foreground truncate">{c.category}</span>
+                <span className="font-semibold text-destructive whitespace-nowrap">{fmt.format(c.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground py-6 text-center">No expenses recorded in this range.</p>
+        )}
       </div>
     </div>
   );
