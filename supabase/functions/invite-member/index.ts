@@ -78,12 +78,11 @@ Deno.serve(async (req) => {
       payload: { invitation_id: invite.id },
     });
 
-    // Email via Resend (gateway)
+    // Email via Resend (direct API, key stored in Supabase secrets)
     let emailStatus: "sent" | "skipped" | "failed" = "skipped";
     let emailError: string | undefined;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    if (LOVABLE_API_KEY && RESEND_API_KEY) {
+    if (RESEND_API_KEY) {
       try {
         const html = inviteEmailHtml({
           tenantName,
@@ -92,12 +91,11 @@ Deno.serve(async (req) => {
           acceptUrl: accept_url,
           expiresAt: invite.expires_at,
         });
-        const resp = await fetch(`${RESEND_GATEWAY}/emails`, {
+        const resp = await fetch(`${RESEND_API_URL}/emails`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "X-Connection-Api-Key": RESEND_API_KEY,
+            Authorization: `Bearer ${RESEND_API_KEY}`,
           },
           body: JSON.stringify({
             from: "Workspace invites <onboarding@resend.dev>",
