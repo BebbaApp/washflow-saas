@@ -47,6 +47,10 @@ export default function Settings() {
     return can(item.permission);
   });
 
+  useEffect(() => {
+    if (!loading && !isAuthenticated) navigate("/", { replace: true });
+  }, [loading, isAuthenticated, navigate]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -54,10 +58,6 @@ export default function Settings() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) navigate("/", { replace: true });
-  }, [loading, isAuthenticated, navigate]);
 
   if (!isAuthenticated) return null;
 
