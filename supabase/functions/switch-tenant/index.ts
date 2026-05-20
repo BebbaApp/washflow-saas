@@ -31,13 +31,13 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    const { data: membership } = await admin
-      .from("tenant_members")
-      .select("tenant_id")
-      .eq("tenant_id", tenant_id)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!membership) return json({ error: "You are not a member of that workspace" }, 403);
+    const [{ data: membership }, { data: padmin }] = await Promise.all([
+      admin.from("tenant_members").select("tenant_id")
+        .eq("tenant_id", tenant_id).eq("user_id", user.id).maybeSingle(),
+      admin.from("platform_admins").select("user_id")
+        .eq("user_id", user.id).maybeSingle(),
+    ]);
+    if (!membership && !padmin) return json({ error: "You are not a member of that workspace" }, 403);
 
     const newAppMeta = { ...(user.app_metadata ?? {}), active_tenant_id: tenant_id };
     const { error: updErr } = await admin.auth.admin.updateUserById(user.id, {
