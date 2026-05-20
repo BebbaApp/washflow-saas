@@ -226,11 +226,11 @@ export function ConsoleDashboard() {
   );
 }
 
-function Stat({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+function Stat({ icon, label, value, sub, valueClass }: { icon: React.ReactNode; label: string; value: string; sub?: string; valueClass?: string }) {
   return (
     <div className="glass-card p-4">
       <div className="text-xs text-muted-foreground flex items-center gap-1.5">{icon}{label}</div>
-      <div className="text-2xl font-bold text-foreground mt-1">{value}</div>
+      <div className={`text-2xl font-bold mt-1 ${valueClass ?? "text-foreground"}`}>{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
