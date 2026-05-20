@@ -1,6 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { ArrowLeft, Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon } from "lucide-react";
+import { ArrowLeft, Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt } from "lucide-react";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { TenantsAdmin } from "@/components/platform/TenantsAdmin";
@@ -8,17 +8,19 @@ import { UsersAdmin } from "@/components/platform/UsersAdmin";
 import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
 import { ConsoleDashboard } from "@/components/platform/ConsoleDashboard";
 import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
+import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 
-type Tab = "dashboard" | "tenants" | "users" | "events" | "settings";
+type Tab = "dashboard" | "tenants" | "users" | "expenses" | "events" | "settings";
 
 const items: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "tenants", label: "Tenants", icon: Building2 },
   { id: "users", label: "Users", icon: Users },
+  { id: "expenses", label: "Expenses", icon: Receipt },
   { id: "events", label: "Events", icon: ScrollText },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -112,6 +114,7 @@ export default function Platform() {
             {tab === "dashboard" && <ConsoleDashboard />}
             {tab === "tenants" && <TenantsAdmin />}
             {tab === "users" && <UsersAdmin />}
+            {tab === "expenses" && <ConsoleExpenses />}
             {tab === "events" && <LicenseEventsAdmin />}
             {tab === "settings" && <ConsoleSettings />}
           </main>
