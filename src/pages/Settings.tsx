@@ -54,10 +54,11 @@ export default function Settings() {
     );
   }
 
-  if (!isAuthenticated) {
-    navigate("/");
-    return null;
-  }
+  useEffect(() => {
+    if (!loading && !isAuthenticated) navigate("/", { replace: true });
+  }, [loading, isAuthenticated, navigate]);
+
+  if (!isAuthenticated) return null;
 
   const renderSidebarBody = (onNavigate?: () => void) => (
     <>
