@@ -2,7 +2,11 @@
 // Creates a tenant_invitations row, emails the recipient via Resend
 // (through the Lovable connector gateway), and returns the accept link
 // for fallback / clipboard use.
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
