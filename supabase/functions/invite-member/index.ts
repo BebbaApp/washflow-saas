@@ -17,7 +17,7 @@ const BodySchema = z.object({
   accept_url_base: z.string().url(),
 });
 
-const RESEND_API_URL = "https://api.resend.com";
+const RESEND_GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -82,11 +82,12 @@ Deno.serve(async (req) => {
       payload: { invitation_id: invite.id },
     });
 
-    // Email via Resend (direct API, key stored in Supabase secrets)
+    // Email via Resend through the Lovable connector gateway
     let emailStatus: "sent" | "skipped" | "failed" = "skipped";
     let emailError: string | undefined;
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    if (RESEND_API_KEY) {
+    if (LOVABLE_API_KEY && RESEND_API_KEY) {
       try {
         const html = inviteEmailHtml({
           tenantName,
@@ -95,11 +96,12 @@ Deno.serve(async (req) => {
           acceptUrl: accept_url,
           expiresAt: invite.expires_at,
         });
-        const resp = await fetch(`${RESEND_API_URL}/emails`, {
+        const resp = await fetch(`${RESEND_GATEWAY_URL}/emails`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${RESEND_API_KEY}`,
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "X-Connection-Api-Key": RESEND_API_KEY,
           },
           body: JSON.stringify({
             from: "Workspace invites <onboarding@resend.dev>",
@@ -120,6 +122,8 @@ Deno.serve(async (req) => {
         emailError = (e as Error).message;
         console.error("invite email exception", e);
       }
+    } else {
+      emailError = "RESEND_API_KEY or LOVABLE_API_KEY not configured";
     }
 
     return json({
