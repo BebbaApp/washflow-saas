@@ -8,6 +8,7 @@ import { TenantProvider } from "@/hooks/useTenant";
 import { LicenseGate } from "@/components/LicenseGate";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
+import Settings from "./pages/Settings";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
 import Platform from "./pages/Platform";
