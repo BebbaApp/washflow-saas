@@ -39,6 +39,7 @@ export function ConsoleDashboard() {
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [currency, setCurrency] = useState("USD");
+  const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
 
   const [from, setFrom] = useState(isoDate(new Date(Date.now() - 30 * 86_400_000)));
   const [to, setTo] = useState(isoDate(new Date()));
