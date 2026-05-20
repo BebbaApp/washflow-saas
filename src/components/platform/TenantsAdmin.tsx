@@ -220,6 +220,9 @@ export function TenantsAdmin() {
                           </Button>
                         </div>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setEditTenant(t)}>
+                          <Pencil className="w-3.5 h-3.5 mr-2" /> Edit details
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => impersonate(t)}>
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
                         </DropdownMenuItem>
