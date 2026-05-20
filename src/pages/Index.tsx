@@ -13,7 +13,6 @@ import { NewOrderDialog } from "@/components/NewOrderDialog";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { LoyaltyDashboard } from "@/components/LoyaltyDashboard";
 import { SchedulingDashboard } from "@/components/SchedulingDashboard";
-import { SettingsPage } from "@/components/SettingsPage";
 import { TenantSwitcher } from "@/components/TenantSwitcher";
 import { ComingSoon } from "@/components/ComingSoon";
 import { HistoryPage } from "@/components/HistoryPage";
@@ -35,7 +34,7 @@ import Login from "@/pages/Login";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
