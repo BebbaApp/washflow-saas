@@ -39,6 +39,7 @@ export function ConsoleDashboard() {
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [currency, setCurrency] = useState("USD");
+  const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
 
   const [from, setFrom] = useState(isoDate(new Date(Date.now() - 30 * 86_400_000)));
   const [to, setTo] = useState(isoDate(new Date()));
@@ -65,6 +66,34 @@ export function ConsoleDashboard() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load configured categories for the selected tenant (used to enrich the breakdown).
+  useEffect(() => {
+    if (tenantId === "all") { setConfiguredCategories([]); return; }
+    supabase
+      .from("expense_categories" as any)
+      .select("name, sort_order")
+      .eq("tenant_id", tenantId)
+      .order("sort_order")
+      .order("name")
+      .then(({ data }) => setConfiguredCategories(((data as any) ?? []).map((r: any) => r.name)));
+  }, [tenantId]);
+
+  const breakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    (data?.expense_categories ?? []).forEach((c) => map.set(c.category, Number(c.amount || 0)));
+    if (configuredCategories.length > 0) {
+      const ordered: Array<{ category: string; amount: number }> = [];
+      configuredCategories.forEach((name) => {
+        ordered.push({ category: name, amount: map.get(name) ?? 0 });
+        map.delete(name);
+      });
+      // append any ad-hoc categories not in the configured list
+      Array.from(map.entries()).forEach(([category, amount]) => ordered.push({ category, amount }));
+      return ordered;
+    }
+    return data?.expense_categories ?? [];
+  }, [data, configuredCategories]);
 
   const fmt = useMemo(() => {
     try {
@@ -216,12 +245,12 @@ export function ConsoleDashboard() {
 
       <div className="glass-card p-4">
         <h3 className="text-sm font-semibold text-foreground mb-3">Expenses by category</h3>
-        {data && data.expense_categories.length > 0 ? (
+        {breakdown.length > 0 ? (
           <ul className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {data.expense_categories.map((c) => (
+            {breakdown.map((c) => (
               <li key={c.category} className="flex items-center justify-between gap-2 text-sm border border-border rounded-lg px-3 py-2">
                 <span className="text-foreground truncate">{c.category}</span>
-                <span className="font-semibold text-destructive whitespace-nowrap">{fmt.format(c.amount)}</span>
+                <span className={`font-semibold whitespace-nowrap ${c.amount > 0 ? "text-destructive" : "text-muted-foreground"}`}>{fmt.format(c.amount)}</span>
               </li>
             ))}
           </ul>
