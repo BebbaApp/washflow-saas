@@ -1,24 +1,72 @@
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { ArrowLeft, Building2, Users, ScrollText, Shield, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon } from "lucide-react";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { TenantsAdmin } from "@/components/platform/TenantsAdmin";
 import { UsersAdmin } from "@/components/platform/UsersAdmin";
 import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
+import { ConsoleDashboard } from "@/components/platform/ConsoleDashboard";
+import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
+import {
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
+} from "@/components/ui/sidebar";
 
-type Tab = "tenants" | "users" | "events";
+type Tab = "dashboard" | "tenants" | "users" | "events" | "settings";
 
-const tabs: { id: Tab; label: string; icon: typeof Building2 }[] = [
+const items: { id: Tab; label: string; icon: typeof Building2 }[] = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "tenants", label: "Tenants", icon: Building2 },
   { id: "users", label: "Users", icon: Users },
   { id: "events", label: "Events", icon: ScrollText },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
+
+function PlatformSidebar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarContent>
+        <div className="px-3 py-4 border-b border-sidebar-border flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Shield className="w-4 h-4 text-primary" />
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-sidebar-foreground leading-tight">Platform</div>
+              <div className="text-[10px] text-muted-foreground">Super-admin console</div>
+            </div>
+          )}
+        </div>
+        <SidebarGroup>
+          <SidebarGroupLabel>Console</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton isActive={tab === item.id} onClick={() => setTab(item.id)}>
+                      <Icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.label}</span>}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
 
 export default function Platform() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { isPlatformAdmin, loading } = usePlatformAdmin();
-  const [tab, setTab] = useState<Tab>("tenants");
+  const [tab, setTab] = useState<Tab>("dashboard");
 
   if (authLoading || loading) {
     return (
@@ -45,52 +93,30 @@ export default function Platform() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 bg-card/80 backdrop-blur border-b border-border">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors" title="Back to app">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-foreground leading-tight">Platform Console</h1>
-              <p className="text-[11px] text-muted-foreground">Super-admin · cross-tenant controls</p>
-            </div>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex gap-1">
-            {tabs.map((t) => {
-              const Icon = t.icon;
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                    active
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </header>
+  const activeLabel = items.find((i) => i.id === tab)?.label ?? "";
 
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {tab === "tenants" && <TenantsAdmin />}
-        {tab === "users" && <UsersAdmin />}
-        {tab === "events" && <LicenseEventsAdmin />}
-      </main>
-    </div>
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <PlatformSidebar tab={tab} setTab={setTab} />
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="sticky top-0 z-30 h-14 bg-card/80 backdrop-blur border-b border-border flex items-center gap-3 px-4">
+            <SidebarTrigger />
+            <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-xs" title="Back to app">
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to app
+            </Link>
+            <div className="h-5 w-px bg-border mx-1" />
+            <h1 className="text-sm font-semibold text-foreground">{activeLabel}</h1>
+          </header>
+          <main className="flex-1 p-6 overflow-x-hidden">
+            {tab === "dashboard" && <ConsoleDashboard />}
+            {tab === "tenants" && <TenantsAdmin />}
+            {tab === "users" && <UsersAdmin />}
+            {tab === "events" && <LicenseEventsAdmin />}
+            {tab === "settings" && <ConsoleSettings />}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }

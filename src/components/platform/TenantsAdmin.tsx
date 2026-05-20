@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield } from "lucide-react";
+import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil } from "lucide-react";
+import { EditTenantDialog } from "./EditTenantDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ export function TenantsAdmin() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, number>>({});
+  const [editTenant, setEditTenant] = useState<PlatformTenant | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -218,6 +220,9 @@ export function TenantsAdmin() {
                           </Button>
                         </div>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setEditTenant(t)}>
+                          <Pencil className="w-3.5 h-3.5 mr-2" /> Edit details
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => impersonate(t)}>
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
                         </DropdownMenuItem>
@@ -230,6 +235,13 @@ export function TenantsAdmin() {
           )}
         </div>
       </div>
+
+      <EditTenantDialog
+        open={!!editTenant}
+        onOpenChange={(o) => !o && setEditTenant(null)}
+        tenant={editTenant ? { id: editTenant.id, name: editTenant.name, slug: editTenant.slug } : null}
+        onSaved={load}
+      />
     </div>
   );
 }

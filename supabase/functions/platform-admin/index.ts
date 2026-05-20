@@ -36,6 +36,22 @@ const ActionSchema = z.discriminatedUnion("action", [
     tenant_role: z.enum(["owner", "admin", "member"]).default("member") }),
   z.object({ action: z.literal("remove_tenant_member"),
     tenant_id: z.string().uuid(), user_id: z.string().uuid() }),
+  z.object({ action: z.literal("update_tenant"),
+    tenant_id: z.string().uuid(),
+    name: z.string().min(1).max(120).optional(),
+    slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/).optional() }),
+  z.object({ action: z.literal("get_platform_settings") }),
+  z.object({ action: z.literal("update_platform_settings"),
+    currency: z.string().min(1).max(8).optional(),
+    vat_rate: z.number().min(0).max(100).optional(),
+    company_name: z.string().max(200).optional(),
+    contact_email: z.string().max(200).optional(),
+    contact_phone: z.string().max(50).optional(),
+    address: z.string().max(500).optional() }),
+  z.object({ action: z.literal("platform_overview"),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    tenant_id: z.string().uuid().optional() }),
 ]);
 
 Deno.serve(async (req) => {
@@ -190,6 +206,98 @@ Deno.serve(async (req) => {
           .delete().eq("tenant_id", body.tenant_id).eq("user_id", body.user_id);
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
+      }
+
+      case "update_tenant": {
+        const patch: Record<string, unknown> = {};
+        if (body.name !== undefined) patch.name = body.name;
+        if (body.slug !== undefined) patch.slug = body.slug;
+        if (Object.keys(patch).length === 0) return json({ ok: true });
+        const { error } = await admin.from("tenants").update(patch).eq("id", body.tenant_id);
+        if (error) return json({ error: error.message }, 500);
+        await admin.from("license_events").insert({
+          tenant_id: body.tenant_id, kind: "platform.tenant_updated",
+          payload: { by: callerId, ...patch },
+        });
+        return json({ ok: true });
+      }
+
+      case "get_platform_settings": {
+        const { data, error } = await admin.from("platform_settings")
+          .select("*").eq("id", true).maybeSingle();
+        if (error) return json({ error: error.message }, 500);
+        return json({ settings: data });
+      }
+
+      case "update_platform_settings": {
+        const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: callerId };
+        for (const k of ["currency","vat_rate","company_name","contact_email","contact_phone","address"] as const) {
+          if ((body as any)[k] !== undefined) patch[k] = (body as any)[k];
+        }
+        const { error } = await admin.from("platform_settings").update(patch).eq("id", true);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
+
+      case "platform_overview": {
+        const from = body.from ? new Date(body.from).toISOString() : new Date(Date.now() - 30 * 86_400_000).toISOString();
+        const to = body.to ? new Date(body.to).toISOString() : new Date().toISOString();
+
+        let ordersQ = admin.from("orders")
+          .select("id, tenant_id, service, service_price, status, created_at, completed_at")
+          .gte("created_at", from).lte("created_at", to).limit(10000);
+        if (body.tenant_id) ordersQ = ordersQ.eq("tenant_id", body.tenant_id);
+        const { data: orders, error: ordersErr } = await ordersQ;
+        if (ordersErr) return json({ error: ordersErr.message }, 500);
+
+        const [{ count: memberCount }, { count: tenantCount }, { data: invoices }] = await Promise.all([
+          admin.from("tenant_members").select("*", { count: "exact", head: true }),
+          admin.from("tenants").select("*", { count: "exact", head: true }),
+          admin.from("invoices").select("tenant_id, amount_cents, currency, status, paid_at, created_at")
+            .gte("created_at", from).lte("created_at", to).limit(10000),
+        ]);
+
+        const rows = (orders ?? []) as Array<any>;
+        const completed = rows.filter((r) => r.status === "completed");
+        const revenue = completed.reduce((s, r) => s + Number(r.service_price ?? 0), 0);
+        const serviceMap = new Map<string, { count: number; revenue: number }>();
+        for (const r of completed) {
+          const k = r.service ?? "Unknown";
+          const cur = serviceMap.get(k) ?? { count: 0, revenue: 0 };
+          cur.count += 1;
+          cur.revenue += Number(r.service_price ?? 0);
+          serviceMap.set(k, cur);
+        }
+        const topServices = Array.from(serviceMap.entries())
+          .map(([service, v]) => ({ service, ...v }))
+          .sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+
+        const invoiceRows = (invoices ?? []) as Array<any>;
+        const invoicePaid = invoiceRows.filter((i) => i.status === "paid")
+          .reduce((s, i) => s + Number(i.amount_cents ?? 0), 0) / 100;
+
+        // Daily revenue series
+        const dayMap = new Map<string, number>();
+        for (const r of completed) {
+          const d = (r.completed_at ?? r.created_at).slice(0, 10);
+          dayMap.set(d, (dayMap.get(d) ?? 0) + Number(r.service_price ?? 0));
+        }
+        const series = Array.from(dayMap.entries()).sort(([a],[b]) => a < b ? -1 : 1)
+          .map(([date, revenue]) => ({ date, revenue }));
+
+        return json({
+          range: { from, to },
+          totals: {
+            orders: rows.length,
+            completed_orders: completed.length,
+            revenue,
+            invoice_revenue: invoicePaid,
+            tenants: tenantCount ?? 0,
+            employees: memberCount ?? 0,
+          },
+          top_services: topServices,
+          series,
+        });
       }
     }
   } catch (e) {
