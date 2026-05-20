@@ -27,6 +27,7 @@ const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; pe
   { id: "reports", label: "Reports", icon: BarChart3, permission: "reports.view" },
   { id: "expenses", label: "Expenses", icon: Receipt, permission: "expenses.view" },
   { id: "attendance", label: "Attendance", icon: Fingerprint, permission: "attendance.view", alwaysRoles: ["washer", "driver", "cashier"] },
+  { id: "settings", label: "Settings", icon: SettingsIcon, permission: "settings.view" },
 ];
 
 export default function Settings() {
