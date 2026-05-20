@@ -250,11 +250,17 @@ Deno.serve(async (req) => {
         const { data: orders, error: ordersErr } = await ordersQ;
         if (ordersErr) return json({ error: ordersErr.message }, 500);
 
-        const [{ count: memberCount }, { count: tenantCount }, { data: invoices }] = await Promise.all([
+        let expensesQ = admin.from("expenses")
+          .select("tenant_id, amount, category, date")
+          .gte("date", from).lte("date", to).limit(10000);
+        if (body.tenant_id) expensesQ = expensesQ.eq("tenant_id", body.tenant_id);
+
+        const [{ count: memberCount }, { count: tenantCount }, { data: invoices }, { data: expenses }] = await Promise.all([
           admin.from("tenant_members").select("*", { count: "exact", head: true }),
           admin.from("tenants").select("*", { count: "exact", head: true }),
           admin.from("invoices").select("tenant_id, amount_cents, currency, status, paid_at, created_at")
             .gte("created_at", from).lte("created_at", to).limit(10000),
+          expensesQ,
         ]);
 
         const rows = (orders ?? []) as Array<any>;
@@ -276,14 +282,34 @@ Deno.serve(async (req) => {
         const invoicePaid = invoiceRows.filter((i) => i.status === "paid")
           .reduce((s, i) => s + Number(i.amount_cents ?? 0), 0) / 100;
 
-        // Daily revenue series
-        const dayMap = new Map<string, number>();
+        const expenseRows = (expenses ?? []) as Array<any>;
+        const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+        const expensesByCat = new Map<string, number>();
+        for (const e of expenseRows) {
+          const k = e.category ?? "Other";
+          expensesByCat.set(k, (expensesByCat.get(k) ?? 0) + Number(e.amount ?? 0));
+        }
+        const expense_categories = Array.from(expensesByCat.entries())
+          .map(([category, amount]) => ({ category, amount }))
+          .sort((a, b) => b.amount - a.amount);
+
+        // Daily revenue + expenses series
+        const dayMap = new Map<string, { revenue: number; expenses: number }>();
         for (const r of completed) {
           const d = (r.completed_at ?? r.created_at).slice(0, 10);
-          dayMap.set(d, (dayMap.get(d) ?? 0) + Number(r.service_price ?? 0));
+          const cur = dayMap.get(d) ?? { revenue: 0, expenses: 0 };
+          cur.revenue += Number(r.service_price ?? 0);
+          dayMap.set(d, cur);
+        }
+        for (const e of expenseRows) {
+          const d = (e.date ?? "").slice(0, 10);
+          if (!d) continue;
+          const cur = dayMap.get(d) ?? { revenue: 0, expenses: 0 };
+          cur.expenses += Number(e.amount ?? 0);
+          dayMap.set(d, cur);
         }
         const series = Array.from(dayMap.entries()).sort(([a],[b]) => a < b ? -1 : 1)
-          .map(([date, revenue]) => ({ date, revenue }));
+          .map(([date, v]) => ({ date, ...v }));
 
         return json({
           range: { from, to },
@@ -292,10 +318,13 @@ Deno.serve(async (req) => {
             completed_orders: completed.length,
             revenue,
             invoice_revenue: invoicePaid,
+            expenses: totalExpenses,
+            net_profit: revenue - totalExpenses,
             tenants: tenantCount ?? 0,
             employees: memberCount ?? 0,
           },
           top_services: topServices,
+          expense_categories,
           series,
         });
       }
