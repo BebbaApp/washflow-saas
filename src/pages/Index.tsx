@@ -323,6 +323,14 @@ const Index = () => {
                 {mode === "dark" ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
                 {mode === "dark" ? "Light mode" : "Dark mode"}
               </DropdownMenuItem>
+              {isPlatformAdmin && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/platform"><SettingsIcon className="w-4 h-4 mr-2" /> Platform console</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                 <LogOut className="w-4 h-4 mr-2" /> Sign out
