@@ -348,6 +348,8 @@ export function TenantManagementSection() {
           </div>
         </div>
       )}
+
+      {canManage && <MembershipAuditLog />}
     </div>
   );
 }
