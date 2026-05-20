@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, DollarSign, ShoppingCart, Users, Building2, Download, FileText } from "lucide-react";
+import { Loader2, DollarSign, ShoppingCart, Users, Building2, Download, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
 
 interface Overview {
@@ -19,11 +19,14 @@ interface Overview {
     completed_orders: number;
     revenue: number;
     invoice_revenue: number;
+    expenses: number;
+    net_profit: number;
     tenants: number;
     employees: number;
   };
   top_services: Array<{ service: string; count: number; revenue: number }>;
-  series: Array<{ date: string; revenue: number }>;
+  expense_categories: Array<{ category: string; amount: number }>;
+  series: Array<{ date: string; revenue: number; expenses: number }>;
 }
 
 interface TenantRow { id: string; name: string }
@@ -78,8 +81,11 @@ export function ConsoleDashboard() {
     lines.push("Top services,Service,Count,Revenue");
     data.top_services.forEach((s) => lines.push(`,${s.service},${s.count},${s.revenue}`));
     lines.push("");
-    lines.push("Daily revenue,Date,Revenue");
-    data.series.forEach((s) => lines.push(`,${s.date},${s.revenue}`));
+    lines.push("Expenses by category,Category,Amount");
+    data.expense_categories.forEach((c) => lines.push(`,${c.category},${c.amount}`));
+    lines.push("");
+    lines.push("Daily,Date,Revenue,Expenses");
+    data.series.forEach((s) => lines.push(`,${s.date},${s.revenue},${s.expenses}`));
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -127,6 +133,12 @@ export function ConsoleDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat icon={<DollarSign className="w-4 h-4" />} label="Order revenue"
           value={data ? fmt.format(data.totals.revenue) : "—"} />
+        <Stat icon={<TrendingDown className="w-4 h-4" />} label="Expenses"
+          value={data ? fmt.format(data.totals.expenses) : "—"}
+          valueClass="text-destructive" />
+        <Stat icon={<TrendingUp className="w-4 h-4" />} label="Net profit"
+          value={data ? fmt.format(data.totals.net_profit) : "—"}
+          valueClass={data && data.totals.net_profit < 0 ? "text-destructive" : "text-success"} />
         <Stat icon={<DollarSign className="w-4 h-4" />} label="Invoiced (paid)"
           value={data ? fmt.format(data.totals.invoice_revenue) : "—"} />
         <Stat icon={<ShoppingCart className="w-4 h-4" />} label="Orders"
@@ -135,11 +147,16 @@ export function ConsoleDashboard() {
         <Stat icon={<Users className="w-4 h-4" />} label="Employees"
           value={data ? data.totals.employees.toString() : "—"}
           sub={data ? `${data.totals.tenants} tenants` : undefined} />
+        <Stat icon={<Building2 className="w-4 h-4" />} label="Tenants"
+          value={data ? data.totals.tenants.toString() : "—"} />
+        <Stat icon={<DollarSign className="w-4 h-4" />} label="Avg order"
+          value={data && data.totals.completed_orders > 0
+            ? fmt.format(data.totals.revenue / data.totals.completed_orders) : "—"} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="glass-card p-4 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Revenue over time</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Revenue vs Expenses</h3>
           {data && data.series.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={data.series}>
@@ -147,6 +164,10 @@ export function ConsoleDashboard() {
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
                     <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="exp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -156,7 +177,9 @@ export function ConsoleDashboard() {
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   formatter={(v: any) => fmt.format(Number(v))}
                 />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#rev)" strokeWidth={2} />
+                <Area type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" fill="url(#exp)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -184,22 +207,30 @@ export function ConsoleDashboard() {
         </div>
       </div>
 
-      <div className="glass-card p-4 text-xs text-muted-foreground flex items-start gap-2">
-        <Building2 className="w-4 h-4 mt-0.5 shrink-0" />
-        <p>
-          Expense data is stored per-tenant in browser local storage and is not aggregated centrally.
-          To include expenses in the console dashboard, migrate them to a shared <code>expenses</code> table.
-        </p>
+      <div className="glass-card p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-3">Expenses by category</h3>
+        {data && data.expense_categories.length > 0 ? (
+          <ul className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {data.expense_categories.map((c) => (
+              <li key={c.category} className="flex items-center justify-between gap-2 text-sm border border-border rounded-lg px-3 py-2">
+                <span className="text-foreground truncate">{c.category}</span>
+                <span className="font-semibold text-destructive whitespace-nowrap">{fmt.format(c.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground py-6 text-center">No expenses recorded in this range.</p>
+        )}
       </div>
     </div>
   );
 }
 
-function Stat({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+function Stat({ icon, label, value, sub, valueClass }: { icon: React.ReactNode; label: string; value: string; sub?: string; valueClass?: string }) {
   return (
     <div className="glass-card p-4">
       <div className="text-xs text-muted-foreground flex items-center gap-1.5">{icon}{label}</div>
-      <div className="text-2xl font-bold text-foreground mt-1">{value}</div>
+      <div className={`text-2xl font-bold mt-1 ${valueClass ?? "text-foreground"}`}>{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
