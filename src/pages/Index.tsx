@@ -471,28 +471,6 @@ const Index = () => {
         onOpenChange={(o) => { if (!o) setPrintPreviewId(null); }}
       />
 
-      {/* Settings drawer for admins */}
-      {can("settings.view") && settingsOpen && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm overflow-auto">
-          <div className="min-h-screen p-4 md:p-8">
-            <div className="max-w-5xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground">Settings</h2>
-                  <p className="text-muted-foreground text-sm mt-1">Manage workers, appearance, and services</p>
-                </div>
-                <button
-                  onClick={() => setSettingsOpen(false)}
-                  className="w-10 h-10 rounded-lg bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity flex items-center justify-center"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <SettingsPage />
-            </div>
-          </div>
-        </div>
-      )}
       {user && (
         <ProfileDialog
           open={profileOpen}
