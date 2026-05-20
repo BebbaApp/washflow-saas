@@ -81,8 +81,11 @@ export function ConsoleDashboard() {
     lines.push("Top services,Service,Count,Revenue");
     data.top_services.forEach((s) => lines.push(`,${s.service},${s.count},${s.revenue}`));
     lines.push("");
-    lines.push("Daily revenue,Date,Revenue");
-    data.series.forEach((s) => lines.push(`,${s.date},${s.revenue}`));
+    lines.push("Expenses by category,Category,Amount");
+    data.expense_categories.forEach((c) => lines.push(`,${c.category},${c.amount}`));
+    lines.push("");
+    lines.push("Daily,Date,Revenue,Expenses");
+    data.series.forEach((s) => lines.push(`,${s.date},${s.revenue},${s.expenses}`));
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
