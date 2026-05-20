@@ -50,6 +50,7 @@ const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; pe
   { id: "reports", label: "Reports", icon: BarChart3, permission: "reports.view" },
   { id: "expenses", label: "Expenses", icon: Receipt, permission: "expenses.view" },
   { id: "attendance", label: "Attendance", icon: Fingerprint, permission: "attendance.view", alwaysRoles: ["washer", "driver", "cashier"] },
+  { id: "settings", label: "Settings", icon: SettingsIcon, permission: "settings.view" },
 ];
 
 
@@ -173,10 +174,15 @@ const Index = () => {
       <nav className="flex flex-col gap-1 flex-1">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
+          const handleClick = () => {
+            if (item.id === "settings") { navigate("/settings"); onNavigate?.(); return; }
+            setActiveTab(item.id);
+            onNavigate?.();
+          };
           return (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); onNavigate?.(); }}
+              onClick={handleClick}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
@@ -201,16 +207,6 @@ const Index = () => {
             >
               {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            {can("settings.view") && (
-              <Link
-                to="/settings"
-                onClick={() => onNavigate?.()}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                title="Settings"
-              >
-                <SettingsIcon className="w-4 h-4" />
-              </Link>
-            )}
             <button
               onClick={() => { logout(); onNavigate?.(); }}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
