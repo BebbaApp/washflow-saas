@@ -12,10 +12,10 @@ interface Props {
 export const ReceiptPreview = ({ model, className = "" }: Props) => {
   return (
     <div
-      className={`mx-auto bg-white text-black rounded-md shadow-lg p-4 font-mono text-[12px] leading-[1.35] w-[320px] ${className}`}
-      // 80mm ≈ 302px @ 96dpi; ~320px with padding gives a faithful slip
+      className={`mx-auto bg-white text-black rounded-md shadow-lg p-4 font-mono text-[12px] leading-[1.35] w-fit max-w-full overflow-x-auto ${className}`}
+      // Width is driven by the 48-char monospace pre below so the rule lines never get clipped.
     >
-      <pre className="m-0 whitespace-pre">
+      <pre className="m-0 whitespace-pre" style={{ width: `${LINE_WIDTH}ch` }}>
         {model.map((s, i) => <SegmentLine key={i} seg={s} />)}
       </pre>
     </div>
