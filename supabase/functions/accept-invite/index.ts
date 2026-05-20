@@ -61,6 +61,17 @@ Deno.serve(async (req) => {
       .from("license_events")
       .insert({ tenant_id: invite.tenant_id, kind: "member.invite_accepted", payload: { user_id: user.id, email: user.email } });
 
+    await admin.from("membership_audit_log").insert({
+      tenant_id: invite.tenant_id,
+      actor_user_id: user.id,
+      actor_email: user.email,
+      target_user_id: user.id,
+      target_email: user.email,
+      action: "invite.accepted",
+      to_role: invite.tenant_role,
+      payload: { invitation_id: invite.id },
+    });
+
     return json({ ok: true, tenant_id: invite.tenant_id }, 200);
   } catch (err) {
     console.error("accept-invite error", err);
