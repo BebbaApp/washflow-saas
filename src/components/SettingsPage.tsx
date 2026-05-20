@@ -55,28 +55,42 @@ function fnErrorDescription(info: { message: string; version?: string; accepted?
 
 export function SettingsPage() {
   const { can } = usePermissions();
-  const tabs = ([
-    { id: "workers" as const, label: "Workers", icon: Users, perm: "settings.workers" },
-    { id: "permissions" as const, label: "Role Permissions", icon: ShieldCheck, perm: "settings.permissions" },
-    { id: "theme" as const, label: "Appearance", icon: Palette, perm: "settings.appearance" },
-    { id: "services" as const, label: "Services", icon: Package, perm: "services.view" },
-    { id: "currency" as const, label: "Currency", icon: DollarSign, perm: "settings.currency" },
-    { id: "receipt" as const, label: "Receipt", icon: FileText, perm: "settings.currency" },
-    { id: "printer" as const, label: "Printer", icon: Printer, perm: "settings.currency" },
-    { id: "billing" as const, label: "Billing", icon: CreditCard, perm: "settings.workers" },
-    { id: "workspace" as const, label: "Workspace", icon: Building2, perm: "settings.workers" },
-  ]).filter((t) => can(t.perm));
+  type TabId = "workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace";
+  type GroupId = "administration" | "operations";
 
-  const [section, setSection] = useState<"workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace">(
-    (tabs[0]?.id as any) ?? "workers",
-  );
+  const allTabs: { id: TabId; label: string; icon: any; perm: string; group: GroupId }[] = [
+    // Administration
+    { id: "workers", label: "Workers", icon: Users, perm: "settings.workers", group: "administration" },
+    { id: "services", label: "Services", icon: Package, perm: "services.view", group: "administration" },
+    { id: "permissions", label: "Role Permissions", icon: ShieldCheck, perm: "settings.permissions", group: "administration" },
+    { id: "currency", label: "Currency", icon: DollarSign, perm: "settings.currency", group: "administration" },
+    // Operations
+    { id: "theme", label: "Appearance", icon: Palette, perm: "settings.appearance", group: "operations" },
+    { id: "receipt", label: "Receipt", icon: FileText, perm: "settings.currency", group: "operations" },
+    { id: "printer", label: "Printer", icon: Printer, perm: "settings.currency", group: "operations" },
+    { id: "billing", label: "Billing", icon: CreditCard, perm: "settings.workers", group: "operations" },
+    { id: "workspace", label: "Workspace", icon: Building2, perm: "settings.workers", group: "operations" },
+  ];
 
-  // If permissions change and current section is no longer allowed, jump to
-  // the first allowed tab.
+  const tabs = allTabs.filter((t) => can(t.perm));
+  const groups: { id: GroupId; label: string }[] = [
+    { id: "administration", label: "Administration" },
+    { id: "operations", label: "Operations" },
+  ].filter((g) => tabs.some((t) => t.group === g.id)) as { id: GroupId; label: string }[];
+
+  const [group, setGroup] = useState<GroupId>(groups[0]?.id ?? "administration");
+  const groupTabs = tabs.filter((t) => t.group === group);
+  const [section, setSection] = useState<TabId>((groupTabs[0]?.id as TabId) ?? "workers");
+
   useEffect(() => {
-    if (tabs.length === 0) return;
-    if (!tabs.some((t) => t.id === section)) setSection(tabs[0].id);
-  }, [tabs, section]);
+    if (groups.length === 0) return;
+    if (!groups.some((g) => g.id === group)) setGroup(groups[0].id);
+  }, [groups, group]);
+
+  useEffect(() => {
+    if (groupTabs.length === 0) return;
+    if (!groupTabs.some((t) => t.id === section)) setSection(groupTabs[0].id);
+  }, [groupTabs, section]);
 
   if (tabs.length === 0) {
     return (
@@ -90,9 +104,26 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Group Tabs */}
+      {groups.length > 1 && (
+        <div className="inline-flex p-1 rounded-xl bg-secondary">
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setGroup(g.id)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                group === g.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Section Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {tabs.map((tab) => (
+        {groupTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setSection(tab.id)}
