@@ -10,22 +10,25 @@ import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
+import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const GatedRoutes = () => {
   const { isAuthenticated } = useAuth();
+  const isPlatformRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/platform");
   const routes = (
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
+      <Route path="/platform" element={<Platform />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
-  // Only gate when authenticated; login/reset/invite pages render freely.
-  return isAuthenticated ? <LicenseGate>{routes}</LicenseGate> : routes;
+  // Platform console bypasses the license gate so super-admins can rescue suspended tenants.
+  return isAuthenticated && !isPlatformRoute ? <LicenseGate>{routes}</LicenseGate> : routes;
 };
 
 const App = () => (
