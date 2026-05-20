@@ -235,6 +235,13 @@ export function TenantsAdmin() {
           )}
         </div>
       </div>
+
+      <EditTenantDialog
+        open={!!editTenant}
+        onOpenChange={(o) => !o && setEditTenant(null)}
+        tenant={editTenant ? { id: editTenant.id, name: editTenant.name, slug: editTenant.slug } : null}
+        onSaved={load}
+      />
     </div>
   );
 }
