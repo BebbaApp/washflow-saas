@@ -316,7 +316,7 @@ const Index = () => {
                 <UserIcon className="w-4 h-4 mr-2" /> My profile
               </DropdownMenuItem>
               {can("settings.view") && (
-                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <SettingsIcon className="w-4 h-4 mr-2" /> Settings
                 </DropdownMenuItem>
               )}
