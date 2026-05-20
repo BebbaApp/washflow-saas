@@ -36,6 +36,22 @@ const ActionSchema = z.discriminatedUnion("action", [
     tenant_role: z.enum(["owner", "admin", "member"]).default("member") }),
   z.object({ action: z.literal("remove_tenant_member"),
     tenant_id: z.string().uuid(), user_id: z.string().uuid() }),
+  z.object({ action: z.literal("update_tenant"),
+    tenant_id: z.string().uuid(),
+    name: z.string().min(1).max(120).optional(),
+    slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/).optional() }),
+  z.object({ action: z.literal("get_platform_settings") }),
+  z.object({ action: z.literal("update_platform_settings"),
+    currency: z.string().min(1).max(8).optional(),
+    vat_rate: z.number().min(0).max(100).optional(),
+    company_name: z.string().max(200).optional(),
+    contact_email: z.string().max(200).optional(),
+    contact_phone: z.string().max(50).optional(),
+    address: z.string().max(500).optional() }),
+  z.object({ action: z.literal("platform_overview"),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    tenant_id: z.string().uuid().optional() }),
 ]);
 
 Deno.serve(async (req) => {
