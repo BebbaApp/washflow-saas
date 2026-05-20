@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, DollarSign, ShoppingCart, Users, Building2, Download, FileText } from "lucide-react";
+import { Loader2, DollarSign, ShoppingCart, Users, Building2, Download, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
 
 interface Overview {
@@ -19,11 +19,14 @@ interface Overview {
     completed_orders: number;
     revenue: number;
     invoice_revenue: number;
+    expenses: number;
+    net_profit: number;
     tenants: number;
     employees: number;
   };
   top_services: Array<{ service: string; count: number; revenue: number }>;
-  series: Array<{ date: string; revenue: number }>;
+  expense_categories: Array<{ category: string; amount: number }>;
+  series: Array<{ date: string; revenue: number; expenses: number }>;
 }
 
 interface TenantRow { id: string; name: string }
