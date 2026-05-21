@@ -58,23 +58,12 @@ export function ConsoleExpenses() {
   useEffect(() => {
     supabase.from("tenants" as any).select("id, name").order("name")
       .then(({ data }) => setTenants(((data as any) ?? []) as TenantRow[]));
-    supabase.functions.invoke("platform-admin", { body: { action: "get_platform_settings" } })
-      .then(({ data }) => {
-        const c = (data as any)?.settings?.currency;
-        if (c) setCurrency(c);
-      });
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fmt = useMemo(() => {
-    try {
-      return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 });
-    } catch {
-      const num = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
-      return { format: (v: number) => `${currency} ${num.format(v)}` } as Intl.NumberFormat;
-    }
-  }, [currency]);
+  const fmt = useMemo(() => ({ format: fmtAmount }), [fmtAmount]);
+
 
   const tenantName = (id: string) => tenants.find((t) => t.id === id)?.name ?? id.slice(0, 8);
 
