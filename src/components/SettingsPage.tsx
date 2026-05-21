@@ -19,6 +19,7 @@ import { useTheme, themePresets } from "@/hooks/useTheme";
 import { useServices, type ServicePackage } from "@/hooks/useServices";
 import { useCurrency, CURRENCY_PRESETS } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -166,6 +167,7 @@ interface StaffUser {
 function WorkersSection() {
   const { toast } = useToast();
   const { can } = usePermissions();
+  const { user: authUser, loading: authLoading, isAuthenticated } = useAuth();
   const canDeleteWorkers = can("settings.workers.delete");
 
   const [users, setUsers] = useState<StaffUser[]>([]);
@@ -236,9 +238,9 @@ function WorkersSection() {
   };
 
   const loadUsers = useCallback(async () => {
+    if (!isAuthenticated || !authUser) return;
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUserId(user?.id ?? null);
+    setCurrentUserId(authUser.id);
 
     const res = await supabase.functions.invoke("manage-staff", { body: { action: "list" } });
     if (res.error || res.data?.error) {
@@ -249,9 +251,17 @@ function WorkersSection() {
     }
     setUsers(res.data.users ?? []);
     setLoading(false);
-  }, [toast]);
+  }, [toast, isAuthenticated, authUser]);
 
-  useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+    loadUsers();
+  }, [authLoading, isAuthenticated, loadUsers]);
+
 
   const handleRoleChange = async (userId: string, newRole: WorkerRole) => {
     setSavingId(userId);
