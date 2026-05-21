@@ -106,7 +106,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     setTenant((data as any) ?? null);
     setMyRole(activeRow.tenant_role);
     setLoading(false);
-  }, [user]);
+  }, [user, authLoading, authedEmail]);
 
   useEffect(() => { load(); }, [load]);
 
