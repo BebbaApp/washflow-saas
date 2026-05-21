@@ -94,6 +94,19 @@ Deno.serve(async (req) => {
       return reply({ error: "Only admins can manage staff" }, 403);
     }
 
+    // Resolve caller's tenant once (service-role bypasses current_tenant_id()).
+    let tenantId: string | null =
+      (userData.user.app_metadata as any)?.active_tenant_id ?? null;
+    if (!tenantId) {
+      const { data: memberships } = await admin
+        .from("tenant_members")
+        .select("tenant_id")
+        .eq("user_id", callerId);
+      if (memberships && memberships.length >= 1) {
+        tenantId = memberships[0].tenant_id;
+      }
+    }
+
     const body = await req.json().catch(() => ({}));
     const action = normalizeAction(body?.action, body);
 
@@ -153,10 +166,11 @@ Deno.serve(async (req) => {
       if (existing && existing.user_id !== user_id) {
         return reply({ error: "This phone number is already used by another worker" }, 400);
       }
+      if (!tenantId) return reply({ error: "Unable to resolve tenant" }, 400);
       await admin.from("staff_pins").delete().eq("user_id", user_id);
       const { error } = await admin
         .from("staff_pins")
-        .insert({ user_id, phone: normalizedPhone, pin_hash });
+        .insert({ user_id, phone: normalizedPhone, pin_hash, tenant_id: tenantId });
       if (error) return reply({ error: error.message }, 500);
       return reply({ success: true });
     }
@@ -173,18 +187,6 @@ Deno.serve(async (req) => {
       const { user_id, role } = body ?? {};
       if (!user_id || !VALID_ROLES.includes(role)) {
         return reply({ error: "Invalid input" }, 400);
-      }
-      // Resolve tenant for the role row: prefer JWT active tenant, fallback to caller's single membership.
-      let tenantId: string | null =
-        (userData.user.app_metadata as any)?.active_tenant_id ?? null;
-      if (!tenantId) {
-        const { data: memberships } = await admin
-          .from("tenant_members")
-          .select("tenant_id")
-          .eq("user_id", callerId);
-        if (memberships && memberships.length === 1) {
-          tenantId = memberships[0].tenant_id;
-        }
       }
       if (!tenantId) return reply({ error: "Unable to resolve tenant for role update" }, 400);
 
