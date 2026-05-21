@@ -166,6 +166,7 @@ interface StaffUser {
 function WorkersSection() {
   const { toast } = useToast();
   const { can } = usePermissions();
+  const { user: authUser, loading: authLoading, isAuthenticated } = useAuth();
   const canDeleteWorkers = can("settings.workers.delete");
 
   const [users, setUsers] = useState<StaffUser[]>([]);
