@@ -115,6 +115,7 @@ export default function Platform() {
           <main className="flex-1 p-6 overflow-x-hidden">
             {tab === "dashboard" && <ConsoleDashboard />}
             {tab === "tenants" && <TenantsAdmin />}
+            {tab === "plans" && <ConsolePlans />}
             {tab === "users" && <UsersAdmin />}
             {tab === "expenses" && <ConsoleExpenses />}
             {tab === "events" && <LicenseEventsAdmin />}
