@@ -1,15 +1,19 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, RotateCcw, Shield } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Loader2, RotateCcw, Shield } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { broadcastPermissionsChanged } from "@/hooks/usePermissions";
+import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   PERMISSION_GROUPS,
-  PERMISSIONS_STORAGE_KEY,
   PermGroup,
   PermissionMatrix,
   Role,
+  cacheMatrix,
   getDefaultMatrix,
+  loadMatrix,
 } from "@/lib/permissions";
 
 const ROLES: { id: Role; label: string; color: string; access: string }[] = [
@@ -21,22 +25,63 @@ const ROLES: { id: Role; label: string; color: string; access: string }[] = [
 
 export function RolePermissions() {
   const { toast } = useToast();
+  const { tenant } = useTenant();
+  const { user } = useAuth();
+  const tenantId = tenant?.id ?? null;
   const defaults = useMemo(() => getDefaultMatrix(), []);
-  const [matrix, setMatrix] = useState<PermissionMatrix>(() => {
-    try {
-      const raw = localStorage.getItem(PERMISSIONS_STORAGE_KEY);
-      if (raw) return { ...defaults, ...JSON.parse(raw) };
-    } catch { /* ignore */ }
-    return defaults;
-  });
+  const [matrix, setMatrix] = useState<PermissionMatrix>(() => loadMatrix(tenantId));
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const hydratedRef = useRef(false);
+  const saveTimerRef = useRef<number | null>(null);
 
+  // Load from DB whenever tenant changes.
   useEffect(() => {
-    try {
-      localStorage.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(matrix));
-      broadcastPermissionsChanged();
-    } catch { /* ignore */ }
-  }, [matrix]);
+    if (!tenantId) return;
+    hydratedRef.current = false;
+    setLoading(true);
+    setMatrix(loadMatrix(tenantId));
+    (async () => {
+      const { data, error } = await supabase
+        .from("role_permissions" as any)
+        .select("matrix")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (!error && data && (data as any).matrix) {
+        const next = { ...defaults, ...((data as any).matrix as PermissionMatrix) };
+        setMatrix(next);
+        cacheMatrix(tenantId, next);
+      }
+      setLoading(false);
+      setTimeout(() => { hydratedRef.current = true; }, 0);
+    })();
+  }, [tenantId, defaults]);
+
+  // Debounced save to DB + broadcast.
+  useEffect(() => {
+    if (!tenantId || !hydratedRef.current) return;
+    cacheMatrix(tenantId, matrix);
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(async () => {
+      setSaving(true);
+      const { error } = await supabase
+        .from("role_permissions" as any)
+        .upsert(
+          { tenant_id: tenantId, matrix, updated_by: user?.id ?? null, updated_at: new Date().toISOString() },
+          { onConflict: "tenant_id" },
+        );
+      setSaving(false);
+      if (error) {
+        toast({ title: "Failed to save permissions", description: error.message, variant: "destructive" });
+      } else {
+        broadcastPermissionsChanged();
+      }
+    }, 500);
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    };
+  }, [matrix, tenantId, user?.id, toast]);
 
   const toggle = (key: string, role: Role) => {
     setMatrix((m) => ({ ...m, [key]: { ...m[key], [role]: !m[key]?.[role] } }));
@@ -67,6 +112,7 @@ export function RolePermissions() {
   };
 
   const totalPerms = PERMISSION_GROUPS.reduce((n, g) => n + g.items.length, 0);
+
 
   return (
     <div className="space-y-4">
