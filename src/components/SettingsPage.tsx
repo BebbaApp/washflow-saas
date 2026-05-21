@@ -325,7 +325,7 @@ function WorkersSection() {
     setCreating(true);
     try {
       const res = await supabase.functions.invoke("create-worker", {
-        body: { email: email.trim(), password, name: name.trim(), role, phone: phone.trim(), pin: pin.trim() || undefined },
+        body: { tenant_id: tenant?.id, email: email.trim(), password, name: name.trim(), role, phone: phone.trim(), pin: pin.trim() || undefined },
       });
       if (res.error || res.data?.error) {
         toast({ title: "Error creating user", description: res.data?.error || res.error?.message || "Unknown error", variant: "destructive" });
