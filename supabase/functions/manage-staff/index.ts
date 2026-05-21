@@ -130,8 +130,8 @@ Deno.serve(async (req) => {
       const ids = list.users.map((u) => u.id);
       const [{ data: profiles }, { data: roles }, { data: pins }] = await Promise.all([
         admin.from("profiles").select("user_id,name").in("user_id", ids),
-        admin.from("user_roles").select("user_id,role").in("user_id", ids),
-        admin.from("staff_pins").select("user_id,phone").in("user_id", ids),
+        admin.from("user_roles").select("user_id,role").eq("tenant_id", tenantId).in("user_id", ids),
+        admin.from("staff_pins").select("user_id,phone").eq("tenant_id", tenantId).in("user_id", ids),
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
@@ -171,13 +171,13 @@ Deno.serve(async (req) => {
       const { data: existing } = await admin
         .from("staff_pins")
         .select("user_id")
+        .eq("tenant_id", tenantId)
         .eq("phone", normalizedPhone)
         .maybeSingle();
       if (existing && existing.user_id !== user_id) {
         return reply({ error: "This phone number is already used by another worker" }, 400);
       }
-      if (!tenantId) return reply({ error: "Unable to resolve tenant" }, 400);
-      await admin.from("staff_pins").delete().eq("user_id", user_id);
+      await admin.from("staff_pins").delete().eq("user_id", user_id).eq("tenant_id", tenantId);
       const { error } = await admin
         .from("staff_pins")
         .insert({ user_id, phone: normalizedPhone, pin_hash, tenant_id: tenantId });
@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
     if (action === "clear_pin") {
       const { user_id } = body ?? {};
       if (!user_id) return reply({ error: "Missing user_id" }, 400);
-      const { error } = await admin.from("staff_pins").delete().eq("user_id", user_id);
+      const { error } = await admin.from("staff_pins").delete().eq("user_id", user_id).eq("tenant_id", tenantId);
       if (error) return reply({ error: error.message }, 500);
       return reply({ success: true });
     }
@@ -198,8 +198,6 @@ Deno.serve(async (req) => {
       if (!user_id || !VALID_ROLES.includes(role)) {
         return reply({ error: "Invalid input" }, 400);
       }
-      if (!tenantId) return reply({ error: "Unable to resolve tenant for role update" }, 400);
-
       await admin.from("user_roles").delete().eq("user_id", user_id).eq("tenant_id", tenantId);
       const { error } = await admin
         .from("user_roles")
@@ -217,7 +215,8 @@ Deno.serve(async (req) => {
       const { data: targetRoles } = await admin
         .from("user_roles")
         .select("role")
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .eq("tenant_id", tenantId);
       if ((targetRoles ?? []).some((r: any) => r.role === "admin")) {
         return reply({ error: "Admin users cannot be deleted" }, 400);
       }
