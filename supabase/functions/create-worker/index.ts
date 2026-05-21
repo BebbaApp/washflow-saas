@@ -87,19 +87,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: existingMembership } = await adminClient
-      .from("tenant_members")
-      .select("user_id")
-      .eq("user_id", callerId)
-      .eq("tenant_id", tenant_id)
-      .maybeSingle();
-
     // Create auth user
     const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: { name },
+      app_metadata: { active_tenant_id: tenant_id },
     });
 
     if (createErr) {
@@ -109,9 +103,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { error: memberErr } = await adminClient.from("tenant_members").upsert(
+      { tenant_id, user_id: newUser.user.id, tenant_role: "member" },
+      { onConflict: "tenant_id,user_id" },
+    );
+
+    if (memberErr) {
+      return new Response(JSON.stringify({ error: memberErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Assign role
     const { error: roleErr } = await adminClient.from("user_roles").insert({
       user_id: newUser.user.id,
+      tenant_id,
       role,
     });
 
@@ -129,6 +136,7 @@ Deno.serve(async (req) => {
       const normalizedPhone = String(phone).replace(/\s+/g, "");
       const { error: pinErr } = await adminClient.from("staff_pins").insert({
         user_id: newUser.user.id,
+        tenant_id,
         phone: normalizedPhone,
         pin_hash,
       });
