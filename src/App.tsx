@@ -35,17 +35,19 @@ const GatedRoutes = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TenantProvider>
-      <CurrencyProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <GatedRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </CurrencyProvider>
-    </TenantProvider>
+    <AuthProvider>
+      <TenantProvider>
+        <CurrencyProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <GatedRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </CurrencyProvider>
+      </TenantProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
