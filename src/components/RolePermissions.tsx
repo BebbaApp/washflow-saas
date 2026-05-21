@@ -126,6 +126,13 @@ export function RolePermissions() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {(loading || saving) && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {loading ? "Loading…" : "Saving…"}
+            </span>
+          )}
+
           <button
             onClick={collapseAll}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
