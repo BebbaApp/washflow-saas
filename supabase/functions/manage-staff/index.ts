@@ -131,13 +131,16 @@ Deno.serve(async (req) => {
       return reply({ error: "Unable to resolve tenant" }, 400);
     }
 
-    const [{ data: callerRoles }, { data: callerMembership }, { data: platformAdmin }] = await Promise.all([
-      admin.from("user_roles").select("role").eq("user_id", callerId).eq("tenant_id", tenantId),
-      admin.from("tenant_members").select("tenant_role").eq("user_id", callerId).eq("tenant_id", tenantId).maybeSingle(),
+    const [{ data: callerRoles }, { data: callerMemberships }, { data: platformAdmin }] = await Promise.all([
+      admin.from("user_roles").select("role,tenant_id").eq("user_id", callerId),
+      admin.from("tenant_members").select("tenant_id,tenant_role").eq("user_id", callerId),
       admin.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
     ]);
-    const isAppAdmin = (callerRoles ?? []).some((r: any) => r.role === "admin");
-    const isTenantAdmin = callerMembership?.tenant_role === "owner" || callerMembership?.tenant_role === "admin";
+    const tenantRoles = (callerRoles ?? []).filter((r: any) => r.tenant_id === tenantId);
+    const tenantMembership = (callerMemberships ?? []).find((m: any) => m.tenant_id === tenantId);
+    const isAppAdmin = tenantRoles.some((r: any) => r.role === "admin") ||
+      (callerRoles ?? []).some((r: any) => r.role === "admin" && !r.tenant_id);
+    const isTenantAdmin = tenantMembership?.tenant_role === "owner" || tenantMembership?.tenant_role === "admin";
     const isPlatformAdmin = !!platformAdmin;
     if (!isAppAdmin && !isTenantAdmin && !isPlatformAdmin) {
       return reply({ error: "Only admins can manage staff" }, 403);

@@ -169,7 +169,7 @@ function WorkersSection() {
   const { toast } = useToast();
   const { can } = usePermissions();
   const { user: authUser, loading: authLoading, isAuthenticated } = useAuth();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
   const canDeleteWorkers = can("settings.workers.delete");
 
   const [users, setUsers] = useState<StaffUser[]>([]);
@@ -202,6 +202,10 @@ function WorkersSection() {
   const handleSavePin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pinTarget) return;
+    if (!tenant?.id) {
+      toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
+      return;
+    }
     if (!pinPhone.trim() || !/^\d{4,6}$/.test(newPin)) {
       toast({ title: "Enter a phone number and a 4-6 digit PIN", variant: "destructive" });
       return;
@@ -223,6 +227,10 @@ function WorkersSection() {
 
   const handleClearPin = async () => {
     if (!pinTarget) return;
+    if (!tenant?.id) {
+      toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
+      return;
+    }
     if (!confirm(`Remove phone + PIN login for ${pinTarget.name || pinTarget.email}?`)) return;
     setSavingPin(true);
     const res = await supabase.functions.invoke("manage-staff", {
@@ -241,6 +249,10 @@ function WorkersSection() {
 
   const loadUsers = useCallback(async () => {
     if (!isAuthenticated || !authUser) return;
+    if (!tenant?.id) {
+      setLoading(tenantLoading);
+      return;
+    }
     setLoading(true);
     setCurrentUserId(authUser.id);
 
@@ -253,19 +265,23 @@ function WorkersSection() {
     }
     setUsers(res.data.users ?? []);
     setLoading(false);
-  }, [toast, isAuthenticated, authUser, tenant?.id]);
+  }, [toast, isAuthenticated, authUser, tenant?.id, tenantLoading]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || tenantLoading) return;
     if (!isAuthenticated) {
       setLoading(false);
       return;
     }
     loadUsers();
-  }, [authLoading, isAuthenticated, loadUsers]);
+  }, [authLoading, tenantLoading, isAuthenticated, loadUsers]);
 
 
   const handleRoleChange = async (userId: string, newRole: WorkerRole) => {
+    if (!tenant?.id) {
+      toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
+      return;
+    }
     setSavingId(userId);
     const res = await supabase.functions.invoke("manage-staff", {
       body: { action: "update_role", tenant_id: tenant?.id, user_id: userId, role: newRole },
@@ -281,6 +297,10 @@ function WorkersSection() {
   };
 
   const handleDelete = async (u: StaffUser) => {
+    if (!tenant?.id) {
+      toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
+      return;
+    }
     if (!confirm(`Delete ${u.name || u.email}? This cannot be undone.`)) return;
     setDeletingId(u.id);
     const res = await supabase.functions.invoke("manage-staff", {
