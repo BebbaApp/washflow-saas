@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-staff-manager-role";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-member-list-admin-manage";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -139,26 +139,37 @@ Deno.serve(async (req) => {
     ]);
     const tenantRoles = (callerRoles ?? []).filter((r: any) => r.tenant_id === tenantId);
     const tenantMembership = (callerMemberships ?? []).find((m: any) => m.tenant_id === tenantId);
+    const isTenantMember = !!tenantMembership;
     const hasStaffManagerRole = tenantRoles.some((r: any) => STAFF_MANAGER_ROLES.includes(r.role)) ||
       (callerRoles ?? []).some((r: any) => STAFF_MANAGER_ROLES.includes(r.role) && !r.tenant_id);
     const isTenantAdmin = tenantMembership?.tenant_role === "owner" || tenantMembership?.tenant_role === "admin";
     const isPlatformAdmin = !!platformAdmin;
-    if (!hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
-      return reply({ error: "Only admins can manage staff" }, 403);
-    }
 
     if (!action) {
       return reply({ error: "Unknown action", received: body?.action ?? null }, 400);
+    }
+
+    if (action === "list" && !isTenantMember && !isPlatformAdmin) {
+      return reply({ error: "Only workspace members can view staff" }, 403);
+    }
+
+    if (action !== "list" && !hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
+      return reply({ error: "Only admins or managers can manage staff" }, 403);
     }
 
     if (action === "list") {
       const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (error) return reply({ error: error.message }, 500);
       const ids = list.users.map((u) => u.id);
-      const [{ data: profiles }, { data: roles }, { data: pins }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }] = await Promise.all([
         admin.from("profiles").select("user_id,name").in("user_id", ids),
         admin.from("user_roles").select("user_id,role").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("staff_pins").select("user_id,phone").eq("tenant_id", tenantId).in("user_id", ids),
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).in("user_id", ids),
+      ]);
+      const tenantUserIds = new Set<string>([
+        ...(tenantMembers ?? []).map((m: any) => m.user_id),
+        ...(roles ?? []).map((r: any) => r.user_id),
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
@@ -168,7 +179,7 @@ Deno.serve(async (req) => {
         arr.push(r.role);
         rMap.set(r.user_id, arr);
       });
-      const users = list.users.map((u) => {
+      const users = list.users.filter((u) => tenantUserIds.has(u.id)).map((u) => {
         const userRoles = rMap.get(u.id) ?? [];
         return {
           id: u.id,
