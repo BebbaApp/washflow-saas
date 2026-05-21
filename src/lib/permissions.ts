@@ -201,11 +201,15 @@ export function getDefaultMatrix(): PermissionMatrix {
   return m;
 }
 
-export function loadMatrix(): PermissionMatrix {
+export function loadMatrix(tenantId?: string | null): PermissionMatrix {
   const defaults = getDefaultMatrix();
-  try {
-    const raw = localStorage.getItem(PERMISSIONS_STORAGE_KEY);
-    if (raw) {
+  const keys = tenantId
+    ? [tenantCacheKey(tenantId), PERMISSIONS_STORAGE_KEY]
+    : [PERMISSIONS_STORAGE_KEY];
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
       const parsed = JSON.parse(raw) as PermissionMatrix;
       const merged: PermissionMatrix = { ...defaults };
       for (const k of Object.keys(parsed)) {
@@ -217,10 +221,22 @@ export function loadMatrix(): PermissionMatrix {
         };
       }
       return merged;
-    }
-  } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }
   return defaults;
 }
+
+export function tenantCacheKey(tenantId: string) {
+  return `${PERMISSIONS_STORAGE_KEY}:${tenantId}`;
+}
+
+export function cacheMatrix(tenantId: string | null | undefined, matrix: PermissionMatrix) {
+  try {
+    const key = tenantId ? tenantCacheKey(tenantId) : PERMISSIONS_STORAGE_KEY;
+    localStorage.setItem(key, JSON.stringify(matrix));
+  } catch { /* ignore */ }
+}
+
 
 export function checkPermission(
   matrix: PermissionMatrix,
