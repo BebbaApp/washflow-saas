@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -12,7 +12,22 @@ export interface StaffUser {
   phone: string | null;
 }
 
-export function useAuth() {
+interface AuthContextValue {
+  user: StaffUser | null;
+  authedEmail: string | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  authedNoRole: boolean;
+  login: (email: string, password: string) => Promise<string | null>;
+  signup: (email: string, password: string, name: string, phone?: string, companyName?: string) => Promise<string | null>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: { name?: string; phone?: string }) => Promise<string | null>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function useAuthInternal(): AuthContextValue {
   const [user, setUser] = useState<StaffUser | null>(null);
   const [authedEmail, setAuthedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +49,6 @@ export function useAuth() {
       return null;
     }
 
-    // Pick the highest-privilege role if the user has multiple
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
     const userRoles = (roleRows ?? []).map((r) => r.role as StaffRole);
     const bestRole = priority.find((r) => userRoles.includes(r));
@@ -49,7 +63,6 @@ export function useAuth() {
         phone: (meta.phone as string) || authUser.phone || null,
       };
     }
-
     return null;
   }, []);
 
@@ -59,41 +72,30 @@ export function useAuth() {
 
     const resolveSession = (session: Session | null) => {
       const currentRequest = ++requestId;
-
       if (!session?.user) {
         setAuthedEmail(null);
         setUser(null);
         setLoading(false);
         return;
       }
-
       const authUser = session.user;
       setAuthedEmail(authUser.email ?? null);
       setLoading(true);
-
       setTimeout(() => {
         fetchProfile(authUser)
           .then((staffUser) => {
-            if (!cancelled && currentRequest === requestId) {
-              setUser(staffUser);
-            }
+            if (!cancelled && currentRequest === requestId) setUser(staffUser);
           })
           .catch((error) => {
             console.error("[useAuth] Failed to resolve authenticated user:", error);
-            if (!cancelled && currentRequest === requestId) {
-              setUser(null);
-            }
+            if (!cancelled && currentRequest === requestId) setUser(null);
           })
           .finally(() => {
-            if (!cancelled && currentRequest === requestId) {
-              setLoading(false);
-            }
+            if (!cancelled && currentRequest === requestId) setLoading(false);
           });
       }, 0);
     };
 
-    // Exchange ?code= from email-confirmation links into a session
-    // (the /reset-password page handles its own exchange).
     (async () => {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
@@ -134,22 +136,12 @@ export function useAuth() {
   }, []);
 
   const signup = useCallback(async (
-    email: string,
-    password: string,
-    name: string,
-    phone?: string,
-    companyName?: string,
+    email: string, password: string, name: string, phone?: string, companyName?: string,
   ): Promise<string | null> => {
     const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      phone: phone || undefined,
+      email, password, phone: phone || undefined,
       options: {
-        data: {
-          name,
-          ...(phone ? { phone } : {}),
-          ...(companyName ? { company_name: companyName } : {}),
-        },
+        data: { name, ...(phone ? { phone } : {}), ...(companyName ? { company_name: companyName } : {}) },
         emailRedirectTo: window.location.origin,
       },
     });
@@ -165,9 +157,7 @@ export function useAuth() {
     if (authErr) return authErr.message;
     if (updates.name !== undefined) {
       const { error: profErr } = await supabase
-        .from("profiles")
-        .update({ name: updates.name })
-        .eq("user_id", authUser.id);
+        .from("profiles").update({ name: updates.name }).eq("user_id", authUser.id);
       if (profErr) return profErr.message;
     }
     setUser((prev) => prev ? { ...prev, name: updates.name ?? prev.name, phone: updates.phone ?? prev.phone } : prev);
@@ -179,8 +169,22 @@ export function useAuth() {
     setUser(null);
   }, []);
 
-  const isAdmin = user?.role === "admin";
-  const authedNoRole = !!authedEmail && !user;
+  return {
+    user, authedEmail, loading,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === "admin",
+    authedNoRole: !!authedEmail && !user,
+    login, signup, logout, updateProfile,
+  };
+}
 
-  return { user, login, signup, logout, updateProfile, isAuthenticated: !!user, isAdmin, loading, authedEmail, authedNoRole };
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const value = useAuthInternal();
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }

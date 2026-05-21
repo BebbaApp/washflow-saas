@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CurrencyProvider } from "@/hooks/useCurrency";
 import { TenantProvider } from "@/hooks/useTenant";
 import { LicenseGate } from "@/components/LicenseGate";
-import { useAuth } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
 import ResetPassword from "./pages/ResetPassword";
@@ -35,17 +35,19 @@ const GatedRoutes = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TenantProvider>
-      <CurrencyProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <GatedRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </CurrencyProvider>
-    </TenantProvider>
+    <AuthProvider>
+      <TenantProvider>
+        <CurrencyProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <GatedRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </CurrencyProvider>
+      </TenantProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
