@@ -19,6 +19,7 @@ import { HistoryPage } from "@/components/HistoryPage";
 import { InventoryPage } from "@/components/InventoryPage";
 import { ExpensesPage } from "@/components/ExpensesPage";
 import { AttendancePage } from "@/components/AttendancePage";
+import { SettingsPage } from "@/components/SettingsPage";
 import { CompleteWashDialog } from "@/components/CompleteWashDialog";
 import { ReceiptPreviewDialog } from "@/components/ReceiptPreviewDialog";
 import { useOrders } from "@/hooks/useOrders";
@@ -175,7 +176,6 @@ const Index = () => {
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           const handleClick = () => {
-            if (item.id === "settings") { navigate("/settings"); onNavigate?.(); return; }
             setActiveTab(item.id);
             onNavigate?.();
           };
@@ -318,7 +318,7 @@ const Index = () => {
                 <UserIcon className="w-4 h-4 mr-2" /> My profile
               </DropdownMenuItem>
               {can("settings.view") && (
-                <DropdownMenuItem onClick={() => navigate("/settings")}>
+                <DropdownMenuItem onClick={() => setActiveTab("settings")}>
                   <SettingsIcon className="w-4 h-4 mr-2" /> Settings
                 </DropdownMenuItem>
               )}
@@ -430,6 +430,7 @@ const Index = () => {
             />
           )}
           {activeTab === "attendance" && <AttendancePage />}
+          {activeTab === "settings" && <SettingsPage />}
         </div>
       </main>
 
