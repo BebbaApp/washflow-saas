@@ -82,19 +82,37 @@ function useAuthInternal(): AuthContextValue {
       setAuthedEmail(authUser.email ?? null);
       setLoading(true);
       setTimeout(() => {
-        fetchProfile(authUser)
-          .then((staffUser) => {
-            if (!cancelled && currentRequest === requestId) setUser(staffUser);
-          })
-          .catch((error) => {
-            console.error("[useAuth] Failed to resolve authenticated user:", error);
-            if (!cancelled && currentRequest === requestId) setUser(null);
-          })
-          .finally(() => {
-            if (!cancelled && currentRequest === requestId) setLoading(false);
-          });
+        // Validate the session is still alive server-side. Stale JWTs (session
+        // deleted in Supabase) keep returning 401/403 on every protected call
+        // until we explicitly sign out.
+        supabase.auth.getUser().then(({ error: validateErr }) => {
+          if (cancelled || currentRequest !== requestId) return;
+          if (validateErr) {
+            console.warn("[useAuth] Stale session detected, signing out:", validateErr.message);
+            supabase.auth.signOut().finally(() => {
+              if (!cancelled && currentRequest === requestId) {
+                setAuthedEmail(null);
+                setUser(null);
+                setLoading(false);
+              }
+            });
+            return;
+          }
+          fetchProfile(authUser)
+            .then((staffUser) => {
+              if (!cancelled && currentRequest === requestId) setUser(staffUser);
+            })
+            .catch((error) => {
+              console.error("[useAuth] Failed to resolve authenticated user:", error);
+              if (!cancelled && currentRequest === requestId) setUser(null);
+            })
+            .finally(() => {
+              if (!cancelled && currentRequest === requestId) setLoading(false);
+            });
+        });
       }, 0);
     };
+
 
     (async () => {
       const url = new URL(window.location.href);
