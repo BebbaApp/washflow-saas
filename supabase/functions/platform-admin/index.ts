@@ -52,6 +52,16 @@ const ActionSchema = z.discriminatedUnion("action", [
     from: z.string().optional(),
     to: z.string().optional(),
     tenant_id: z.string().uuid().optional() }),
+  z.object({ action: z.literal("list_plans") }),
+  z.object({ action: z.literal("upsert_plan"),
+    id: z.string().uuid().optional(),
+    code: z.string().min(1).max(40).regex(/^[a-z0-9_-]+$/),
+    name: z.string().min(1).max(120),
+    price_monthly_cents: z.number().int().min(0),
+    max_users: z.number().int().min(0).nullable().optional(),
+    features: z.record(z.any()).optional(),
+    stripe_price_id: z.string().max(120).nullable().optional() }),
+  z.object({ action: z.literal("delete_plan"), id: z.string().uuid() }),
 ]);
 
 Deno.serve(async (req) => {
@@ -327,6 +337,45 @@ Deno.serve(async (req) => {
           expense_categories,
           series,
         });
+      }
+
+      case "list_plans": {
+        const { data, error } = await admin.from("plans")
+          .select("id, code, name, price_monthly_cents, max_users, features, stripe_price_id, created_at")
+          .order("price_monthly_cents", { ascending: true });
+        if (error) return json({ error: error.message }, 500);
+        return json({ plans: data });
+      }
+
+      case "upsert_plan": {
+        const payload: Record<string, unknown> = {
+          code: body.code,
+          name: body.name,
+          price_monthly_cents: body.price_monthly_cents,
+        };
+        if (body.max_users !== undefined) payload.max_users = body.max_users;
+        if (body.features !== undefined) payload.features = body.features;
+        if (body.stripe_price_id !== undefined) payload.stripe_price_id = body.stripe_price_id;
+        if (body.id) {
+          const { error } = await admin.from("plans").update(payload).eq("id", body.id);
+          if (error) return json({ error: error.message }, 500);
+          return json({ ok: true, id: body.id });
+        } else {
+          const { data, error } = await admin.from("plans").insert(payload).select("id").single();
+          if (error) return json({ error: error.message }, 500);
+          return json({ ok: true, id: data?.id });
+        }
+      }
+
+      case "delete_plan": {
+        const { count } = await admin.from("tenants")
+          .select("id", { count: "exact", head: true }).eq("plan_id", body.id);
+        if ((count ?? 0) > 0) {
+          return json({ error: `Plan is in use by ${count} tenant(s)` }, 400);
+        }
+        const { error } = await admin.from("plans").delete().eq("id", body.id);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
       }
     }
   } catch (e) {

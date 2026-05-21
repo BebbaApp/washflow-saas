@@ -8,6 +8,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { usePlatformCurrency } from "@/hooks/usePlatformCurrency";
 
 interface ExpenseRow {
   id: string;
@@ -27,10 +28,10 @@ const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
 export function ConsoleExpenses() {
   const { toast } = useToast();
+  const { format: fmtAmount } = usePlatformCurrency();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [currency, setCurrency] = useState("USD");
 
   const [from, setFrom] = useState(isoDate(new Date(Date.now() - 30 * 86_400_000)));
   const [to, setTo] = useState(isoDate(new Date()));
@@ -57,23 +58,12 @@ export function ConsoleExpenses() {
   useEffect(() => {
     supabase.from("tenants" as any).select("id, name").order("name")
       .then(({ data }) => setTenants(((data as any) ?? []) as TenantRow[]));
-    supabase.functions.invoke("platform-admin", { body: { action: "get_platform_settings" } })
-      .then(({ data }) => {
-        const c = (data as any)?.settings?.currency;
-        if (c) setCurrency(c);
-      });
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fmt = useMemo(() => {
-    try {
-      return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 });
-    } catch {
-      const num = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
-      return { format: (v: number) => `${currency} ${num.format(v)}` } as Intl.NumberFormat;
-    }
-  }, [currency]);
+  const fmt = useMemo(() => ({ format: fmtAmount }), [fmtAmount]);
+
 
   const tenantName = (id: string) => tenants.find((t) => t.id === id)?.name ?? id.slice(0, 8);
 

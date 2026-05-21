@@ -12,6 +12,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useTenant } from "@/hooks/useTenant";
+import { usePlatformCurrency } from "@/hooks/usePlatformCurrency";
 
 interface PlatformTenant {
   id: string;
@@ -38,6 +39,7 @@ const STATUS_OPTIONS = ["trialing", "active", "past_due", "suspended", "cancelle
 export function TenantsAdmin() {
   const { toast } = useToast();
   const { refresh } = useTenant();
+  const { format: fmtCurrency } = usePlatformCurrency();
   const [tenants, setTenants] = useState<PlatformTenant[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -117,7 +119,7 @@ export function TenantsAdmin() {
         <Stat label="Total tenants" value={tenants.length.toString()} icon={<Building2 className="w-4 h-4" />} />
         <Stat label="Active" value={tenants.filter((t) => t.status === "active").length.toString()} />
         <Stat label="Trialing" value={tenants.filter((t) => t.status === "trialing").length.toString()} />
-        <Stat label="Est. MRR" value={`$${(mrrCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+        <Stat label="Est. MRR" value={fmtCurrency(mrrCents / 100)} />
       </div>
 
       <div className="glass-card p-4 space-y-3">
@@ -167,7 +169,7 @@ export function TenantsAdmin() {
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>
                       {plans.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} (${(p.price_monthly_cents / 100).toFixed(0)})</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>{p.name} ({fmtCurrency(p.price_monthly_cents / 100)})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
