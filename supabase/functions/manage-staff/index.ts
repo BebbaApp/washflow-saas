@@ -188,18 +188,6 @@ Deno.serve(async (req) => {
       if (!user_id || !VALID_ROLES.includes(role)) {
         return reply({ error: "Invalid input" }, 400);
       }
-      // Resolve tenant for the role row: prefer JWT active tenant, fallback to caller's single membership.
-      let tenantId: string | null =
-        (userData.user.app_metadata as any)?.active_tenant_id ?? null;
-      if (!tenantId) {
-        const { data: memberships } = await admin
-          .from("tenant_members")
-          .select("tenant_id")
-          .eq("user_id", callerId);
-        if (memberships && memberships.length === 1) {
-          tenantId = memberships[0].tenant_id;
-        }
-      }
       if (!tenantId) return reply({ error: "Unable to resolve tenant for role update" }, 400);
 
       await admin.from("user_roles").delete().eq("user_id", user_id).eq("tenant_id", tenantId);
