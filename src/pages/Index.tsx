@@ -430,6 +430,7 @@ const Index = () => {
             />
           )}
           {activeTab === "attendance" && <AttendancePage />}
+          {activeTab === "settings" && <SettingsPage />}
         </div>
       </main>
 
