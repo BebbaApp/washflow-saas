@@ -3,8 +3,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-explicit-tenant-admin";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-staff-manager-role";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
+const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
 const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete"];
 
@@ -138,11 +139,11 @@ Deno.serve(async (req) => {
     ]);
     const tenantRoles = (callerRoles ?? []).filter((r: any) => r.tenant_id === tenantId);
     const tenantMembership = (callerMemberships ?? []).find((m: any) => m.tenant_id === tenantId);
-    const isAppAdmin = tenantRoles.some((r: any) => r.role === "admin") ||
-      (callerRoles ?? []).some((r: any) => r.role === "admin" && !r.tenant_id);
+    const hasStaffManagerRole = tenantRoles.some((r: any) => STAFF_MANAGER_ROLES.includes(r.role)) ||
+      (callerRoles ?? []).some((r: any) => STAFF_MANAGER_ROLES.includes(r.role) && !r.tenant_id);
     const isTenantAdmin = tenantMembership?.tenant_role === "owner" || tenantMembership?.tenant_role === "admin";
     const isPlatformAdmin = !!platformAdmin;
-    if (!isAppAdmin && !isTenantAdmin && !isPlatformAdmin) {
+    if (!hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
       return reply({ error: "Only admins can manage staff" }, 403);
     }
 

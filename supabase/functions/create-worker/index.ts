@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
+const STAFF_MANAGER_ROLES = ["admin", "manager"];
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -39,30 +41,40 @@ Deno.serve(async (req) => {
 
     const callerId = claims.claims.sub as string;
 
-    // Check caller is admin
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: callerRole } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .maybeSingle();
+    const { email, password, name, role, phone, pin, tenant_id } = await req.json();
 
-    if (callerRole?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Only admins can create workers" }), {
-        status: 403,
+    if (!email || !password || !name || !role || !tenant_id) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { email, password, name, role, phone, pin } = await req.json();
+    const [{ data: callerRoles }, { data: callerMembership }, { data: platformAdmin }] = await Promise.all([
+      adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerId)
+        .eq("tenant_id", tenant_id),
+      adminClient
+        .from("tenant_members")
+        .select("tenant_role")
+        .eq("user_id", callerId)
+        .eq("tenant_id", tenant_id)
+        .maybeSingle(),
+      adminClient.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
+    ]);
 
-    if (!email || !password || !name || !role) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
+    const hasStaffManagerRole = (callerRoles ?? []).some((r: any) => STAFF_MANAGER_ROLES.includes(r.role));
+    const isTenantAdmin = callerMembership?.tenant_role === "owner" || callerMembership?.tenant_role === "admin";
+    if (!hasStaffManagerRole && !isTenantAdmin && !platformAdmin) {
+      return new Response(JSON.stringify({ error: "Only admins can create workers" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -81,6 +93,7 @@ Deno.serve(async (req) => {
       password,
       email_confirm: true,
       user_metadata: { name },
+      app_metadata: { active_tenant_id: tenant_id },
     });
 
     if (createErr) {
@@ -90,9 +103,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { error: memberErr } = await adminClient.from("tenant_members").upsert(
+      { tenant_id, user_id: newUser.user.id, tenant_role: "member" },
+      { onConflict: "tenant_id,user_id" },
+    );
+
+    if (memberErr) {
+      return new Response(JSON.stringify({ error: memberErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Assign role
     const { error: roleErr } = await adminClient.from("user_roles").insert({
       user_id: newUser.user.id,
+      tenant_id,
       role,
     });
 
@@ -110,6 +136,7 @@ Deno.serve(async (req) => {
       const normalizedPhone = String(phone).replace(/\s+/g, "");
       const { error: pinErr } = await adminClient.from("staff_pins").insert({
         user_id: newUser.user.id,
+        tenant_id,
         phone: normalizedPhone,
         pin_hash,
       });
@@ -125,7 +152,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
