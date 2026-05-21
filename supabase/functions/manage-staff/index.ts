@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-19";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-tenant-scoped-pins";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
 const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete"];
@@ -64,6 +64,22 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
   return "";
 }
 
+async function resolveCallerTenantId(admin: any, user: any, callerId: string): Promise<string | null> {
+  const claimedTenant = user?.app_metadata?.active_tenant_id;
+  if (typeof claimedTenant === "string" && claimedTenant.trim()) {
+    return claimedTenant;
+  }
+
+  const { data: memberships, error } = await admin
+    .from("tenant_members")
+    .select("tenant_id")
+    .eq("user_id", callerId)
+    .limit(1);
+
+  if (error) throw error;
+  return memberships?.[0]?.tenant_id ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -86,25 +102,19 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Resolve caller's tenant once (service-role bypasses current_tenant_id()).
+    const tenantId = await resolveCallerTenantId(admin, userData.user, callerId);
+    if (!tenantId) {
+      return reply({ error: "Unable to resolve tenant" }, 400);
+    }
+
     const { data: callerRoles } = await admin
       .from("user_roles")
       .select("role")
-      .eq("user_id", callerId);
+      .eq("user_id", callerId)
+      .eq("tenant_id", tenantId);
     if (!(callerRoles ?? []).some((r: any) => r.role === "admin")) {
       return reply({ error: "Only admins can manage staff" }, 403);
-    }
-
-    // Resolve caller's tenant once (service-role bypasses current_tenant_id()).
-    let tenantId: string | null =
-      (userData.user.app_metadata as any)?.active_tenant_id ?? null;
-    if (!tenantId) {
-      const { data: memberships } = await admin
-        .from("tenant_members")
-        .select("tenant_id")
-        .eq("user_id", callerId);
-      if (memberships && memberships.length >= 1) {
-        tenantId = memberships[0].tenant_id;
-      }
     }
 
     const body = await req.json().catch(() => ({}));
