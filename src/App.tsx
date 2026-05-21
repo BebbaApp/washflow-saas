@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CurrencyProvider } from "@/hooks/useCurrency";
 import { TenantProvider } from "@/hooks/useTenant";
 import { LicenseGate } from "@/components/LicenseGate";
-import { useAuth } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
 import ResetPassword from "./pages/ResetPassword";
