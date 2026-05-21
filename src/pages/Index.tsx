@@ -176,7 +176,6 @@ const Index = () => {
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           const handleClick = () => {
-            if (item.id === "settings") { navigate("/settings"); onNavigate?.(); return; }
             setActiveTab(item.id);
             onNavigate?.();
           };
