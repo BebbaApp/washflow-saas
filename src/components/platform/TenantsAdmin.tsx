@@ -12,6 +12,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useTenant } from "@/hooks/useTenant";
+import { usePlatformCurrency } from "@/hooks/usePlatformCurrency";
 
 interface PlatformTenant {
   id: string;
