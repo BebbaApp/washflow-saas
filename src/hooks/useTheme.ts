@@ -342,32 +342,58 @@ export const themePresets: ThemePreset[] = [
 
 type Mode = "dark" | "light";
 
-export function useTheme() {
-  const [themeId, setThemeId] = useState<string>(() => localStorage.getItem("aquawash-theme") || "aqua");
-  const [mode, setMode] = useState<Mode>(() => (localStorage.getItem("aquawash-mode") as Mode) || "light");
+const listeners = new Set<() => void>();
+let currentThemeId: string =
+  (typeof localStorage !== "undefined" && localStorage.getItem("aquawash-theme")) || "aqua";
+let currentMode: Mode =
+  ((typeof localStorage !== "undefined" && (localStorage.getItem("aquawash-mode") as Mode)) || "light");
 
-  const applyTheme = useCallback((id: string, m: Mode) => {
-    const preset = themePresets.find((t) => t.id === id) || themePresets[0];
-    const vars = m === "dark" ? preset.dark : preset.light;
-    const root = document.documentElement;
-    Object.entries(vars).forEach(([key, value]) => root.style.setProperty(key, value));
-    root.classList.toggle("dark", m === "dark");
-  }, []);
+function applyThemeGlobal(id: string, m: Mode) {
+  const preset = themePresets.find((t) => t.id === id) || themePresets[0];
+  const vars = m === "dark" ? preset.dark : preset.light;
+  const root = document.documentElement;
+  Object.entries(vars).forEach(([key, value]) => root.style.setProperty(key, value));
+  root.classList.toggle("dark", m === "dark");
+}
+
+if (typeof document !== "undefined") {
+  applyThemeGlobal(currentThemeId, currentMode);
+}
+
+function notify() {
+  listeners.forEach((l) => l());
+}
+
+export function useTheme() {
+  const [, force] = useState(0);
 
   useEffect(() => {
-    applyTheme(themeId, mode);
-  }, [themeId, mode, applyTheme]);
+    const l = () => force((n) => n + 1);
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
 
-  const selectTheme = (id: string) => {
-    setThemeId(id);
+  const selectTheme = useCallback((id: string) => {
+    currentThemeId = id;
     localStorage.setItem("aquawash-theme", id);
-  };
+    applyThemeGlobal(currentThemeId, currentMode);
+    notify();
+  }, []);
 
-  const toggleMode = () => {
-    const next = mode === "dark" ? "light" : "dark";
-    setMode(next);
-    localStorage.setItem("aquawash-mode", next);
-  };
+  const toggleMode = useCallback(() => {
+    currentMode = currentMode === "dark" ? "light" : "dark";
+    localStorage.setItem("aquawash-mode", currentMode);
+    applyThemeGlobal(currentThemeId, currentMode);
+    notify();
+  }, []);
 
-  return { themeId, mode, selectTheme, toggleMode, presets: themePresets };
+  return {
+    themeId: currentThemeId,
+    mode: currentMode,
+    selectTheme,
+    toggleMode,
+    presets: themePresets,
+  };
 }
