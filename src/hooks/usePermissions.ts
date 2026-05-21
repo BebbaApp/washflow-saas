@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
+import { supabase } from "@/integrations/supabase/client";
 import {
   PERMISSIONS_STORAGE_KEY,
   PermissionMatrix,
+  cacheMatrix,
   checkPermission,
   loadMatrix,
 } from "@/lib/permissions";
@@ -10,31 +13,67 @@ import {
 const BROADCAST_CHANNEL_NAME = "aquawash:permissions";
 
 /**
- * Runtime permission hook. Reads the role-permissions matrix configured by
- * an admin in Settings → Role Permissions and combines it with the current
- * authenticated user's role.
- *
- * Changes made by an admin propagate instantly to:
- *  - the current tab (custom `aquawash:permissions-changed` event)
- *  - other tabs in the same browser (`storage` event + BroadcastChannel)
- *  - the same tab when it regains focus / becomes visible (covers the case
- *    where a different session updated the matrix while the tab was hidden).
- *
- * Components should treat `can()` as the source of truth for whether to show
- * a menu item, button or section. Server-side enforcement (RLS policies, edge
- * function role checks) is the actual security boundary — this hook only
- * controls what the UI exposes.
+ * Runtime permission hook. The matrix is stored per-tenant in the
+ * `role_permissions` table and cached in localStorage for instant boot.
+ * Updates from any device propagate via Supabase realtime + a local
+ * broadcast channel for other tabs in the same browser.
  */
 export function usePermissions() {
   const { user } = useAuth();
-  const [matrix, setMatrix] = useState<PermissionMatrix>(() => loadMatrix());
+  const { tenant } = useTenant();
+  const tenantId = tenant?.id ?? null;
+  const [matrix, setMatrix] = useState<PermissionMatrix>(() => loadMatrix(tenantId));
   const channelRef = useRef<BroadcastChannel | null>(null);
 
+  // Reload cache when tenant changes.
+  useEffect(() => { setMatrix(loadMatrix(tenantId)); }, [tenantId]);
+
+  // Fetch from DB whenever tenant changes.
   useEffect(() => {
-    const reload = () => setMatrix(loadMatrix());
+    if (!tenantId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("role_permissions" as any)
+        .select("matrix")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (cancelled) return;
+      const next = (data as any)?.matrix as PermissionMatrix | undefined;
+      if (next && typeof next === "object") {
+        cacheMatrix(tenantId, next);
+        setMatrix(loadMatrix(tenantId));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId]);
+
+  // Realtime subscription for cross-device updates.
+  useEffect(() => {
+    if (!tenantId) return;
+    const ch = supabase
+      .channel(`role_perms_${tenantId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "role_permissions", filter: `tenant_id=eq.${tenantId}` },
+        (payload: any) => {
+          const next = payload?.new?.matrix as PermissionMatrix | undefined;
+          if (next) {
+            cacheMatrix(tenantId, next);
+            setMatrix(loadMatrix(tenantId));
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [tenantId]);
+
+  // Cross-tab + same-tab refresh hooks.
+  useEffect(() => {
+    const reload = () => setMatrix(loadMatrix(tenantId));
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key === PERMISSIONS_STORAGE_KEY || e.key === null) reload();
+      if (!e.key || e.key.startsWith(PERMISSIONS_STORAGE_KEY)) reload();
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") reload();
@@ -45,7 +84,6 @@ export function usePermissions() {
     window.addEventListener("focus", reload);
     document.addEventListener("visibilitychange", onVisibility);
 
-    // Cross-tab broadcast (works even when storage event is throttled).
     let channel: BroadcastChannel | null = null;
     if (typeof BroadcastChannel !== "undefined") {
       channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
@@ -63,7 +101,7 @@ export function usePermissions() {
       channel?.close();
       channelRef.current = null;
     };
-  }, []);
+  }, [tenantId]);
 
   const role = user?.role ?? null;
 
@@ -81,9 +119,8 @@ export function usePermissions() {
 }
 
 /**
- * Notify every listener (this tab, other tabs, other windows) that the
- * permission matrix has changed. Call this after writing the matrix to
- * localStorage from an admin UI.
+ * Notify every listener in this browser that the matrix changed.
+ * Cross-device updates are handled by the Supabase realtime channel above.
  */
 export function broadcastPermissionsChanged() {
   try {
