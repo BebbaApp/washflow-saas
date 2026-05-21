@@ -166,10 +166,11 @@ Deno.serve(async (req) => {
       if (existing && existing.user_id !== user_id) {
         return reply({ error: "This phone number is already used by another worker" }, 400);
       }
+      if (!tenantId) return reply({ error: "Unable to resolve tenant" }, 400);
       await admin.from("staff_pins").delete().eq("user_id", user_id);
       const { error } = await admin
         .from("staff_pins")
-        .insert({ user_id, phone: normalizedPhone, pin_hash });
+        .insert({ user_id, phone: normalizedPhone, pin_hash, tenant_id: tenantId });
       if (error) return reply({ error: error.message }, 500);
       return reply({ success: true });
     }
