@@ -19,6 +19,7 @@ import { useTheme, themePresets } from "@/hooks/useTheme";
 import { useServices, type ServicePackage } from "@/hooks/useServices";
 import { useCurrency, CURRENCY_PRESETS } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 
