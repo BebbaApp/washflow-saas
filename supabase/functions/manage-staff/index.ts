@@ -108,12 +108,13 @@ Deno.serve(async (req) => {
       return reply({ error: "Unable to resolve tenant" }, 400);
     }
 
-    const { data: callerRoles } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("tenant_id", tenantId);
-    if (!(callerRoles ?? []).some((r: any) => r.role === "admin")) {
+    const [{ data: callerRoles }, { data: callerMembership }] = await Promise.all([
+      admin.from("user_roles").select("role").eq("user_id", callerId).eq("tenant_id", tenantId),
+      admin.from("tenant_members").select("tenant_role").eq("user_id", callerId).eq("tenant_id", tenantId).maybeSingle(),
+    ]);
+    const isAppAdmin = (callerRoles ?? []).some((r: any) => r.role === "admin");
+    const isTenantAdmin = callerMembership?.tenant_role === "owner" || callerMembership?.tenant_role === "admin";
+    if (!isAppAdmin && !isTenantAdmin) {
       return reply({ error: "Only admins can manage staff" }, 403);
     }
 
