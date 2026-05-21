@@ -39,6 +39,7 @@ const STATUS_OPTIONS = ["trialing", "active", "past_due", "suspended", "cancelle
 export function TenantsAdmin() {
   const { toast } = useToast();
   const { refresh } = useTenant();
+  const { format: fmtCurrency } = usePlatformCurrency();
   const [tenants, setTenants] = useState<PlatformTenant[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [loading, setLoading] = useState(false);
