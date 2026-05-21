@@ -238,9 +238,9 @@ function WorkersSection() {
   };
 
   const loadUsers = useCallback(async () => {
+    if (!isAuthenticated || !authUser) return;
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUserId(user?.id ?? null);
+    setCurrentUserId(authUser.id);
 
     const res = await supabase.functions.invoke("manage-staff", { body: { action: "list" } });
     if (res.error || res.data?.error) {
@@ -251,9 +251,17 @@ function WorkersSection() {
     }
     setUsers(res.data.users ?? []);
     setLoading(false);
-  }, [toast]);
+  }, [toast, isAuthenticated, authUser]);
 
-  useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+    loadUsers();
+  }, [authLoading, isAuthenticated, loadUsers]);
+
 
   const handleRoleChange = async (userId: string, newRole: WorkerRole) => {
     setSavingId(userId);
