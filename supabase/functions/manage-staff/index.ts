@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-tenant-scoped-pins";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-explicit-tenant-admin";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
 const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete"];
@@ -64,7 +64,25 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
   return "";
 }
 
-async function resolveCallerTenantId(admin: any, user: any, callerId: string): Promise<string | null> {
+async function resolveCallerTenantId(
+  admin: any,
+  user: any,
+  callerId: string,
+  requestedTenantId?: string | null,
+): Promise<string | null> {
+  if (typeof requestedTenantId === "string" && requestedTenantId.trim()) {
+    const [{ data: membership }, { data: platformAdmin }] = await Promise.all([
+      admin
+        .from("tenant_members")
+        .select("tenant_id")
+        .eq("user_id", callerId)
+        .eq("tenant_id", requestedTenantId)
+        .maybeSingle(),
+      admin.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
+    ]);
+    return membership || platformAdmin ? requestedTenantId : null;
+  }
+
   const claimedTenant = user?.app_metadata?.active_tenant_id;
   if (typeof claimedTenant === "string" && claimedTenant.trim()) {
     return claimedTenant;
@@ -102,24 +120,28 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    const body = await req.json().catch(() => ({}));
+    const action = normalizeAction(body?.action, body);
+
     // Resolve caller's tenant once (service-role bypasses current_tenant_id()).
-    const tenantId = await resolveCallerTenantId(admin, userData.user, callerId);
+    // Prefer the active workspace sent by the client because localStorage is not
+    // visible to Edge Functions and a user may belong to multiple tenants.
+    const tenantId = await resolveCallerTenantId(admin, userData.user, callerId, body?.tenant_id);
     if (!tenantId) {
       return reply({ error: "Unable to resolve tenant" }, 400);
     }
 
-    const [{ data: callerRoles }, { data: callerMembership }] = await Promise.all([
+    const [{ data: callerRoles }, { data: callerMembership }, { data: platformAdmin }] = await Promise.all([
       admin.from("user_roles").select("role").eq("user_id", callerId).eq("tenant_id", tenantId),
       admin.from("tenant_members").select("tenant_role").eq("user_id", callerId).eq("tenant_id", tenantId).maybeSingle(),
+      admin.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
     ]);
     const isAppAdmin = (callerRoles ?? []).some((r: any) => r.role === "admin");
     const isTenantAdmin = callerMembership?.tenant_role === "owner" || callerMembership?.tenant_role === "admin";
-    if (!isAppAdmin && !isTenantAdmin) {
+    const isPlatformAdmin = !!platformAdmin;
+    if (!isAppAdmin && !isTenantAdmin && !isPlatformAdmin) {
       return reply({ error: "Only admins can manage staff" }, 403);
     }
-
-    const body = await req.json().catch(() => ({}));
-    const action = normalizeAction(body?.action, body);
 
     if (!action) {
       return reply({ error: "Unknown action", received: body?.action ?? null }, 400);
