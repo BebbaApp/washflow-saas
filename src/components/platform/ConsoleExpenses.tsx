@@ -28,10 +28,10 @@ const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
 export function ConsoleExpenses() {
   const { toast } = useToast();
+  const { format: fmtAmount } = usePlatformCurrency();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [currency, setCurrency] = useState("USD");
 
   const [from, setFrom] = useState(isoDate(new Date(Date.now() - 30 * 86_400_000)));
   const [to, setTo] = useState(isoDate(new Date()));
