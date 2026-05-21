@@ -51,22 +51,24 @@ export function usePermissions() {
   // Realtime subscription for cross-device updates.
   useEffect(() => {
     if (!tenantId) return;
-    const ch = supabase
-      .channel(`role_perms_${tenantId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "role_permissions", filter: `tenant_id=eq.${tenantId}` },
-        (payload: any) => {
-          const next = payload?.new?.matrix as PermissionMatrix | undefined;
-          if (next) {
-            cacheMatrix(tenantId, next);
-            setMatrix(loadMatrix(tenantId));
-          }
-        },
-      )
-      .subscribe();
+    const ch = supabase.channel(
+      `role_perms_${tenantId}_${Math.random().toString(36).slice(2, 8)}`,
+    );
+    ch.on(
+      "postgres_changes" as any,
+      { event: "*", schema: "public", table: "role_permissions", filter: `tenant_id=eq.${tenantId}` },
+      (payload: any) => {
+        const next = payload?.new?.matrix as PermissionMatrix | undefined;
+        if (next) {
+          cacheMatrix(tenantId, next);
+          setMatrix(loadMatrix(tenantId));
+        }
+      },
+    );
+    ch.subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tenantId]);
+
 
   // Cross-tab + same-tab refresh hooks.
   useEffect(() => {
