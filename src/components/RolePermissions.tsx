@@ -232,7 +232,7 @@ export function RolePermissions() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Permissions are saved locally and used by the app to show or hide UI controls. Server-side enforcement is handled separately by role-based access control (RLS policies and edge function role checks).
+        Permissions are stored per workspace in the database and sync to every signed-in device in real time. They control which UI controls are exposed; server-side enforcement is handled by RLS policies and edge function role checks.
       </p>
     </div>
   );
