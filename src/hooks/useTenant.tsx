@@ -47,7 +47,7 @@ function writeStoredTenant(id: string | null) {
 }
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading, authedEmail } = useAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [memberships, setMemberships] = useState<TenantMembership[]>([]);
   const [myRole, setMyRole] = useState<TenantRole | null>(null);
@@ -55,6 +55,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [switchError, setSwitchError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // Wait for auth to settle before resolving tenant state. This prevents the
+    // "No workspace found" flash on every refresh while the session is being restored.
+    if (authLoading || authedEmail) {
+      // Either still resolving, or session exists but profile not yet loaded.
+      if (!user) { setLoading(true); return; }
+    }
     if (!user) {
       setTenant(null); setMemberships([]); setMyRole(null); setLoading(false);
       return;
