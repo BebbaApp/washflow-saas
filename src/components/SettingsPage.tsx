@@ -57,7 +57,6 @@ function fnErrorDescription(info: { message: string; version?: string; accepted?
 
 export function SettingsPage() {
   const { can } = usePermissions();
-  const { tenant } = useTenant();
   type TabId = "workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace";
   type GroupId = "administration" | "operations";
 
@@ -170,6 +169,7 @@ function WorkersSection() {
   const { toast } = useToast();
   const { can } = usePermissions();
   const { user: authUser, loading: authLoading, isAuthenticated } = useAuth();
+  const { tenant } = useTenant();
   const canDeleteWorkers = can("settings.workers.delete");
 
   const [users, setUsers] = useState<StaffUser[]>([]);
