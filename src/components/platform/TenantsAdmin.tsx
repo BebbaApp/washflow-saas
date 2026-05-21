@@ -169,7 +169,7 @@ export function TenantsAdmin() {
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>
                       {plans.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} (${(p.price_monthly_cents / 100).toFixed(0)})</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>{p.name} ({fmtCurrency(p.price_monthly_cents / 100)})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
