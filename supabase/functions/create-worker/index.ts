@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
+const STAFF_MANAGER_ROLES = ["admin", "manager"];
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -39,30 +41,40 @@ Deno.serve(async (req) => {
 
     const callerId = claims.claims.sub as string;
 
-    // Check caller is admin
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: callerRole } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .maybeSingle();
+    const { email, password, name, role, phone, pin, tenant_id } = await req.json();
 
-    if (callerRole?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Only admins can create workers" }), {
-        status: 403,
+    if (!email || !password || !name || !role || !tenant_id) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { email, password, name, role, phone, pin } = await req.json();
+    const [{ data: callerRoles }, { data: callerMembership }, { data: platformAdmin }] = await Promise.all([
+      adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerId)
+        .eq("tenant_id", tenant_id),
+      adminClient
+        .from("tenant_members")
+        .select("tenant_role")
+        .eq("user_id", callerId)
+        .eq("tenant_id", tenant_id)
+        .maybeSingle(),
+      adminClient.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
+    ]);
 
-    if (!email || !password || !name || !role) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
+    const hasStaffManagerRole = (callerRoles ?? []).some((r: any) => STAFF_MANAGER_ROLES.includes(r.role));
+    const isTenantAdmin = callerMembership?.tenant_role === "owner" || callerMembership?.tenant_role === "admin";
+    if (!hasStaffManagerRole && !isTenantAdmin && !platformAdmin) {
+      return new Response(JSON.stringify({ error: "Only admins can create workers" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -74,6 +86,13 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const { data: existingMembership } = await adminClient
+      .from("tenant_members")
+      .select("user_id")
+      .eq("user_id", callerId)
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
 
     // Create auth user
     const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
