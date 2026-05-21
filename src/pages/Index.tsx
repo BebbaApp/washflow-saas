@@ -19,6 +19,7 @@ import { HistoryPage } from "@/components/HistoryPage";
 import { InventoryPage } from "@/components/InventoryPage";
 import { ExpensesPage } from "@/components/ExpensesPage";
 import { AttendancePage } from "@/components/AttendancePage";
+import { SettingsPage } from "@/components/SettingsPage";
 import { CompleteWashDialog } from "@/components/CompleteWashDialog";
 import { ReceiptPreviewDialog } from "@/components/ReceiptPreviewDialog";
 import { useOrders } from "@/hooks/useOrders";
