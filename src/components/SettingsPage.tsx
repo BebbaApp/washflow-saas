@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTenant } from "@/hooks/useTenant";
 
 type WorkerRole = "admin" | "supervisor" | "washer" | "driver" | "manager" | "cashier";
 
@@ -56,6 +57,7 @@ function fnErrorDescription(info: { message: string; version?: string; accepted?
 
 export function SettingsPage() {
   const { can } = usePermissions();
+  const { tenant } = useTenant();
   type TabId = "workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace";
   type GroupId = "administration" | "operations";
 
@@ -206,7 +208,7 @@ function WorkersSection() {
     }
     setSavingPin(true);
     const res = await supabase.functions.invoke("manage-staff", {
-      body: { action: "set_pin", user_id: pinTarget.id, phone: pinPhone.trim(), pin: newPin },
+      body: { action: "set_pin", tenant_id: tenant?.id, user_id: pinTarget.id, phone: pinPhone.trim(), pin: newPin },
     });
     setSavingPin(false);
     if (res.error || res.data?.error) {
@@ -224,7 +226,7 @@ function WorkersSection() {
     if (!confirm(`Remove phone + PIN login for ${pinTarget.name || pinTarget.email}?`)) return;
     setSavingPin(true);
     const res = await supabase.functions.invoke("manage-staff", {
-      body: { action: "clear_pin", user_id: pinTarget.id },
+      body: { action: "clear_pin", tenant_id: tenant?.id, user_id: pinTarget.id },
     });
     setSavingPin(false);
     if (res.error || res.data?.error) {
@@ -242,7 +244,7 @@ function WorkersSection() {
     setLoading(true);
     setCurrentUserId(authUser.id);
 
-    const res = await supabase.functions.invoke("manage-staff", { body: { action: "list" } });
+    const res = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant?.id } });
     if (res.error || res.data?.error) {
       const info = await extractFnError(res);
       toast({ title: "Could not load staff", description: fnErrorDescription(info), variant: "destructive" });
@@ -251,7 +253,7 @@ function WorkersSection() {
     }
     setUsers(res.data.users ?? []);
     setLoading(false);
-  }, [toast, isAuthenticated, authUser]);
+  }, [toast, isAuthenticated, authUser, tenant?.id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -266,7 +268,7 @@ function WorkersSection() {
   const handleRoleChange = async (userId: string, newRole: WorkerRole) => {
     setSavingId(userId);
     const res = await supabase.functions.invoke("manage-staff", {
-      body: { action: "update_role", user_id: userId, role: newRole },
+      body: { action: "update_role", tenant_id: tenant?.id, user_id: userId, role: newRole },
     });
     setSavingId(null);
     if (res.error || res.data?.error) {
@@ -282,7 +284,7 @@ function WorkersSection() {
     if (!confirm(`Delete ${u.name || u.email}? This cannot be undone.`)) return;
     setDeletingId(u.id);
     const res = await supabase.functions.invoke("manage-staff", {
-      body: { action: "delete", user_id: u.id },
+      body: { action: "delete", tenant_id: tenant?.id, user_id: u.id },
     });
     setDeletingId(null);
     if (res.error || res.data?.error) {
