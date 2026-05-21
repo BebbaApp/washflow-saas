@@ -94,6 +94,19 @@ Deno.serve(async (req) => {
       return reply({ error: "Only admins can manage staff" }, 403);
     }
 
+    // Resolve caller's tenant once (service-role bypasses current_tenant_id()).
+    let tenantId: string | null =
+      (userData.user.app_metadata as any)?.active_tenant_id ?? null;
+    if (!tenantId) {
+      const { data: memberships } = await admin
+        .from("tenant_members")
+        .select("tenant_id")
+        .eq("user_id", callerId);
+      if (memberships && memberships.length >= 1) {
+        tenantId = memberships[0].tenant_id;
+      }
+    }
+
     const body = await req.json().catch(() => ({}));
     const action = normalizeAction(body?.action, body);
 
