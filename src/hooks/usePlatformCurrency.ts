@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const STORAGE_KEY = "aquawash-platform-currency";
+const READY_KEY = "aquawash-platform-currency-ready";
 let cached: string | null =
   typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+let resolved: boolean =
+  typeof window !== "undefined" && localStorage.getItem(READY_KEY) === "1";
 let inflight: Promise<string> | null = null;
-const subs = new Set<(c: string) => void>();
+const subs = new Set<(c: string, ready: boolean) => void>();
 
 async function fetchOnce(): Promise<string> {
   if (inflight) return inflight;
@@ -14,11 +17,14 @@ async function fetchOnce(): Promise<string> {
       body: { action: "get_platform_settings" },
     });
     const c = (data as any)?.settings?.currency || cached || "USD";
-    if (c !== cached) {
-      cached = c;
-      try { localStorage.setItem(STORAGE_KEY, c); } catch {}
-      subs.forEach((fn) => fn(c));
-    }
+    const changed = c !== cached || !resolved;
+    cached = c;
+    resolved = true;
+    try {
+      localStorage.setItem(STORAGE_KEY, c);
+      localStorage.setItem(READY_KEY, "1");
+    } catch {}
+    if (changed) subs.forEach((fn) => fn(c, true));
     return c;
   })();
   return inflight;
@@ -43,16 +49,26 @@ export function formatPlatformAmount(amount: number, currency?: string): string 
 
 export function usePlatformCurrency() {
   const [currency, setCurrency] = useState<string>(cached ?? "USD");
+  const [ready, setReady] = useState<boolean>(resolved);
   useEffect(() => {
     let mounted = true;
-    const sub = (c: string) => mounted && setCurrency(c);
+    const sub = (c: string, r: boolean) => {
+      if (!mounted) return;
+      setCurrency(c);
+      setReady(r);
+    };
     subs.add(sub);
-    fetchOnce().then((c) => mounted && setCurrency(c));
+    fetchOnce().then((c) => {
+      if (!mounted) return;
+      setCurrency(c);
+      setReady(true);
+    });
     return () => {
       mounted = false;
       subs.delete(sub);
     };
   }, []);
-  const format = (amount: number) => formatPlatformAmount(amount, currency);
-  return { currency, format, ready: cached !== null };
+  const format = (amount: number) =>
+    ready ? formatPlatformAmount(amount, currency) : "—";
+  return { currency, format, ready };
 }
