@@ -3,7 +3,7 @@ import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone
 import { BillingSection } from "@/components/BillingSection";
 import { TenantManagementSection } from "@/components/TenantManagementSection";
 import { useReceiptSettings } from "@/hooks/useReceiptSettings";
-import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, probePrinterConnection, getPrinterEvents, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
+import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, getSavedPrinterName, probePrinterConnection, getPrinterEvents, renderReceiptBytes, sendToPrinter, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
 import { ReceiptPreview } from "@/components/ReceiptPreview";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast as sonnerToast } from "sonner";
@@ -1195,14 +1195,53 @@ function ReceiptSection() {
       </div>
 
       <div className="glass-card p-6 space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Eye className="w-4 h-4 text-primary" /> Live preview (sample order)
-        </h3>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Eye className="w-4 h-4 text-primary" /> Live preview (sample order)
+          </h3>
+          <PrintSampleButton model={model} />
+        </div>
         <div className="bg-muted/40 rounded-md py-4">
           <ReceiptPreview model={model} />
         </div>
       </div>
     </div>
+  );
+}
+
+function PrintSampleButton({ model }: { model: ReturnType<typeof buildReceiptModel> }) {
+  const [busy, setBusy] = useState(false);
+  const savedName = getSavedPrinterName();
+  const handleClick = async () => {
+    if (!isBluetoothSupported()) {
+      sonnerToast.error("Bluetooth printing not supported", {
+        description: "Open this app in Chrome on Android/desktop, or Bluefy on iOS.",
+      });
+      return;
+    }
+    setBusy(true);
+    try {
+      const name = await sendToPrinter(renderReceiptBytes(model));
+      sonnerToast.success(`Sample sent to ${name}`);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to print sample";
+      if (!/cancelled|user cancel/i.test(msg)) {
+        sonnerToast.error("Print failed", { description: msg });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={busy}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+      {busy ? "Sending…" : savedName ? `Print sample · ${savedName}` : "Print sample"}
+    </button>
   );
 }
 
