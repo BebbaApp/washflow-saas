@@ -3,7 +3,7 @@ import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone
 import { BillingSection } from "@/components/BillingSection";
 import { TenantManagementSection } from "@/components/TenantManagementSection";
 import { useReceiptSettings } from "@/hooks/useReceiptSettings";
-import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, probePrinterConnection, getPrinterEvents, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
+import { buildReceiptModel, isBluetoothSupported, pairPrinter, forgetPrinter, getSavedPrinter, getSavedPrinterName, probePrinterConnection, getPrinterEvents, renderReceiptBytes, sendToPrinter, type ReceiptSettings as ReceiptSettingsType, type PrinterEvent } from "@/lib/thermalPrinter";
 import { ReceiptPreview } from "@/components/ReceiptPreview";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast as sonnerToast } from "sonner";
