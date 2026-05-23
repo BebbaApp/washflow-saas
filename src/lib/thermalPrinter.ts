@@ -424,6 +424,8 @@ export async function sendToPrinter(bytes: Uint8Array): Promise<string> {
       recordEvent({ kind: "print_ok", at: new Date().toISOString(), device: deviceName });
       return deviceName;
     } finally {
+      // Extra grace before disconnect so trailing bytes (feed/cut) actually print
+      await new Promise((r) => setTimeout(r, 300));
       try { server.disconnect(); } catch { /* noop */ }
     }
   } catch (err: any) {
