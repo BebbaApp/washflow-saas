@@ -367,15 +367,23 @@ async function findWriteCharacteristic(server: BluetoothRemoteGATTServer) {
 async function writeChunks(
   characteristic: BluetoothRemoteGATTCharacteristic,
   data: Uint8Array,
-  chunkSize = 180,
+  chunkSize = 20,
 ) {
   const useNoResponse = characteristic.properties.writeWithoutResponse;
   for (let i = 0; i < data.length; i += chunkSize) {
     const slice = data.slice(i, i + chunkSize);
-    if (useNoResponse) await characteristic.writeValueWithoutResponse(slice);
-    else await characteristic.writeValue(slice);
-    await new Promise((r) => setTimeout(r, 20));
+    try {
+      if (useNoResponse) await characteristic.writeValueWithoutResponse(slice);
+      else await characteristic.writeValue(slice);
+    } catch {
+      // Fallback to acknowledged write if no-response path fails mid-stream
+      await characteristic.writeValue(slice);
+    }
+    // Small pacing delay so the printer's BLE buffer can drain
+    await new Promise((r) => setTimeout(r, 30));
   }
+  // Final flush — give the printer time to render before we disconnect
+  await new Promise((r) => setTimeout(r, 400));
 }
 
 /** Pair a new device. Returns the device name. */
@@ -416,6 +424,8 @@ export async function sendToPrinter(bytes: Uint8Array): Promise<string> {
       recordEvent({ kind: "print_ok", at: new Date().toISOString(), device: deviceName });
       return deviceName;
     } finally {
+      // Extra grace before disconnect so trailing bytes (feed/cut) actually print
+      await new Promise((r) => setTimeout(r, 300));
       try { server.disconnect(); } catch { /* noop */ }
     }
   } catch (err: any) {
