@@ -53,7 +53,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     if (!tenant?.id || hydratedFor.current === tenant.id) return;
     hydratedFor.current = tenant.id;
     (async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("tenant_settings")
         .select("currency_symbol, currency_code, vat_percent, vat_enabled")
         .eq("tenant_id", tenant.id)
@@ -74,7 +74,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     setCurrencyState(c);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); } catch {}
     if (tenant?.id) {
-      supabase
+      (supabase as any)
         .from("tenant_settings")
         .upsert({
           tenant_id: tenant.id,
