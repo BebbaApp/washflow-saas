@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ThemePreset {
   id: string;
@@ -364,6 +365,54 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
+let hydratedForUser: string | null = null;
+
+async function hydrateFromProfile() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || hydratedForUser === user.id) return;
+    hydratedForUser = user.id;
+    const { data, error } = await (supabase as any)
+      .from("profiles")
+      .select("theme_id, theme_mode")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || !data) return;
+    const nextId = data.theme_id || currentThemeId;
+    const nextMode: Mode = (data.theme_mode === "dark" ? "dark" : "light");
+    if (nextId !== currentThemeId || nextMode !== currentMode) {
+      currentThemeId = nextId;
+      currentMode = nextMode;
+      try {
+        localStorage.setItem("aquawash-theme", currentThemeId);
+        localStorage.setItem("aquawash-mode", currentMode);
+      } catch {}
+      applyThemeGlobal(currentThemeId, currentMode);
+      notify();
+    }
+  } catch {/* ignore */}
+}
+
+async function persistToProfile(patch: { theme_id?: string; theme_mode?: Mode }) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await (supabase as any)
+      .from("profiles")
+      .update(patch)
+      .eq("user_id", user.id);
+    if (error) console.warn("Failed to persist theme:", error.message);
+  } catch {/* ignore */}
+}
+
+if (typeof window !== "undefined") {
+  hydrateFromProfile();
+  supabase.auth.onAuthStateChange(() => {
+    hydratedForUser = null;
+    hydrateFromProfile();
+  });
+}
+
 export function useTheme() {
   const [, force] = useState(0);
 
@@ -380,6 +429,7 @@ export function useTheme() {
     localStorage.setItem("aquawash-theme", id);
     applyThemeGlobal(currentThemeId, currentMode);
     notify();
+    persistToProfile({ theme_id: id });
   }, []);
 
   const toggleMode = useCallback(() => {
@@ -387,6 +437,7 @@ export function useTheme() {
     localStorage.setItem("aquawash-mode", currentMode);
     applyThemeGlobal(currentThemeId, currentMode);
     notify();
+    persistToProfile({ theme_mode: currentMode });
   }, []);
 
   return {
