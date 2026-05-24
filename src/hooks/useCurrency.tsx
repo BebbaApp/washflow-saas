@@ -1,4 +1,6 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/hooks/useTenant";
 
 export interface CurrencyConfig {
   symbol: string;
@@ -35,16 +37,57 @@ export function useCurrency() {
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
+  const { tenant } = useTenant();
   const [currency, setCurrencyState] = useState<CurrencyConfig>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : DEFAULT;
+    } catch {
+      return DEFAULT;
+    }
   });
+  const hydratedFor = useRef<string | null>(null);
 
+  // Hydrate from DB when tenant becomes available
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(currency));
-  }, [currency]);
+    if (!tenant?.id || hydratedFor.current === tenant.id) return;
+    hydratedFor.current = tenant.id;
+    (async () => {
+      const { data, error } = await supabase
+        .from("tenant_settings")
+        .select("currency_symbol, currency_code, vat_percent, vat_enabled")
+        .eq("tenant_id", tenant.id)
+        .maybeSingle();
+      if (error || !data) return;
+      const next: CurrencyConfig = {
+        symbol: data.currency_symbol ?? DEFAULT.symbol,
+        code: data.currency_code ?? DEFAULT.code,
+        vatPercent: Number(data.vat_percent ?? DEFAULT.vatPercent),
+        vatEnabled: !!data.vat_enabled,
+      };
+      setCurrencyState(next);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+    })();
+  }, [tenant?.id]);
 
-  const setCurrency = (c: CurrencyConfig) => setCurrencyState(c);
+  const setCurrency = (c: CurrencyConfig) => {
+    setCurrencyState(c);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); } catch {}
+    if (tenant?.id) {
+      supabase
+        .from("tenant_settings")
+        .upsert({
+          tenant_id: tenant.id,
+          currency_symbol: c.symbol,
+          currency_code: c.code,
+          vat_percent: c.vatPercent,
+          vat_enabled: c.vatEnabled,
+        }, { onConflict: "tenant_id" })
+        .then(({ error }) => {
+          if (error) console.warn("Failed to persist currency settings:", error.message);
+        });
+    }
+  };
 
   const formatPrice = (price: number) => `${currency.symbol}${price.toFixed(2)}`;
 
