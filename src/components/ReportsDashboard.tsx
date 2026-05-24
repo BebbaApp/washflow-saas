@@ -423,6 +423,8 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                       <Tooltip
                         cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
                         contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                         formatter={(v: number) => [`${v}`, "Jobs"]}
                       />
                       <Bar dataKey="jobs" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} barSize={22} />
