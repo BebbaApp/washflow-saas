@@ -356,6 +356,8 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                     </Pie>
                     <Tooltip
                       contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
