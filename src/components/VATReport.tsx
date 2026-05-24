@@ -113,7 +113,7 @@ export function VATReport({ orders }: VATReportProps) {
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: "hsl(220, 22%, 14%)", border: "1px solid hsl(220, 18%, 22%)", borderRadius: 8, color: "hsl(210, 20%, 92%)" }} formatter={(value: number) => formatPrice(value)} />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} labelStyle={{ color: "hsl(var(--foreground))" }} itemStyle={{ color: "hsl(var(--foreground))" }} formatter={(value: number) => formatPrice(value)} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
