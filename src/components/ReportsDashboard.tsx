@@ -313,10 +313,12 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                       tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(v) => `$${v}`}
+                      tickFormatter={(v) => formatPrice(v)}
                     />
                     <Tooltip
                       contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
                       formatter={(v: number, name) => name === "revenue" ? [formatPrice(v), "Revenue"] : [v, "Jobs"]}
                     />
                     <Area
@@ -354,6 +356,8 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                     </Pie>
                     <Tooltip
                       contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -382,6 +386,8 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                     <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickLine={false} axisLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
                     />
                     <Bar dataKey="cars" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
                   </BarChart>
@@ -417,6 +423,8 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                       <Tooltip
                         cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
                         contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                         formatter={(v: number) => [`${v}`, "Jobs"]}
                       />
                       <Bar dataKey="jobs" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} barSize={22} />

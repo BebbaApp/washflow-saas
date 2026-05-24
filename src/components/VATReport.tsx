@@ -113,7 +113,7 @@ export function VATReport({ orders }: VATReportProps) {
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: "hsl(220, 22%, 14%)", border: "1px solid hsl(220, 18%, 22%)", borderRadius: 8, color: "hsl(210, 20%, 92%)" }} formatter={(value: number) => formatPrice(value)} />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} labelStyle={{ color: "hsl(var(--foreground))" }} itemStyle={{ color: "hsl(var(--foreground))" }} formatter={(value: number) => formatPrice(value)} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -131,7 +131,7 @@ export function VATReport({ orders }: VATReportProps) {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" />
                 <XAxis dataKey="name" tick={{ fill: "hsl(215, 15%, 55%)", fontSize: 11 }} />
                 <YAxis tick={{ fill: "hsl(215, 15%, 55%)", fontSize: 12 }} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(220, 22%, 14%)", border: "1px solid hsl(220, 18%, 22%)", borderRadius: 8, color: "hsl(210, 20%, 92%)" }} formatter={(value: number) => formatPrice(value)} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} labelStyle={{ color: "hsl(var(--foreground))" }} itemStyle={{ color: "hsl(var(--foreground))" }} formatter={(value: number) => formatPrice(value)} />
                 <Bar dataKey="revenue" name="Revenue" fill="hsl(185, 72%, 48%)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="vat" name="VAT" fill="hsl(152, 60%, 45%)" radius={[4, 4, 0, 0]} />
               </BarChart>
