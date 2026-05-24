@@ -313,10 +313,12 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                       tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(v) => `$${v}`}
+                      tickFormatter={(v) => formatPrice(v)}
                     />
                     <Tooltip
                       contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
                       formatter={(v: number, name) => name === "revenue" ? [formatPrice(v), "Revenue"] : [v, "Jobs"]}
                     />
                     <Area
