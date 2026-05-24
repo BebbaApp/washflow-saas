@@ -386,6 +386,8 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
                     <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickLine={false} axisLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
                     />
                     <Bar dataKey="cars" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
                   </BarChart>
