@@ -4,6 +4,8 @@ import type { Session, User } from "@supabase/supabase-js";
 
 export type StaffRole = "admin" | "supervisor" | "washer" | "driver" | "manager" | "cashier";
 
+const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
+
 export interface StaffUser {
   id: string;
   email: string;
@@ -53,6 +55,7 @@ function useAuthInternal(): AuthContextValue {
     ]);
 
     const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
+    const isBootstrapSuperAdmin = authUser.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
     const makeUser = (role: StaffRole): StaffUser => ({
       id: authUser.id,
       email: authUser.email || "",
@@ -63,7 +66,7 @@ function useAuthInternal(): AuthContextValue {
 
     if (profileError || rolesError) {
       console.error("[useAuth] Failed to load staff profile:", profileError || rolesError);
-      return superAdmin ? makeUser("admin") : null;
+      return superAdmin || isBootstrapSuperAdmin ? makeUser("admin") : null;
     }
 
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -73,7 +76,7 @@ function useAuthInternal(): AuthContextValue {
     if (bestRole) {
       return makeUser(bestRole);
     }
-    return superAdmin ? makeUser("admin") : null;
+    return superAdmin || isBootstrapSuperAdmin ? makeUser("admin") : null;
   }, []);
 
   useEffect(() => {
