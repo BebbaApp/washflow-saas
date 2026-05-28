@@ -242,8 +242,29 @@ export function checkPermission(
   matrix: PermissionMatrix,
   role: Role | null | undefined,
   key: string,
+  planFeatures?: Record<string, boolean> | null,
+  isPlatformAdmin?: boolean,
 ): boolean {
   if (!role) return false;
+  // Plan gate (applies to every role except platform admins).
+  // Skip when: no plan attached, plan has no configured features yet, or user is platform admin.
+  if (
+    planFeatures &&
+    Object.keys(planFeatures).length > 0 &&
+    !isPlatformAdmin &&
+    planFeatures[key] === false
+  ) {
+    return false;
+  }
+  // A key explicitly missing from a configured plan also counts as disabled.
+  if (
+    planFeatures &&
+    Object.keys(planFeatures).length > 0 &&
+    !isPlatformAdmin &&
+    planFeatures[key] !== true
+  ) {
+    return false;
+  }
   if (role === "admin") return true;
   return !!matrix[key]?.[role];
 }
