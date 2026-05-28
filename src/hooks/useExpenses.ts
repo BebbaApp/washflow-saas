@@ -12,7 +12,7 @@ export const EXPENSE_CATEGORIES = [
   "Marketing",
   "Other",
 ] as const;
-export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+export type ExpenseCategory = string;
 
 export interface Expense {
   id: string;

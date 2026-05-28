@@ -3,8 +3,11 @@ import { Plus, Search, Filter, Receipt, TrendingDown, TrendingUp, Trash2, X, Dow
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useExpenses, EXPENSE_CATEGORIES, type ExpenseCategory, type Expense } from "@/hooks/useExpenses";
+import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { useExpenseCategories, categoryTone } from "@/hooks/useExpenseCategories";
 import type { WashOrder } from "@/hooks/useOrders";
+
+type ExpenseCategory = string;
 
 type Range = "today" | "week" | "month" | "all";
 const RANGES: { id: Range; label: string }[] = [
@@ -13,16 +16,6 @@ const RANGES: { id: Range; label: string }[] = [
   { id: "month", label: "Month" },
   { id: "all", label: "All" },
 ];
-
-const CAT_TONE: Record<ExpenseCategory, string> = {
-  Supplies: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  Utilities: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  Salaries: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  Maintenance: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
-  Rent: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
-  Marketing: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
-  Other: "bg-muted text-muted-foreground",
-};
 
 function inRange(iso: string, range: Range): boolean {
   if (range === "all") return true;
@@ -48,6 +41,7 @@ interface Props {
 export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
   const { formatPrice, currency } = useCurrency();
   const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { categories } = useExpenseCategories();
 
   const [range, setRange] = useState<Range>("month");
   const [search, setSearch] = useState("");
@@ -186,7 +180,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
             <ul className="mt-3 space-y-1.5 max-h-24 overflow-auto pr-1">
               {byCategory.slice(0, 4).map(([cat, amt]) => (
                 <li key={cat} className="flex items-center justify-between text-xs">
-                  <span className={`px-2 py-0.5 rounded-md font-medium ${CAT_TONE[cat]}`}>{cat}</span>
+                  <span className={`px-2 py-0.5 rounded-md font-medium ${categoryTone(cat)}`}>{cat}</span>
                   <span className="font-semibold text-foreground">{formatPrice(amt)}</span>
                 </li>
               ))}
@@ -240,7 +234,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
             className="appearance-none pl-10 pr-10 py-2.5 rounded-xl bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
             <option value="all">All Categories</option>
-            {EXPENSE_CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -266,7 +260,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
                 className="p-4 flex items-center justify-between gap-4 hover:bg-muted/40 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${CAT_TONE[e.category]}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryTone(e.category)}`}>
                     <Receipt className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -304,6 +298,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
         <ExpenseFormDialog
           mode="add"
           initial={null}
+          categories={categories}
           onClose={() => onAddOpenChange(false)}
           onSubmit={(data) => {
             addExpense(data);
@@ -317,6 +312,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
         <ExpenseFormDialog
           mode="edit"
           initial={editExpense}
+          categories={categories}
           onClose={() => setEditExpense(null)}
           onSubmit={(data) => {
             updateExpense(editExpense.id, data);
@@ -370,17 +366,18 @@ function StatCard({
 }
 
 function ExpenseFormDialog({
-  mode, initial, onClose, onSubmit, currencySymbol,
+  mode, initial, categories, onClose, onSubmit, currencySymbol,
 }: {
   mode: "add" | "edit";
   initial: Expense | null;
+  categories: string[];
   onClose: () => void;
   onSubmit: (data: Omit<Expense, "id" | "createdAt">) => void;
   currencySymbol: string;
 }) {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? "Supplies");
+  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? categories[0] ?? "Other");
   const [vendor, setVendor] = useState(initial?.vendor ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [date, setDate] = useState(() =>
@@ -453,7 +450,7 @@ function ExpenseFormDialog({
               onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
               className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
-              {EXPENSE_CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -529,7 +526,7 @@ function ExpenseDetailsDialog({
           <div className="grid grid-cols-2 gap-3">
             <DetailRow label="Date" value={new Date(expense.date).toLocaleDateString()} />
             <DetailRow label="Category">
-              <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${CAT_TONE[expense.category]}`}>
+              <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${categoryTone(expense.category)}`}>
                 {expense.category}
               </span>
             </DetailRow>
