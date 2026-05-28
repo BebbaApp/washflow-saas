@@ -20,8 +20,10 @@ export function useInventoryCategories() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    // No tenant context (e.g. signed out): keep list empty rather than leaking
+    // hard-coded defaults from another workspace.
     if (!tenant?.id) {
-      setRows(DEFAULT_CATEGORIES.map((name, i) => ({ id: `default-${name}`, name, sort_order: i * 10 })));
+      setRows([]);
       setLoading(false);
       return;
     }
@@ -32,11 +34,10 @@ export function useInventoryCategories() {
       .eq("tenant_id", tenant.id)
       .order("sort_order")
       .order("name");
-    if (!error && data && (data as any[]).length > 0) {
-      setRows((data as any[]) as InventoryCategoryRow[]);
-    } else {
-      setRows(DEFAULT_CATEGORIES.map((name, i) => ({ id: `default-${name}`, name, sort_order: i * 10 })));
-    }
+    // Strict tenant scope: a freshly-created workspace starts with NO categories
+    // until its admin configures them. We no longer fall back to the built-in
+    // defaults, which were leaking demo/seed data into every new tenant.
+    setRows(!error && data ? ((data as any[]) as InventoryCategoryRow[]) : []);
     setLoading(false);
   }, [tenant?.id]);
 
