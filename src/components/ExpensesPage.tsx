@@ -566,7 +566,11 @@ function ExpenseDetailsDialog({
               <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${categoryTone(expense.category)}`}>
                 {expense.category}
               </span>
+              {expense.subcategory ? (
+                <span className="ml-1 text-xs text-muted-foreground">› {expense.subcategory}</span>
+              ) : null}
             </DetailRow>
+
             <DetailRow label="Vendor" value={expense.vendor || "—"} />
             <DetailRow label="Recorded" value={new Date(expense.createdAt).toLocaleString()} />
           </div>
