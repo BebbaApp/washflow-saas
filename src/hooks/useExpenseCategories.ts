@@ -23,9 +23,7 @@ export function useExpenseCategories() {
 
   const fetchAll = useCallback(async () => {
     if (!tenant?.id) {
-      setTree(DEFAULT_CATEGORIES.map((name, i) => ({
-        id: `default-${name}`, name, sort_order: i * 10, parent_id: null, subcategories: [],
-      })));
+      setTree([]);
       setLoading(false);
       return;
     }
@@ -36,7 +34,7 @@ export function useExpenseCategories() {
       .eq("tenant_id", tenant.id)
       .order("sort_order")
       .order("name");
-    if (!error && data && (data as any[]).length > 0) {
+    if (!error && data) {
       const rows = (data as any[]) as { id: string; name: string; sort_order: number; parent_id: string | null }[];
       const parents = rows.filter((r) => !r.parent_id);
       const childByParent = new Map<string, typeof rows>();
@@ -51,9 +49,9 @@ export function useExpenseCategories() {
         })),
       })));
     } else {
-      setTree(DEFAULT_CATEGORIES.map((name, i) => ({
-        id: `default-${name}`, name, sort_order: i * 10, parent_id: null, subcategories: [],
-      })));
+      // Strict tenant scope: brand-new workspaces start empty until an admin
+      // configures categories. No more hard-coded defaults leaking across tenants.
+      setTree([]);
     }
     setLoading(false);
   }, [tenant?.id]);
