@@ -3,8 +3,11 @@ import { Plus, Search, Filter, Receipt, TrendingDown, TrendingUp, Trash2, X, Dow
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useExpenses, EXPENSE_CATEGORIES, type ExpenseCategory, type Expense } from "@/hooks/useExpenses";
+import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { useExpenseCategories, categoryTone } from "@/hooks/useExpenseCategories";
 import type { WashOrder } from "@/hooks/useOrders";
+
+type ExpenseCategory = string;
 
 type Range = "today" | "week" | "month" | "all";
 const RANGES: { id: Range; label: string }[] = [
@@ -13,16 +16,6 @@ const RANGES: { id: Range; label: string }[] = [
   { id: "month", label: "Month" },
   { id: "all", label: "All" },
 ];
-
-const CAT_TONE: Record<ExpenseCategory, string> = {
-  Supplies: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  Utilities: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  Salaries: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  Maintenance: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
-  Rent: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
-  Marketing: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
-  Other: "bg-muted text-muted-foreground",
-};
 
 function inRange(iso: string, range: Range): boolean {
   if (range === "all") return true;
