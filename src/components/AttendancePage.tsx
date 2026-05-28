@@ -300,28 +300,6 @@ export function AttendancePage() {
           {isAdmin && <TabsTrigger value="audit"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
         </TabsList>
 
-        {/* Self check-in/out */}
-        <TabsContent value="clock" className="mt-4">
-          <div className="glass-card p-5 space-y-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <h3 className="font-semibold text-foreground">{user?.name || user?.email}</h3>
-                <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">Last activity</p>
-                <p className="text-sm font-medium">
-                  {myLast ? (
-                    <>
-                      <Badge variant={myLast.kind === "check_in" ? "default" : "secondary"} className="mr-2">
-                        {myLast.kind === "check_in" ? "Checked In" : "Checked Out"}
-                      </Badge>
-                      {new Date(myLast.created_at).toLocaleString()}
-                    </>
-                  ) : "—"}
-                </p>
-              </div>
-            </div>
 
         {/* Self check-in/out */}
         <TabsContent value="clock" className="mt-4">
