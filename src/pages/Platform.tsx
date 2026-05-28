@@ -105,11 +105,8 @@ export default function Platform() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-30 h-14 bg-card/80 backdrop-blur border-b border-border flex items-center gap-3 px-4">
             <SidebarTrigger />
-            <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-xs" title="Back to app">
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to app
-            </Link>
-            <div className="h-5 w-px bg-border mx-1" />
             <h1 className="text-sm font-semibold text-foreground">{activeLabel}</h1>
+
           </header>
           <main className="flex-1 p-6 overflow-x-hidden">
             {tab === "dashboard" && <ConsoleDashboard />}
