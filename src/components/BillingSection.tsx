@@ -36,7 +36,7 @@ export function BillingSection() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  
 
   const loadPlans = async () => {
     const { data } = await supabase.from("plans" as any).select("*").order("price_monthly_cents");
