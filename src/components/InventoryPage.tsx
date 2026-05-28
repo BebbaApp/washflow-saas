@@ -29,10 +29,10 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   useInventory,
-  INVENTORY_CATEGORIES,
   type InventoryCategory,
   type InventoryItem,
 } from "@/hooks/useInventory";
+import { useInventoryCategories } from "@/hooks/useInventoryCategories";
 import { useServices } from "@/hooks/useServices";
 import { INVENTORY_PRESETS, UNIT_OPTIONS, type InventoryPreset } from "@/lib/inventoryPresets";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
@@ -47,6 +47,7 @@ type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction } = useInventory();
+  const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
   const { services } = useServices();
 
   const [tab, setTab] = useState<Tab>("items");
@@ -61,7 +62,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [thresholdEditing, setThresholdEditing] = useState<InventoryItem | null>(null);
 
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<InventoryCategory>("Soap");
+  const [category, setCategory] = useState<InventoryCategory>(INVENTORY_CATEGORIES[0] ?? "Soap");
   const [quantity, setQuantity] = useState("0");
   const [unit, setUnit] = useState("");
   const [threshold, setThreshold] = useState("0");
@@ -72,7 +73,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
 
   const resetForm = () => {
     setName("");
-    setCategory("Soap");
+    setCategory(INVENTORY_CATEGORIES[0] ?? "Soap");
     setQuantity("0");
     setUnit("");
     setThreshold("0");
