@@ -90,11 +90,18 @@ Deno.serve(async (req) => {
 
     const { data: isAdminRow } = await admin
       .from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle();
-    if (!isAdminRow) return json({ error: "Forbidden: platform admin only" }, 403);
+    const { data: isSuperRow } = await admin
+      .from("super_admins").select("user_id").eq("user_id", callerId).maybeSingle();
+    const isSuper = !!isSuperRow;
+    if (!isAdminRow && !isSuper) return json({ error: "Forbidden: platform admin only" }, 403);
 
     const parsed = ActionSchema.safeParse(await req.json());
     if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
     const body = parsed.data;
+
+    if ((body.action === "grant_super_admin" || body.action === "revoke_super_admin") && !isSuper) {
+      return json({ error: "Forbidden: super admin only" }, 403);
+    }
 
     switch (body.action) {
       case "list_tenants": {
