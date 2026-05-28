@@ -180,7 +180,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
             <ul className="mt-3 space-y-1.5 max-h-24 overflow-auto pr-1">
               {byCategory.slice(0, 4).map(([cat, amt]) => (
                 <li key={cat} className="flex items-center justify-between text-xs">
-                  <span className={`px-2 py-0.5 rounded-md font-medium ${CAT_TONE[cat]}`}>{cat}</span>
+                  <span className={`px-2 py-0.5 rounded-md font-medium ${categoryTone(cat)}`}>{cat}</span>
                   <span className="font-semibold text-foreground">{formatPrice(amt)}</span>
                 </li>
               ))}
