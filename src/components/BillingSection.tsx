@@ -216,7 +216,7 @@ export function BillingSection() {
                   <div className="flex items-start justify-between">
                     <div>
                       <h5 className="text-lg font-bold text-foreground">{plan.name}</h5>
-                      <p className="text-2xl font-bold text-primary">{formatPrice(plan.price_monthly_cents)}</p>
+                      <p className="text-2xl font-bold text-primary">{formatPrice(plan.price_monthly_cents, currency.symbol)}</p>
                     </div>
                     {isCurrent && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
