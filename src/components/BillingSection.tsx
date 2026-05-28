@@ -32,6 +32,7 @@ function formatPrice(cents: number, symbol: string) {
 
 export function BillingSection() {
   const { tenant, daysUntilTrialEnd, refresh } = useTenant();
+  const { currency } = useCurrency();
   
   const { toast } = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
