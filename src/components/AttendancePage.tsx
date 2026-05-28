@@ -295,7 +295,7 @@ export function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <Tabs value={defaultTab === "clock" ? undefined : defaultTab} defaultValue={defaultTab}>
+      <Tabs key={defaultTab} defaultValue={defaultTab}>
         <TabsList className="flex-wrap">
           {isStaffHere === true && <TabsTrigger value="clock">My Clock</TabsTrigger>}
           {canAssist && <TabsTrigger value="assist"><UserCheck className="w-3.5 h-3.5 mr-1" />Staff Check-in</TabsTrigger>}
