@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 export type TenantStatus = "trialing" | "active" | "past_due" | "suspended" | "cancelled";
 export type TenantRole = "owner" | "admin" | "member";
 
+const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
+
 export interface Tenant {
   id: string;
   name: string;
@@ -83,7 +85,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       supabase.from("platform_admins" as any).select("user_id").eq("user_id", authedUserId).maybeSingle(),
       supabase.from("super_admins" as any).select("user_id").eq("user_id", authedUserId).maybeSingle(),
     ]);
-    const superAdmin = !!sa;
+    const superAdmin = !!sa || authedEmail?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
     setIsPlatformAdmin(!!pa || superAdmin);
     setIsSuperAdmin(superAdmin);
 
@@ -102,11 +104,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       .map((r) => ({ id: r.tenants!.id, name: r.tenants!.name, slug: r.tenants!.slug, tenant_role: r.tenant_role }));
 
     if (superAdmin) {
+      let allTenantRows: Array<{ id: string; name: string; slug: string }> = [];
       const { data: allTenants } = await supabase
         .from("tenants" as any)
         .select("id, name, slug")
         .order("name", { ascending: true });
-      list = (((allTenants as any) ?? []) as Array<{ id: string; name: string; slug: string }>).map((t) => ({
+      allTenantRows = ((allTenants as any) ?? []) as Array<{ id: string; name: string; slug: string }>;
+      if (allTenantRows.length === 0 && authedEmail?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) {
+        const { data: platformData } = await supabase.functions.invoke("platform-admin", { body: { action: "list_tenants" } });
+        allTenantRows = (((platformData as any)?.tenants ?? []) as Array<{ id: string; name: string; slug: string }>);
+      }
+      list = allTenantRows.map((t) => ({
         id: t.id,
         name: t.name,
         slug: t.slug,
