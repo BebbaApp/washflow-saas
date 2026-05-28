@@ -73,6 +73,7 @@ const ActionSchema = z.discriminatedUnion("action", [
     features: z.record(z.any()).optional(),
     stripe_price_id: z.string().max(120).nullable().optional() }),
   z.object({ action: z.literal("delete_plan"), id: z.string().uuid() }),
+  z.object({ action: z.literal("clear_tenant_staff"), tenant_id: z.string().uuid() }),
 ]);
 
 Deno.serve(async (req) => {
