@@ -113,14 +113,14 @@ export default function Settings() {
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMode}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-secondary-foreground hover:bg-secondary transition-colors"
               title={mode === "dark" ? "Switch to light" : "Switch to dark"}
             >
               {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button
               onClick={() => { logout(); onNavigate?.(); }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-secondary-foreground hover:bg-secondary transition-colors"
               title="Sign out"
             >
               <LogOut className="w-4 h-4" />
