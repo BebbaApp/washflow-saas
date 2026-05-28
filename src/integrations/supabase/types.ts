@@ -174,7 +174,7 @@ export type Database = {
           name: string
           parent_id: string | null
           sort_order: number
-          tenant_id: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -182,7 +182,7 @@ export type Database = {
           name: string
           parent_id?: string | null
           sort_order?: number
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -190,7 +190,7 @@ export type Database = {
           name?: string
           parent_id?: string | null
           sort_order?: number
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Relationships: [
           {
@@ -250,21 +250,21 @@ export type Database = {
           id: string
           name: string
           sort_order: number
-          tenant_id: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
           sort_order?: number
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
           sort_order?: number
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Relationships: [
           {
@@ -673,6 +673,42 @@ export type Database = {
           event_type?: string
           processed_at?: string
           stripe_event_id?: string
+        }
+        Relationships: []
+      }
+      product_types: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          recommended_max: number
+          recommended_min: number
+          sort_order: number
+          unit: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          recommended_max?: number
+          recommended_min?: number
+          sort_order?: number
+          unit: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          recommended_max?: number
+          recommended_min?: number
+          sort_order?: number
+          unit?: string
         }
         Relationships: []
       }

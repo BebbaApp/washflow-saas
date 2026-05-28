@@ -31,7 +31,19 @@ export function useInventoryCategories() {
       query = query.is("tenant_id", null);
     }
     const { data, error } = await query;
-    setRows(!error && data ? ((data as any[]) as InventoryCategoryRow[]) : []);
+    if (!error && data) {
+      // Deduplicate by lowercased name: prefer the global row (tenant_id IS NULL)
+      // so legacy per-tenant seeds don't appear twice next to the new global list.
+      const seen = new Map<string, any>();
+      for (const r of data as any[]) {
+        const key = (r.name ?? "").trim().toLowerCase();
+        const existing = seen.get(key);
+        if (!existing || (existing.tenant_id && !r.tenant_id)) seen.set(key, r);
+      }
+      setRows(Array.from(seen.values()) as InventoryCategoryRow[]);
+    } else {
+      setRows([]);
+    }
     setLoading(false);
   }, [tenant?.id]);
 

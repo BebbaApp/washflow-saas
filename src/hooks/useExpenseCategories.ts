@@ -42,16 +42,38 @@ export function useExpenseCategories() {
     }
     const { data, error } = await query;
     if (!error && data) {
-      const rows = (data as any[]) as { id: string; name: string; sort_order: number; parent_id: string | null }[];
-      const parents = rows.filter((r) => !r.parent_id);
-      const childByParent = new Map<string, typeof rows>();
-      rows.filter((r) => r.parent_id).forEach((r) => {
-        const arr = childByParent.get(r.parent_id!) ?? [];
-        arr.push(r); childByParent.set(r.parent_id!, arr);
-      });
+      const allRows = (data as any[]) as { id: string; name: string; sort_order: number; parent_id: string | null; tenant_id: string | null }[];
+
+      // Deduplicate parents (category names) preferring the global row.
+      const parentByKey = new Map<string, typeof allRows[number]>();
+      for (const r of allRows.filter((r) => !r.parent_id)) {
+        const key = (r.name ?? "").trim().toLowerCase();
+        const existing = parentByKey.get(key);
+        if (!existing || (existing.tenant_id && !r.tenant_id)) parentByKey.set(key, r);
+      }
+      const parents = Array.from(parentByKey.values());
+      // Map every parent id (including the dropped duplicates) to the kept parent id
+      // so child rows attached to a duplicate still resolve to the canonical parent.
+      const canonicalParentId = new Map<string, string>();
+      for (const r of allRows.filter((r) => !r.parent_id)) {
+        const key = (r.name ?? "").trim().toLowerCase();
+        canonicalParentId.set(r.id, parentByKey.get(key)!.id);
+      }
+
+      // Group children under canonical parent + dedupe by lowercased name.
+      const childByParent = new Map<string, Map<string, typeof allRows[number]>>();
+      for (const r of allRows.filter((r) => r.parent_id)) {
+        const pid = canonicalParentId.get(r.parent_id!) ?? r.parent_id!;
+        const bucket = childByParent.get(pid) ?? new Map();
+        const key = (r.name ?? "").trim().toLowerCase();
+        const existing = bucket.get(key);
+        if (!existing || (existing.tenant_id && !r.tenant_id)) bucket.set(key, r);
+        childByParent.set(pid, bucket);
+      }
+
       setTree(parents.map((p) => ({
         id: p.id, name: p.name, sort_order: p.sort_order, parent_id: null,
-        subcategories: (childByParent.get(p.id) ?? []).map((c) => ({
+        subcategories: Array.from((childByParent.get(p.id) ?? new Map()).values()).map((c) => ({
           id: c.id, name: c.name, sort_order: c.sort_order, parent_id: p.id, subcategories: [],
         })),
       })));
