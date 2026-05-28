@@ -172,6 +172,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          parent_id: string | null
           sort_order: number
           tenant_id: string
         }
@@ -179,6 +180,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          parent_id?: string | null
           sort_order?: number
           tenant_id?: string
         }
@@ -186,10 +188,19 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          parent_id?: string | null
           sort_order?: number
           tenant_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expenses: {
         Row: {
@@ -201,6 +212,7 @@ export type Database = {
           description: string
           id: string
           notes: string | null
+          subcategory: string | null
           tenant_id: string
           vendor: string | null
         }
@@ -213,6 +225,7 @@ export type Database = {
           description: string
           id?: string
           notes?: string | null
+          subcategory?: string | null
           tenant_id?: string
           vendor?: string | null
         }
@@ -225,6 +238,7 @@ export type Database = {
           description?: string
           id?: string
           notes?: string | null
+          subcategory?: string | null
           tenant_id?: string
           vendor?: string | null
         }
