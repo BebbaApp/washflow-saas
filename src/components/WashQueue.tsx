@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type TabKey = "active" | "waiting" | "in-progress" | "completed" | "cancelled";
 
@@ -61,6 +62,10 @@ const PAGE_SIZE = 15;
 export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueueProps) => {
   const { formatPrice } = useCurrency();
   const { eligibleOrderIds } = useRewardEligibility(orders);
+  const { can } = usePermissions();
+  const canCancel = can("queue.cancel");
+  const canStart = can("queue.start");
+  const canComplete = can("queue.complete");
   const [tab, setTab] = useState<TabKey>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -215,7 +220,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
       </div>
 
       {/* Bulk cancel toolbar for Waiting tab */}
-      {tab === "waiting" && selectedWaiting.size > 0 && onUpdateStatus && (
+      {tab === "waiting" && selectedWaiting.size > 0 && onUpdateStatus && canCancel && (
         <div className="glass-card p-3 flex items-center justify-between gap-3">
           <span className="text-sm text-foreground font-medium">
             {selectedWaiting.size} job{selectedWaiting.size === 1 ? "" : "s"} selected
@@ -498,9 +503,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                   <Clock className="w-3.5 h-3.5" />
                   {time}
                 </div>
-                {onUpdateStatus && nextStatus && (
+                {onUpdateStatus && nextStatus && (() => {
+                  const allowAction = nextStatus === "completed" ? canComplete : canStart;
+                  if (!allowAction && !(o.status === "waiting" && canCancel)) return null;
+                  return (
                   <div className="flex items-center gap-2">
-                    {o.status === "waiting" && (
+                    {o.status === "waiting" && canCancel && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setConfirmCancelIds([o.id]); setCancelReason(""); setCancelReasonError(null); }}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 bg-destructive/10 text-destructive border border-destructive/20"
@@ -509,6 +517,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                         Cancel
                       </button>
                     )}
+                    {allowAction && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onUpdateStatus(o.id, nextStatus); }}
                       className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 ${
@@ -529,8 +538,10 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                       </>
                     )}
                     </button>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           );
