@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { useAttendance, getSignedSelfieUrl, signSelfieUrls, type AttendanceRecord } from "@/hooks/useAttendance";
 import { CameraCapture } from "@/components/CameraCapture";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -78,6 +79,7 @@ function startOfWeek(d: Date) { const x = new Date(d); const day = (x.getDay() +
 
 export function AttendancePage() {
   const { user, isAdmin } = useAuth();
+  const { tenant } = useTenant();
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
     useAttendance();
@@ -108,18 +110,17 @@ export function AttendancePage() {
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
 
   useEffect(() => {
-    if (!canAssist) return;
+    if (!canAssist || !tenant?.id) {
+      setStaff([]);
+      return;
+    }
     (async () => {
-      const [{ data: profs }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("user_id,name"),
-        supabase.from("user_roles").select("user_id,role"),
-      ]);
-      const roleMap: Record<string, string> = {};
-      (roles || []).forEach((r: any) => { roleMap[r.user_id] = r.role; });
-      const list = (profs || []).map((p: any) => ({ user_id: p.user_id, name: p.name, role: roleMap[p.user_id] || "—" }));
-      setStaff(list);
+      const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } });
+      setStaff(((data as any)?.users ?? [])
+        .filter((u: any) => !!u.role)
+        .map((u: any) => ({ user_id: u.id, name: u.name || u.email || "Staff", role: u.role })));
     })();
-  }, [canAssist]);
+  }, [canAssist, tenant?.id]);
 
   // Detect newly inserted records (from realtime) and play a subtle chime.
   // Skip the very first sync so we don't beep on initial load.
