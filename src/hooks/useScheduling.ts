@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTenant } from "@/hooks/useTenant";
 
 export interface ShiftTemplate {
   id: string;
@@ -33,6 +34,7 @@ export interface TimeOffRequest {
 }
 
 export function useScheduling() {
+  const { tenant } = useTenant();
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
@@ -40,20 +42,32 @@ export function useScheduling() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    const [templatesRes, shiftsRes, timeOffRes, profilesRes] = await Promise.all([
+    if (!tenant?.id) {
+      setTemplates([]);
+      setShifts([]);
+      setTimeOffRequests([]);
+      setStaffMembers([]);
+      setLoading(false);
+      return;
+    }
+
+    const [templatesRes, shiftsRes, timeOffRes, staffRes] = await Promise.all([
       supabase.from("shift_templates").select("*").order("start_time"),
       supabase.from("shifts").select("*").order("shift_date"),
       supabase.from("time_off_requests").select("*").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("user_id, name"),
+      supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } }),
     ]);
 
     const profileMap: Record<string, string> = {};
-    if (profilesRes.data) {
-      profilesRes.data.forEach((p: any) => {
-        profileMap[p.user_id] = p.name;
+    const tenantStaff = ((staffRes.data as any)?.users ?? [])
+      .filter((u: any) => !!u.role)
+      .map((u: any) => ({ id: u.id, name: u.name || u.email || "Staff" }));
+    if (tenantStaff.length > 0) {
+      tenantStaff.forEach((p: any) => {
+        profileMap[p.id] = p.name;
       });
-      setStaffMembers(profilesRes.data.map((p: any) => ({ id: p.user_id, name: p.name })));
     }
+    setStaffMembers(tenantStaff);
 
     if (templatesRes.data) {
       setTemplates(templatesRes.data.map((t: any) => ({
@@ -92,7 +106,7 @@ export function useScheduling() {
     }
 
     setLoading(false);
-  }, []);
+  }, [tenant?.id]);
 
   useEffect(() => {
     fetchAll();
