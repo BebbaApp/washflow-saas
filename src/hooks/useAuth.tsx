@@ -14,6 +14,7 @@ export interface StaffUser {
 
 interface AuthContextValue {
   user: StaffUser | null;
+  authedUserId: string | null;
   authedEmail: string | null;
   loading: boolean;
   isAuthenticated: boolean;
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function useAuthInternal(): AuthContextValue {
   const [user, setUser] = useState<StaffUser | null>(null);
+  const [authedUserId, setAuthedUserId] = useState<string | null>(null);
   const [authedEmail, setAuthedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,12 +75,14 @@ function useAuthInternal(): AuthContextValue {
     const resolveSession = (session: Session | null) => {
       const currentRequest = ++requestId;
       if (!session?.user) {
+        setAuthedUserId(null);
         setAuthedEmail(null);
         setUser(null);
         setLoading(false);
         return;
       }
       const authUser = session.user;
+      setAuthedUserId(authUser.id);
       setAuthedEmail(authUser.email ?? null);
       setLoading(true);
       setTimeout(() => {
@@ -184,11 +188,12 @@ function useAuthInternal(): AuthContextValue {
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
+    setAuthedUserId(null);
     setUser(null);
   }, []);
 
   return {
-    user, authedEmail, loading,
+    user, authedUserId, authedEmail, loading,
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     authedNoRole: !!authedEmail && !user,
