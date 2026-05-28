@@ -62,6 +62,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const load = useCallback(async () => {
     // Wait for auth to settle before resolving tenant state. This prevents the
@@ -116,13 +117,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     setTenant(tenantRow);
     setMyRole(activeRow.tenant_role);
 
-    // Platform admin check (bypasses plan gating)
-    const { data: pa } = await supabase
-      .from("platform_admins" as any)
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // Platform admin (cross-tenant console) + super admin (bypasses plan gating).
+    const [{ data: pa }, { data: sa }] = await Promise.all([
+      supabase.from("platform_admins" as any).select("user_id").eq("user_id", user.id).maybeSingle(),
+      supabase.from("super_admins" as any).select("user_id").eq("user_id", user.id).maybeSingle(),
+    ]);
     setIsPlatformAdmin(!!pa);
+    setIsSuperAdmin(!!sa);
 
     // Load plan features (jsonb) for the active tenant
     if (tenantRow?.plan_id) {
@@ -193,10 +194,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       : null;
     return {
       tenant, memberships, myRole, loading, licenseActive, daysUntilTrialEnd,
-      switchError, planFeatures, isPlatformAdmin,
+      switchError, planFeatures, isPlatformAdmin, isSuperAdmin,
       refresh: load, switchTenant, clearSwitchError,
     };
-  }, [tenant, memberships, myRole, loading, switchError, planFeatures, isPlatformAdmin, load, switchTenant, clearSwitchError]);
+  }, [tenant, memberships, myRole, loading, switchError, planFeatures, isPlatformAdmin, isSuperAdmin, load, switchTenant, clearSwitchError]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 }
