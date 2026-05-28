@@ -34,8 +34,10 @@ interface TenantContextValue {
   /** Feature toggle map from the tenant's plan (`plans.features`).
    *  `null` when no plan is attached. Empty object means "no restrictions configured". */
   planFeatures: Record<string, boolean> | null;
-  /** True when the current user is a platform admin (bypasses plan gating). */
+  /** True when the current user is a platform admin (cross-tenant console access). */
   isPlatformAdmin: boolean;
+  /** True when the current user is a super admin (bypasses plan gating everywhere). */
+  isSuperAdmin: boolean;
   refresh: () => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
   clearSwitchError: () => void;

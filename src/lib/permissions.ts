@@ -243,24 +243,15 @@ export function checkPermission(
   role: Role | null | undefined,
   key: string,
   planFeatures?: Record<string, boolean> | null,
-  isPlatformAdmin?: boolean,
+  isSuperAdmin?: boolean,
 ): boolean {
   if (!role) return false;
-  // Plan gate (applies to every role except platform admins).
-  // Skip when: no plan attached, plan has no configured features yet, or user is platform admin.
+  // Super admins bypass plan gating entirely. Platform admins do NOT — they
+  // are subject to the plan of whichever tenant they are currently viewing.
   if (
     planFeatures &&
     Object.keys(planFeatures).length > 0 &&
-    !isPlatformAdmin &&
-    planFeatures[key] === false
-  ) {
-    return false;
-  }
-  // A key explicitly missing from a configured plan also counts as disabled.
-  if (
-    planFeatures &&
-    Object.keys(planFeatures).length > 0 &&
-    !isPlatformAdmin &&
+    !isSuperAdmin &&
     planFeatures[key] !== true
   ) {
     return false;
