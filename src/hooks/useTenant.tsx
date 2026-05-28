@@ -191,9 +191,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       : null;
     return {
       tenant, memberships, myRole, loading, licenseActive, daysUntilTrialEnd,
-      switchError, refresh: load, switchTenant, clearSwitchError,
+      switchError, planFeatures, isPlatformAdmin,
+      refresh: load, switchTenant, clearSwitchError,
     };
-  }, [tenant, memberships, myRole, loading, switchError, load, switchTenant, clearSwitchError]);
+  }, [tenant, memberships, myRole, loading, switchError, planFeatures, isPlatformAdmin, load, switchTenant, clearSwitchError]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 }
