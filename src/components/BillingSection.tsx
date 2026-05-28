@@ -130,7 +130,7 @@ export function BillingSection() {
               <span className="text-foreground font-medium">
                 {missingPriceIds.map((p) => p.code).join(", ")}
               </span>
-              . {isPlatformAdmin ? "Set a Stripe price ID below." : "Ask a platform admin to add Stripe price IDs."}
+              . Ask a platform admin to add Stripe price IDs.
             </p>
           </div>
         </div>
