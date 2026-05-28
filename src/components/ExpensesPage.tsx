@@ -298,6 +298,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
         <ExpenseFormDialog
           mode="add"
           initial={null}
+          categories={categories}
           onClose={() => onAddOpenChange(false)}
           onSubmit={(data) => {
             addExpense(data);
@@ -311,6 +312,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
         <ExpenseFormDialog
           mode="edit"
           initial={editExpense}
+          categories={categories}
           onClose={() => setEditExpense(null)}
           onSubmit={(data) => {
             updateExpense(editExpense.id, data);
