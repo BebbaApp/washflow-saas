@@ -48,17 +48,8 @@ export function BillingSection() {
     loadPlans();
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from("platform_admins" as any)
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setIsPlatformAdmin(!!data);
-    })();
-  }, [user?.id]);
+
+
 
   const currentPlan = plans.find((p) => p.id === tenant?.plan_id);
   const status = tenant?.status ?? "trialing";
