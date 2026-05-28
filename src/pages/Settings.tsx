@@ -3,10 +3,12 @@ import {
   Droplets, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
   Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint,
-  ArrowLeft,
+  ArrowLeft, Monitor, Wallet,
 } from "lucide-react";
 import type { StaffRole } from "@/hooks/useAuth";
 import { SettingsPage } from "@/components/SettingsPage";
+import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
+import { ExpensesPage } from "@/components/ExpensesPage";
 import { TenantSwitcher } from "@/components/TenantSwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
@@ -14,6 +16,8 @@ import { useAppLogo } from "@/hooks/useAppLogo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { useOrders } from "@/hooks/useOrders";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useNavigate } from "react-router-dom";
 
 const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; permission: string; alwaysRoles?: StaffRole[] }[] = [
@@ -32,12 +36,15 @@ const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; pe
 
 export default function Settings() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("general");
+  const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const { user, logout, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd } = useTenant();
   const { isPlatformAdmin } = usePlatformAdmin();
+  const { orders } = useOrders();
   const workspaceName = tenant?.name || "AquaWash";
   const navigate = useNavigate();
 
@@ -184,7 +191,47 @@ export default function Settings() {
               <p className="text-muted-foreground text-sm mt-0.5">Manage workers, appearance, and services</p>
             </div>
           </div>
-          <SettingsPage />
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="bg-muted p-1 rounded-xl h-auto flex flex-wrap gap-1">
+              <TabsTrigger value="general" className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                <SettingsIcon className="w-4 h-4 mr-2" />
+                General
+              </TabsTrigger>
+              {isPlatformAdmin && (
+                <TabsTrigger value="console" className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <Monitor className="w-4 h-4 mr-2" />
+                  Console Settings
+                </TabsTrigger>
+              )}
+              {can("expenses.view") && (
+                <TabsTrigger value="expenses" className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <Wallet className="w-4 h-4 mr-2" />
+                  Expenses
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="general">
+              <SettingsPage />
+            </TabsContent>
+
+            {isPlatformAdmin && (
+              <TabsContent value="console">
+                <ConsoleSettings />
+              </TabsContent>
+            )}
+
+            {can("expenses.view") && (
+              <TabsContent value="expenses">
+                <ExpensesPage
+                  orders={orders}
+                  addOpen={addExpenseOpen}
+                  onAddOpenChange={setAddExpenseOpen}
+                />
+              </TabsContent>
+            )}
+          </Tabs>
         </div>
       </main>
     </div>
