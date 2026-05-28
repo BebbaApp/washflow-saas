@@ -34,7 +34,6 @@ import {
 import Login from "@/pages/Login";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
@@ -71,8 +70,7 @@ const Index = () => {
   const { processCompletedOrders } = useInventory();
   const { logo } = useAppLogo();
   const { can } = usePermissions();
-  const { tenant, daysUntilTrialEnd } = useTenant();
-  const { isPlatformAdmin } = usePlatformAdmin();
+  const { tenant, daysUntilTrialEnd, isSuperAdmin } = useTenant();
   const workspaceName = tenant?.name || "AquaWash";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -326,7 +324,7 @@ const Index = () => {
                 {mode === "dark" ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
                 {mode === "dark" ? "Light mode" : "Dark mode"}
               </DropdownMenuItem>
-              {isPlatformAdmin && (
+              {isSuperAdmin && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>

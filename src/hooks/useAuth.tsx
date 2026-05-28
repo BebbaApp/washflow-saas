@@ -4,6 +4,8 @@ import type { Session, User } from "@supabase/supabase-js";
 
 export type StaffRole = "admin" | "supervisor" | "washer" | "driver" | "manager" | "cashier";
 
+const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
+
 export interface StaffUser {
   id: string;
   email: string;
@@ -14,6 +16,7 @@ export interface StaffUser {
 
 interface AuthContextValue {
   user: StaffUser | null;
+  authedUserId: string | null;
   authedEmail: string | null;
   loading: boolean;
   isAuthenticated: boolean;
@@ -29,24 +32,41 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function useAuthInternal(): AuthContextValue {
   const [user, setUser] = useState<StaffUser | null>(null);
+  const [authedUserId, setAuthedUserId] = useState<string | null>(null);
   const [authedEmail, setAuthedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("name")
-      .eq("user_id", authUser.id)
-      .maybeSingle();
+    const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("name")
+        .eq("user_id", authUser.id)
+        .maybeSingle(),
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", authUser.id),
+      supabase
+        .from("super_admins" as any)
+        .select("user_id")
+        .eq("user_id", authUser.id)
+        .maybeSingle(),
+    ]);
 
-    const { data: roleRows, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", authUser.id);
+    const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
+    const isBootstrapSuperAdmin = authUser.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
+    const makeUser = (role: StaffRole): StaffUser => ({
+      id: authUser.id,
+      email: authUser.email || "",
+      name: profile?.name || meta.name || authUser.email || "",
+      role,
+      phone: (meta.phone as string) || authUser.phone || null,
+    });
 
     if (profileError || rolesError) {
       console.error("[useAuth] Failed to load staff profile:", profileError || rolesError);
-      return null;
+      return superAdmin || isBootstrapSuperAdmin ? makeUser("admin") : null;
     }
 
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -54,16 +74,9 @@ function useAuthInternal(): AuthContextValue {
     const bestRole = priority.find((r) => userRoles.includes(r));
 
     if (bestRole) {
-      const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
-      return {
-        id: authUser.id,
-        email: authUser.email || "",
-        name: profile?.name || meta.name || authUser.email || "",
-        role: bestRole,
-        phone: (meta.phone as string) || authUser.phone || null,
-      };
+      return makeUser(bestRole);
     }
-    return null;
+    return superAdmin || isBootstrapSuperAdmin ? makeUser("admin") : null;
   }, []);
 
   useEffect(() => {
@@ -73,12 +86,14 @@ function useAuthInternal(): AuthContextValue {
     const resolveSession = (session: Session | null) => {
       const currentRequest = ++requestId;
       if (!session?.user) {
+        setAuthedUserId(null);
         setAuthedEmail(null);
         setUser(null);
         setLoading(false);
         return;
       }
       const authUser = session.user;
+      setAuthedUserId(authUser.id);
       setAuthedEmail(authUser.email ?? null);
       setLoading(true);
       setTimeout(() => {
@@ -184,11 +199,12 @@ function useAuthInternal(): AuthContextValue {
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
+    setAuthedUserId(null);
     setUser(null);
   }, []);
 
   return {
-    user, authedEmail, loading,
+    user, authedUserId, authedEmail, loading,
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     authedNoRole: !!authedEmail && !user,
