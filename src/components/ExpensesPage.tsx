@@ -41,6 +41,7 @@ interface Props {
 export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
   const { formatPrice, currency } = useCurrency();
   const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { categories } = useExpenseCategories();
 
   const [range, setRange] = useState<Range>("month");
   const [search, setSearch] = useState("");
