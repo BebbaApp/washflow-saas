@@ -31,7 +31,7 @@ function formatPrice(cents: number) {
 
 export function BillingSection() {
   const { tenant, daysUntilTrialEnd, refresh } = useTenant();
-  const { user } = useAuth();
+  
   const { toast } = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
