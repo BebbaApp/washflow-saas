@@ -234,7 +234,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
             className="appearance-none pl-10 pr-10 py-2.5 rounded-xl bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
             <option value="all">All Categories</option>
-            {EXPENSE_CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
