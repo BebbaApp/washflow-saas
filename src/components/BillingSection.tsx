@@ -26,8 +26,8 @@ const STATUS_COPY: Record<string, { label: string; className: string }> = {
   cancelled: { label: "Cancelled", className: "bg-muted text-muted-foreground" },
 };
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(0)}/mo`;
+function formatPrice(cents: number, symbol: string) {
+  return `${symbol}${(cents / 100).toFixed(0)}/mo`;
 }
 
 export function BillingSection() {
