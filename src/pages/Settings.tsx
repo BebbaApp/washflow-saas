@@ -36,12 +36,15 @@ const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; pe
 
 export default function Settings() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("general");
+  const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const { user, logout, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd } = useTenant();
   const { isPlatformAdmin } = usePlatformAdmin();
+  const { orders } = useOrders();
   const workspaceName = tenant?.name || "AquaWash";
   const navigate = useNavigate();
 
