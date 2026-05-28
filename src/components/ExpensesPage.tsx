@@ -456,17 +456,42 @@ function ExpenseFormDialog({
               />
             </Field>
           </div>
-          <Field label="Category">
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Category">
+              <select
+                value={category}
+                onChange={(e) => { setCategory(e.target.value as ExpenseCategory); setSubcategory(""); }}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Subcategory">
+              {subOptions.length > 0 ? (
+                <select
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">— None —</option>
+                  {subOptions.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  placeholder="No subcategories"
+                  disabled
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-muted-foreground"
+                />
+              )}
+            </Field>
+          </div>
+
           <Field label="Vendor (optional)">
             <input
               value={vendor}
