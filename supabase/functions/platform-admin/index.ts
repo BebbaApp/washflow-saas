@@ -8,6 +8,8 @@ const corsHeaders = {
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
+const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -85,12 +87,20 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await userClient.auth.getUser();
     if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
     const callerId = userData.user.id;
+    const isBootstrapSuperAdmin = userData.user.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
 
     const admin = createClient(supabaseUrl, serviceKey);
 
+    if (isBootstrapSuperAdmin) {
+      await Promise.all([
+        admin.from("super_admins").upsert({ user_id: callerId }),
+        admin.from("platform_admins").upsert({ user_id: callerId }),
+      ]);
+    }
+
     const { data: isSuperRow } = await admin
       .from("super_admins").select("user_id").eq("user_id", callerId).maybeSingle();
-    const isSuper = !!isSuperRow;
+    const isSuper = !!isSuperRow || isBootstrapSuperAdmin;
     if (!isSuper) return json({ error: "Forbidden: super admin only" }, 403);
 
     const parsed = ActionSchema.safeParse(await req.json());
