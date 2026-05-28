@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Droplets, LogIn, UserPlus, Phone as PhoneIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,11 +18,28 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
-  const [isSignup, setIsSignup] = useState(false);
+  // Pre-select signup mode when arriving from a tenant share link or /signup route.
+  const [isSignup, setIsSignup] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("mode") === "signup" || window.location.pathname === "/signup";
+  });
   const [submitting, setSubmitting] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  // Pre-fill workspace name from ?tenant=<slug> so admin-shared sign-up links land
+  // the new user in the right context without manual entry.
+  useEffect(() => {
+    try {
+      const slug = new URLSearchParams(window.location.search).get("tenant");
+      if (slug && !companyName) {
+        setCompanyName(slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
