@@ -261,16 +261,10 @@ export function BillingSection() {
         )}
       </div>
 
-      {/* Platform admin: edit Stripe price IDs + view license events */}
-      {isPlatformAdmin && (
-        <>
-          <PlanPriceAdmin plans={plans} onSaved={loadPlans} />
-          <LicenseEventsAdmin />
-        </>
-      )}
     </div>
   );
 }
+
 
 function PlanPriceAdmin({ plans, onSaved }: { plans: Plan[]; onSaved: () => void }) {
   const { toast } = useToast();
