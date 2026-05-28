@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { CreditCard, Loader2, Check, AlertTriangle, Sparkles, ShieldCheck, Save } from "lucide-react";
+import { CreditCard, Loader2, Check, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { useAuth } from "@/hooks/useAuth";
+
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
+
 
 interface Plan {
   id: string;
@@ -32,12 +31,12 @@ function formatPrice(cents: number) {
 
 export function BillingSection() {
   const { tenant, daysUntilTrialEnd, refresh } = useTenant();
-  const { user } = useAuth();
+  
   const { toast } = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  
 
   const loadPlans = async () => {
     const { data } = await supabase.from("plans" as any).select("*").order("price_monthly_cents");
@@ -49,17 +48,8 @@ export function BillingSection() {
     loadPlans();
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from("platform_admins" as any)
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setIsPlatformAdmin(!!data);
-    })();
-  }, [user?.id]);
+
+
 
   const currentPlan = plans.find((p) => p.id === tenant?.plan_id);
   const status = tenant?.status ?? "trialing";
@@ -140,7 +130,7 @@ export function BillingSection() {
               <span className="text-foreground font-medium">
                 {missingPriceIds.map((p) => p.code).join(", ")}
               </span>
-              . {isPlatformAdmin ? "Set a Stripe price ID below." : "Ask a platform admin to add Stripe price IDs."}
+              . Ask a platform admin to add Stripe price IDs.
             </p>
           </div>
         </div>
@@ -261,84 +251,8 @@ export function BillingSection() {
         )}
       </div>
 
-      {/* Platform admin: edit Stripe price IDs + view license events */}
-      {isPlatformAdmin && (
-        <>
-          <PlanPriceAdmin plans={plans} onSaved={loadPlans} />
-          <LicenseEventsAdmin />
-        </>
-      )}
     </div>
   );
 }
 
-function PlanPriceAdmin({ plans, onSaved }: { plans: Plan[]; onSaved: () => void }) {
-  const { toast } = useToast();
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const init: Record<string, string> = {};
-    plans.forEach((p) => { init[p.id] = p.stripe_price_id ?? ""; });
-    setDrafts(init);
-  }, [plans]);
-
-  const save = async (plan: Plan) => {
-    const value = (drafts[plan.id] ?? "").trim();
-    if (value && !value.startsWith("price_")) {
-      toast({
-        title: "Invalid Stripe price ID",
-        description: "Stripe price IDs start with 'price_'.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setSavingId(plan.id);
-    const { error } = await supabase
-      .from("plans" as any)
-      .update({ stripe_price_id: value || null } as any)
-      .eq("id", plan.id);
-    setSavingId(null);
-    if (error) {
-      toast({ title: "Save failed", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Saved", description: `${plan.name} Stripe price updated.` });
-    onSaved();
-  };
-
-  return (
-    <div className="glass-card p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="w-4 h-4 text-primary" />
-        <h4 className="text-sm font-semibold text-foreground">Platform admin — Stripe price IDs</h4>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Paste a recurring price ID from your Stripe dashboard (Products → choose product → Pricing). Leave blank to disable upgrades for that plan.
-      </p>
-      <div className="space-y-2">
-        {plans.map((plan) => (
-          <div key={plan.id} className="grid grid-cols-1 sm:grid-cols-[140px_1fr_auto] gap-2 items-center">
-            <div className="text-sm">
-              <div className="font-medium text-foreground">{plan.name}</div>
-              <div className="text-xs text-muted-foreground">{plan.code}</div>
-            </div>
-            <Input
-              placeholder="price_1Nxxxxxxxx"
-              value={drafts[plan.id] ?? ""}
-              onChange={(e) => setDrafts((d) => ({ ...d, [plan.id]: e.target.value }))}
-              className="font-mono text-xs"
-            />
-            <Button
-              size="sm"
-              onClick={() => save(plan)}
-              disabled={savingId === plan.id || (drafts[plan.id] ?? "") === (plan.stripe_price_id ?? "")}
-            >
-              {savingId === plan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
