@@ -34,7 +34,8 @@ import {
 } from "@/hooks/useInventory";
 import { useInventoryCategories } from "@/hooks/useInventoryCategories";
 import { useServices } from "@/hooks/useServices";
-import { INVENTORY_PRESETS, UNIT_OPTIONS, type InventoryPreset } from "@/lib/inventoryPresets";
+import { UNIT_OPTIONS, type InventoryPreset } from "@/lib/inventoryPresets";
+import { useProductTypes } from "@/hooks/useProductTypes";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
 import { usePermissions } from "@/hooks/usePermissions";
 import { BookOpen } from "lucide-react";
@@ -49,6 +50,7 @@ type Tab = "items" | "history" | "usage";
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction } = useInventory();
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
+  const { presets: INVENTORY_PRESETS } = useProductTypes();
   const { services } = useServices();
   const { can } = usePermissions();
   const canEdit = can("inventory.edit");
