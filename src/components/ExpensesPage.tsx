@@ -526,7 +526,7 @@ function ExpenseDetailsDialog({
           <div className="grid grid-cols-2 gap-3">
             <DetailRow label="Date" value={new Date(expense.date).toLocaleDateString()} />
             <DetailRow label="Category">
-              <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${CAT_TONE[expense.category]}`}>
+              <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${categoryTone(expense.category)}`}>
                 {expense.category}
               </span>
             </DetailRow>
