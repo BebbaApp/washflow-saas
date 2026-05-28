@@ -40,7 +40,7 @@ interface TenantContextValue {
   isPlatformAdmin: boolean;
   /** True when the current user is a super admin (bypasses plan gating everywhere). */
   isSuperAdmin: boolean;
-  refresh: () => Promise<void>;
+  refresh: (preferredTenantId?: string) => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
   clearSwitchError: () => void;
 }
@@ -66,7 +66,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredTenantId?: string) => {
     // Wait for auth to settle before resolving tenant state. This prevents the
     // "No workspace found" flash on every refresh while the session is being restored.
     if (authLoading || authedEmail) {
@@ -137,6 +137,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const storedId = readStoredTenant();
     const activeId =
       urlMatchId ??
+      (preferredTenantId && list.find((m) => m.id === preferredTenantId)?.id) ??
       (jwtId && list.find((m) => m.id === jwtId)?.id) ??
       (storedId && list.find((m) => m.id === storedId)?.id) ??
       list[0].id;
@@ -211,7 +212,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           `Workspace selected, but session refresh failed: ${refreshErr.message}. Please sign out and back in.`
         );
       }
-      await load();
+      await load(tenantId);
     } catch (e: any) {
       const msg = e?.message ?? "Unknown error";
       setSwitchError(msg);

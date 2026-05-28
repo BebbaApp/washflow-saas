@@ -105,7 +105,7 @@ export function TenantsAdmin() {
       });
       if (error) throw error;
       await supabase.auth.refreshSession();
-      await refresh();
+      await refresh(t.id);
       toast({ title: `Now viewing ${t.name}` });
       window.location.href = "/";
     } catch (e: any) {

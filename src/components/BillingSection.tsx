@@ -189,7 +189,7 @@ export function BillingSection() {
             {actionLoading === "portal" && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Manage billing
           </Button>
-          <Button variant="outline" onClick={refresh}>Refresh</Button>
+          <Button variant="outline" onClick={() => refresh()}>Refresh</Button>
         </div>
       </div>
 
