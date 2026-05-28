@@ -450,7 +450,7 @@ function ExpenseFormDialog({
               onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
               className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
-              {EXPENSE_CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
