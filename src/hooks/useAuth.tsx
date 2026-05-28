@@ -35,20 +35,35 @@ function useAuthInternal(): AuthContextValue {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("name")
-      .eq("user_id", authUser.id)
-      .maybeSingle();
+    const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("name")
+        .eq("user_id", authUser.id)
+        .maybeSingle(),
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", authUser.id),
+      supabase
+        .from("super_admins" as any)
+        .select("user_id")
+        .eq("user_id", authUser.id)
+        .maybeSingle(),
+    ]);
 
-    const { data: roleRows, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", authUser.id);
+    const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
+    const makeUser = (role: StaffRole): StaffUser => ({
+      id: authUser.id,
+      email: authUser.email || "",
+      name: profile?.name || meta.name || authUser.email || "",
+      role,
+      phone: (meta.phone as string) || authUser.phone || null,
+    });
 
     if (profileError || rolesError) {
       console.error("[useAuth] Failed to load staff profile:", profileError || rolesError);
-      return null;
+      return superAdmin ? makeUser("admin") : null;
     }
 
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -56,16 +71,9 @@ function useAuthInternal(): AuthContextValue {
     const bestRole = priority.find((r) => userRoles.includes(r));
 
     if (bestRole) {
-      const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
-      return {
-        id: authUser.id,
-        email: authUser.email || "",
-        name: profile?.name || meta.name || authUser.email || "",
-        role: bestRole,
-        phone: (meta.phone as string) || authUser.phone || null,
-      };
+      return makeUser(bestRole);
     }
-    return null;
+    return superAdmin ? makeUser("admin") : null;
   }, []);
 
   useEffect(() => {
