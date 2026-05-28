@@ -20,7 +20,7 @@ const BROADCAST_CHANNEL_NAME = "aquawash:permissions";
  */
 export function usePermissions() {
   const { user } = useAuth();
-  const { tenant } = useTenant();
+  const { tenant, planFeatures, isPlatformAdmin } = useTenant();
   const tenantId = tenant?.id ?? null;
   const [matrix, setMatrix] = useState<PermissionMatrix>(() => loadMatrix(tenantId));
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -108,13 +108,13 @@ export function usePermissions() {
   const role = user?.role ?? null;
 
   const can = useCallback(
-    (key: string) => checkPermission(matrix, role, key),
-    [matrix, role],
+    (key: string) => checkPermission(matrix, role, key, planFeatures, isPlatformAdmin),
+    [matrix, role, planFeatures, isPlatformAdmin],
   );
 
   const canAny = useCallback(
-    (keys: string[]) => keys.some((k) => checkPermission(matrix, role, k)),
-    [matrix, role],
+    (keys: string[]) => keys.some((k) => checkPermission(matrix, role, k, planFeatures, isPlatformAdmin)),
+    [matrix, role, planFeatures, isPlatformAdmin],
   );
 
   return { can, canAny, role, isAdmin: role === "admin" };

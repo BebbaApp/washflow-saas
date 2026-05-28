@@ -31,6 +31,11 @@ interface TenantContextValue {
   licenseActive: boolean;
   daysUntilTrialEnd: number | null;
   switchError: string | null;
+  /** Feature toggle map from the tenant's plan (`plans.features`).
+   *  `null` when no plan is attached. Empty object means "no restrictions configured". */
+  planFeatures: Record<string, boolean> | null;
+  /** True when the current user is a platform admin (bypasses plan gating). */
+  isPlatformAdmin: boolean;
   refresh: () => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
   clearSwitchError: () => void;
@@ -53,6 +58,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [myRole, setMyRole] = useState<TenantRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [switchError, setSwitchError] = useState<string | null>(null);
+  const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
   const load = useCallback(async () => {
     // Wait for auth to settle before resolving tenant state. This prevents the
@@ -103,8 +110,31 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       .select("*")
       .eq("id", activeRow.id)
       .maybeSingle();
-    setTenant((data as any) ?? null);
+    const tenantRow = ((data as any) ?? null) as Tenant | null;
+    setTenant(tenantRow);
     setMyRole(activeRow.tenant_role);
+
+    // Platform admin check (bypasses plan gating)
+    const { data: pa } = await supabase
+      .from("platform_admins" as any)
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setIsPlatformAdmin(!!pa);
+
+    // Load plan features (jsonb) for the active tenant
+    if (tenantRow?.plan_id) {
+      const { data: planRow } = await supabase
+        .from("plans" as any)
+        .select("features")
+        .eq("id", tenantRow.plan_id)
+        .maybeSingle();
+      const raw = (planRow as any)?.features;
+      setPlanFeatures(raw && typeof raw === "object" ? (raw as Record<string, boolean>) : {});
+    } else {
+      setPlanFeatures(null);
+    }
+
     setLoading(false);
   }, [user, authLoading, authedEmail]);
 
@@ -161,9 +191,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       : null;
     return {
       tenant, memberships, myRole, loading, licenseActive, daysUntilTrialEnd,
-      switchError, refresh: load, switchTenant, clearSwitchError,
+      switchError, planFeatures, isPlatformAdmin,
+      refresh: load, switchTenant, clearSwitchError,
     };
-  }, [tenant, memberships, myRole, loading, switchError, load, switchTenant, clearSwitchError]);
+  }, [tenant, memberships, myRole, loading, switchError, planFeatures, isPlatformAdmin, load, switchTenant, clearSwitchError]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 }

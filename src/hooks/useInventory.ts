@@ -3,7 +3,9 @@ import { CONCENTRATES, WATER, matchVehicle } from "@/lib/vehicleUsage";
 import { convertUnits, canConvert } from "@/lib/unitConversions";
 
 export const INVENTORY_CATEGORIES = ["Soap", "Wax", "Towels", "Chemicals", "Tools", "Other"] as const;
-export type InventoryCategory = typeof INVENTORY_CATEGORIES[number];
+/** Categories are admin-configurable per tenant (see useInventoryCategories);
+ *  the built-in list above is only a fallback when no rows exist. */
+export type InventoryCategory = string;
 
 export interface InventoryItem {
   id: string;
