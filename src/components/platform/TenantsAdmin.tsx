@@ -136,9 +136,14 @@ export function TenantsAdmin() {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
-          </Button>
+          <div className="flex gap-2 items-center">
+            <Button size="sm" onClick={() => setAddOpen(true)}>
+              <Plus className="w-4 h-4" /> Add tenant
+            </Button>
+            <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
         </div>
 
         <div className="border border-border rounded-lg overflow-hidden">
