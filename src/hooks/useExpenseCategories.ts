@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { EXPENSE_CATEGORIES as DEFAULT_CATEGORIES } from "@/hooks/useExpenses";
 
 export interface CategoryNode {
   id: string;
@@ -12,9 +11,15 @@ export interface CategoryNode {
 }
 
 /**
- * Loads tenant-scoped expense categories managed in the admin console
- * (`expense_categories` table) as a two-level tree (category → subcategories).
- * Falls back to the built-in defaults when the tenant has no rows yet.
+ * Two-level expense category tree (category → subcategories).
+ *
+ * Rows are sourced from `public.expense_categories`:
+ *   - tenant_id IS NULL → global catalog managed in the Platform Console.
+ *     Visible to every workspace.
+ *   - tenant_id = current tenant → tenant-specific custom categories.
+ *
+ * Tenants opt in by simply using the global list; if they need a unique
+ * category they ask the platform admin to add it (or add it as a tenant row).
  */
 export function useExpenseCategories() {
   const { tenant } = useTenant();
@@ -22,18 +27,20 @@ export function useExpenseCategories() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    if (!tenant?.id) {
-      setTree([]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("expense_categories" as any)
-      .select("id, name, sort_order, parent_id")
-      .eq("tenant_id", tenant.id)
+      .select("id, name, sort_order, parent_id, tenant_id")
       .order("sort_order")
       .order("name");
+    // Read global rows + optionally tenant-specific rows. When signed out
+    // we still surface the global catalog so the form is not empty.
+    if (tenant?.id) {
+      query = query.or(`tenant_id.is.null,tenant_id.eq.${tenant.id}`);
+    } else {
+      query = query.is("tenant_id", null);
+    }
+    const { data, error } = await query;
     if (!error && data) {
       const rows = (data as any[]) as { id: string; name: string; sort_order: number; parent_id: string | null }[];
       const parents = rows.filter((r) => !r.parent_id);
@@ -49,8 +56,6 @@ export function useExpenseCategories() {
         })),
       })));
     } else {
-      // Strict tenant scope: brand-new workspaces start empty until an admin
-      // configures categories. No more hard-coded defaults leaking across tenants.
       setTree([]);
     }
     setLoading(false);
@@ -59,11 +64,10 @@ export function useExpenseCategories() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   useEffect(() => {
-    if (!tenant?.id) return;
     const ch = supabase
-      .channel(`expense_categories_${tenant.id}`)
+      .channel(`expense_categories_${tenant?.id ?? "global"}`)
       .on("postgres_changes",
-        { event: "*", schema: "public", table: "expense_categories", filter: `tenant_id=eq.${tenant.id}` },
+        { event: "*", schema: "public", table: "expense_categories" },
         () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

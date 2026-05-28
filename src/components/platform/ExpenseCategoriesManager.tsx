@@ -9,19 +9,20 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-interface TenantRow { id: string; name: string }
 interface CategoryRow {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   name: string;
   sort_order: number;
   parent_id: string | null;
 }
 
+/**
+ * Manages the GLOBAL expense category tree (tenant_id IS NULL). Every
+ * tenant reads from this list; only platform admins can edit it.
+ */
 export function ExpenseCategoriesManager() {
   const { toast } = useToast();
-  const [tenants, setTenants] = useState<TenantRow[]>([]);
-  const [tenantId, setTenantId] = useState<string>("");
   const [rows, setRows] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -31,21 +32,12 @@ export function ExpenseCategoriesManager() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    supabase.from("tenants" as any).select("id, name").order("name").then(({ data }) => {
-      const list = ((data as any) ?? []) as TenantRow[];
-      setTenants(list);
-      if (list[0]) setTenantId(list[0].id);
-    });
-  }, []);
-
-  const load = async (tid: string) => {
-    if (!tid) return;
+  const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("expense_categories" as any)
       .select("id, tenant_id, name, sort_order, parent_id")
-      .eq("tenant_id", tid)
+      .is("tenant_id", null)
       .order("sort_order")
       .order("name");
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -53,7 +45,7 @@ export function ExpenseCategoriesManager() {
     setLoading(false);
   };
 
-  useEffect(() => { load(tenantId); }, [tenantId]);
+  useEffect(() => { load(); }, []);
 
   const tree = useMemo(() => {
     const parents = rows.filter((r) => !r.parent_id);
@@ -65,39 +57,39 @@ export function ExpenseCategoriesManager() {
 
   const addCategory = async () => {
     const name = newCat.trim();
-    if (!name || !tenantId) return;
+    if (!name) return;
     setBusy(true);
     const sort_order = (tree.at(-1)?.sort_order ?? 0) + 10;
     const { error } = await supabase.from("expense_categories" as any).insert({
-      tenant_id: tenantId, name, sort_order, parent_id: null,
+      tenant_id: null, name, sort_order, parent_id: null,
     });
     setBusy(false);
     if (error) toast({ title: "Add failed", description: error.message, variant: "destructive" });
-    else { setNewCat(""); load(tenantId); }
+    else { setNewCat(""); load(); }
   };
 
   const addSubcategory = async () => {
     const name = newSub.trim();
-    if (!name || !tenantId || !subParentId) return;
+    if (!name || !subParentId) return;
     setBusy(true);
     const siblings = rows.filter((r) => r.parent_id === subParentId);
     const sort_order = (siblings.at(-1)?.sort_order ?? 0) + 10;
     const { error } = await supabase.from("expense_categories" as any).insert({
-      tenant_id: tenantId, name, sort_order, parent_id: subParentId,
+      tenant_id: null, name, sort_order, parent_id: subParentId,
     });
     setBusy(false);
     if (error) toast({ title: "Add failed", description: error.message, variant: "destructive" });
     else {
       setNewSub("");
       setExpanded((e) => ({ ...e, [subParentId]: true }));
-      load(tenantId);
+      load();
     }
   };
 
   const remove = async (id: string) => {
     const { error } = await supabase.from("expense_categories" as any).delete().eq("id", id);
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    else load(tenantId);
+    else load();
   };
 
   return (
@@ -107,19 +99,9 @@ export function ExpenseCategoriesManager() {
         <h2 className="text-lg font-semibold text-foreground">Expense categories & subcategories</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Manage the categories (e.g. <em>Utilities</em>) and their subcategories (e.g. <em>Electricity</em>) used in the
-        Expenses page and dashboard breakdown — one tree per tenant.
+        These are <strong>global</strong> — every tenant sees the same list in the Expenses page.
+        Add a category here when a tenant requests a new one.
       </p>
-
-      <div className="space-y-1">
-        <Label className="text-xs">Tenant</Label>
-        <Select value={tenantId} onValueChange={setTenantId}>
-          <SelectTrigger className="w-72"><SelectValue placeholder="Select tenant" /></SelectTrigger>
-          <SelectContent>
-            {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
         <div className="space-y-2">
@@ -131,7 +113,7 @@ export function ExpenseCategoriesManager() {
               onChange={(e) => setNewCat(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addCategory(); }}
             />
-            <Button onClick={addCategory} disabled={busy || !newCat.trim() || !tenantId}>
+            <Button onClick={addCategory} disabled={busy || !newCat.trim()}>
               <Plus className="w-4 h-4 mr-1" /> Add
             </Button>
           </div>
@@ -162,7 +144,7 @@ export function ExpenseCategoriesManager() {
         {loading ? (
           <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : tree.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">No categories yet for this tenant.</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">No global categories yet — add the first one above.</div>
         ) : (
           <ul className="divide-y divide-border">
             {tree.map((p) => {

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { INVENTORY_CATEGORIES as DEFAULT_CATEGORIES } from "@/hooks/useInventory";
 
 export interface InventoryCategoryRow {
   id: string;
@@ -10,9 +9,9 @@ export interface InventoryCategoryRow {
 }
 
 /**
- * Tenant-scoped inventory categories managed in the admin console
- * (`inventory_categories` table). Falls back to the built-in defaults
- * when the tenant has no rows yet.
+ * Inventory categories visible to the current workspace:
+ *   - global rows (tenant_id IS NULL) managed in the Platform Console
+ *   - any tenant-specific rows (legacy / custom requests)
  */
 export function useInventoryCategories() {
   const { tenant } = useTenant();
@@ -20,23 +19,18 @@ export function useInventoryCategories() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    // No tenant context (e.g. signed out): keep list empty rather than leaking
-    // hard-coded defaults from another workspace.
-    if (!tenant?.id) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("inventory_categories" as any)
-      .select("id, name, sort_order")
-      .eq("tenant_id", tenant.id)
+      .select("id, name, sort_order, tenant_id")
       .order("sort_order")
       .order("name");
-    // Strict tenant scope: a freshly-created workspace starts with NO categories
-    // until its admin configures them. We no longer fall back to the built-in
-    // defaults, which were leaking demo/seed data into every new tenant.
+    if (tenant?.id) {
+      query = query.or(`tenant_id.is.null,tenant_id.eq.${tenant.id}`);
+    } else {
+      query = query.is("tenant_id", null);
+    }
+    const { data, error } = await query;
     setRows(!error && data ? ((data as any[]) as InventoryCategoryRow[]) : []);
     setLoading(false);
   }, [tenant?.id]);
@@ -44,11 +38,10 @@ export function useInventoryCategories() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   useEffect(() => {
-    if (!tenant?.id) return;
     const ch = supabase
-      .channel(`inventory_categories_${tenant.id}`)
+      .channel(`inventory_categories_${tenant?.id ?? "global"}`)
       .on("postgres_changes",
-        { event: "*", schema: "public", table: "inventory_categories", filter: `tenant_id=eq.${tenant.id}` },
+        { event: "*", schema: "public", table: "inventory_categories" },
         () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

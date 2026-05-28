@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Save, Settings as SettingsIcon, Receipt, Package } from "lucide-react";
+import { Loader2, Save, Settings as SettingsIcon, Receipt, Package, Boxes } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ExpenseCategoriesManager } from "./ExpenseCategoriesManager";
 import { InventoryCategoriesManager } from "./InventoryCategoriesManager";
+import { ProductTypesManager } from "./ProductTypesManager";
 
 interface Settings {
   currency: string;
@@ -73,7 +74,10 @@ export function ConsoleSettings() {
           <Receipt className="w-4 h-4" /> Expenses
         </TabsTrigger>
         <TabsTrigger value="inventory" className="gap-2">
-          <Package className="w-4 h-4" /> Inventory Categories
+          <Boxes className="w-4 h-4" /> Inventory Categories
+        </TabsTrigger>
+        <TabsTrigger value="product-types" className="gap-2">
+          <Package className="w-4 h-4" /> Product Types
         </TabsTrigger>
       </TabsList>
 
@@ -140,6 +144,10 @@ export function ConsoleSettings() {
 
       <TabsContent value="inventory">
         <InventoryCategoriesManager />
+      </TabsContent>
+
+      <TabsContent value="product-types">
+        <ProductTypesManager />
       </TabsContent>
     </Tabs>
   );
