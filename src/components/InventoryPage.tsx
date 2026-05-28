@@ -387,42 +387,52 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setAdjusting({ item, mode: "add" })}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
-                        title="Add stock"
-                      >
-                        <PackagePlus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setAdjusting({ item, mode: "remove" })}
-                        disabled={item.quantity <= 0}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Use / remove stock"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setThresholdEditing(item)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
-                        title="Edit thresholds"
-                      >
-                        <SlidersHorizontal className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Remove"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canAdjust && (
+                        <button
+                          onClick={() => setAdjusting({ item, mode: "add" })}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
+                          title="Add stock"
+                        >
+                          <PackagePlus className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canAdjust && (
+                        <button
+                          onClick={() => setAdjusting({ item, mode: "remove" })}
+                          disabled={item.quantity <= 0}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Use / remove stock"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => setThresholdEditing(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+                          title="Edit thresholds"
+                        >
+                          <SlidersHorizontal className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
