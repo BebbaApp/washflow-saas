@@ -323,28 +323,67 @@ export function AttendancePage() {
               </div>
             </div>
 
-            {!myEnrolled ? (
-              <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" />
-                Your face hasn't been enrolled yet. Ask an admin to enroll you under <span className="font-medium text-foreground">Attendance → Enroll Faces</span>.
+        {/* Self check-in/out */}
+        <TabsContent value="clock" className="mt-4">
+          <div className="glass-card p-5 space-y-4">
+            {isStaffHere === false ? (
+              <div className="p-4 rounded-lg bg-muted text-sm text-muted-foreground flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-foreground">You're not on this workspace's staff roster.</p>
+                  <p className="mt-1">
+                    Self check-in is only available to users with an operational role
+                    in <span className="font-medium text-foreground">{tenant?.name ?? "this workspace"}</span>.
+                    Ask the workspace owner to add you under <span className="font-medium text-foreground">Settings → Staff</span>.
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setCaptureMode({ kind: "check_in" })}
-                  disabled={nextKind !== "check_in"}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-                >
-                  <LogIn className="w-4 h-4" /> Check In
-                </button>
-                <button
-                  onClick={() => setCaptureMode({ kind: "check_out" })}
-                  disabled={nextKind !== "check_out"}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-                >
-                  <LogOut className="w-4 h-4" /> Check Out
-                </button>
-              </div>
+              <>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{user?.name || user?.email}</h3>
+                    <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Last activity</p>
+                    <p className="text-sm font-medium">
+                      {myLast ? (
+                        <>
+                          <Badge variant={myLast.kind === "check_in" ? "default" : "secondary"} className="mr-2">
+                            {myLast.kind === "check_in" ? "Checked In" : "Checked Out"}
+                          </Badge>
+                          {new Date(myLast.created_at).toLocaleString()}
+                        </>
+                      ) : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {!myEnrolled ? (
+                  <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4" />
+                    Your face hasn't been enrolled yet. Ask an admin to enroll you under <span className="font-medium text-foreground">Attendance → Enroll Faces</span>.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setCaptureMode({ kind: "check_in" })}
+                      disabled={nextKind !== "check_in"}
+                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+                    >
+                      <LogIn className="w-4 h-4" /> Check In
+                    </button>
+                    <button
+                      onClick={() => setCaptureMode({ kind: "check_out" })}
+                      disabled={nextKind !== "check_out"}
+                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+                    >
+                      <LogOut className="w-4 h-4" /> Check Out
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </TabsContent>
