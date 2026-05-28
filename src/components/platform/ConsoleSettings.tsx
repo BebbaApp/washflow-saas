@@ -145,6 +145,10 @@ export function ConsoleSettings() {
       <TabsContent value="inventory">
         <InventoryCategoriesManager />
       </TabsContent>
+
+      <TabsContent value="product-types">
+        <ProductTypesManager />
+      </TabsContent>
     </Tabs>
   );
 }
