@@ -21,6 +21,8 @@ const GatedRoutes = () => {
   const routes = (
     <Routes>
       <Route path="/" element={<Index />} />
+      <Route path="/login" element={<Index />} />
+      <Route path="/signup" element={<Index />} />
       <Route path="/settings" element={<Navigate to="/?tab=settings" replace />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
