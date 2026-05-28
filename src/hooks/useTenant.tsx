@@ -54,7 +54,7 @@ function writeStoredTenant(id: string | null) {
 }
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { user, loading: authLoading, authedEmail } = useAuth();
+  const { user, loading: authLoading, authedEmail, authedUserId } = useAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [memberships, setMemberships] = useState<TenantMembership[]>([]);
   const [myRole, setMyRole] = useState<TenantRole | null>(null);
@@ -71,29 +71,52 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       // Either still resolving, or session exists but profile not yet loaded.
       if (!user) { setLoading(true); return; }
     }
-    if (!user) {
+    if (!authedUserId) {
       setTenant(null); setMemberships([]); setMyRole(null); setLoading(false);
       return;
     }
     setLoading(true);
 
+    // Super-admin status must be resolved before tenant membership checks so
+    // global admins can reach /platform even if they are not members of a tenant.
+    const [{ data: pa }, { data: sa }] = await Promise.all([
+      supabase.from("platform_admins" as any).select("user_id").eq("user_id", authedUserId).maybeSingle(),
+      supabase.from("super_admins" as any).select("user_id").eq("user_id", authedUserId).maybeSingle(),
+    ]);
+    const superAdmin = !!sa;
+    setIsPlatformAdmin(!!pa || superAdmin);
+    setIsSuperAdmin(superAdmin);
+
     const { data: members } = await supabase
       .from("tenant_members" as any)
       .select("tenant_id, tenant_role, tenants(id, name, slug)")
-      .eq("user_id", user.id);
+      .eq("user_id", authedUserId);
 
     const rows = ((members as any) ?? []) as Array<{
       tenant_id: string;
       tenant_role: TenantRole;
       tenants: { id: string; name: string; slug: string } | null;
     }>;
-    const list: TenantMembership[] = rows
+    let list: TenantMembership[] = rows
       .filter((r) => r.tenants)
       .map((r) => ({ id: r.tenants!.id, name: r.tenants!.name, slug: r.tenants!.slug, tenant_role: r.tenant_role }));
+
+    if (superAdmin) {
+      const { data: allTenants } = await supabase
+        .from("tenants" as any)
+        .select("id, name, slug")
+        .order("name", { ascending: true });
+      list = (((allTenants as any) ?? []) as Array<{ id: string; name: string; slug: string }>).map((t) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        tenant_role: "owner" as TenantRole,
+      }));
+    }
     setMemberships(list);
 
     if (list.length === 0) {
-      setTenant(null); setMyRole(null); setLoading(false);
+      setTenant(null); setMyRole(null); setPlanFeatures(null); setLoading(false);
       writeStoredTenant(null);
       return;
     }
@@ -117,14 +140,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     setTenant(tenantRow);
     setMyRole(activeRow.tenant_role);
 
-    // Platform admin (cross-tenant console) + super admin (bypasses plan gating).
-    const [{ data: pa }, { data: sa }] = await Promise.all([
-      supabase.from("platform_admins" as any).select("user_id").eq("user_id", user.id).maybeSingle(),
-      supabase.from("super_admins" as any).select("user_id").eq("user_id", user.id).maybeSingle(),
-    ]);
-    setIsPlatformAdmin(!!pa);
-    setIsSuperAdmin(!!sa);
-
     // Load plan features (jsonb) for the active tenant
     if (tenantRow?.plan_id) {
       const { data: planRow } = await supabase
@@ -139,7 +154,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(false);
-  }, [user, authLoading, authedEmail]);
+  }, [user, authLoading, authedEmail, authedUserId]);
 
   useEffect(() => { load(); }, [load]);
 
