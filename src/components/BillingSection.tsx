@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CreditCard, Loader2, Check, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useCurrency } from "@/hooks/useCurrency";
 
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
