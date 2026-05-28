@@ -235,6 +235,17 @@ export function TenantsAdmin() {
                         <DropdownMenuItem onClick={() => impersonate(t)}>
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (confirm(`Clear ALL staff/employees for "${t.name}"? Owner is kept. This cannot be undone.`)) {
+                              callAction({ action: "clear_tenant_staff", tenant_id: t.id }, t.id, "Staff cleared");
+                            }
+                          }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Pencil className="w-3.5 h-3.5 mr-2" /> Clear staff & employees
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
