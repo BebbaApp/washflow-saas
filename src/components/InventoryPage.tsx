@@ -269,7 +269,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             { id: "items" as const, label: "Items", icon: Boxes },
             { id: "history" as const, label: "History", icon: ClipboardList },
             { id: "usage" as const, label: "Usage Guide", icon: BookOpen },
-          ]).map((t) => {
+          ]).filter((t) => t.id !== "history" || canHistory).map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
             return (
@@ -287,21 +287,25 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
           })}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setRecipesOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-            title="Configure how services consume stock"
-          >
-            <Sliders className="w-4 h-4" />
-            <span className="hidden sm:inline">Service Recipes</span>
-          </button>
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          {canMapping && (
+            <button
+              onClick={() => setRecipesOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+              title="Configure how services consume stock"
+            >
+              <Sliders className="w-4 h-4" />
+              <span className="hidden sm:inline">Service Recipes</span>
+            </button>
+          )}
+          {canExport && (
+            <button
+              onClick={exportCsv}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+          )}
         </div>
       </div>
 
