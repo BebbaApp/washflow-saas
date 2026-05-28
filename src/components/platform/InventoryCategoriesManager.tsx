@@ -4,43 +4,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-interface TenantRow { id: string; name: string }
 interface CategoryRow {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   name: string;
   sort_order: number;
 }
 
+/**
+ * Manages the GLOBAL inventory category list (tenant_id IS NULL). Used by
+ * every tenant; only platform admins can edit.
+ */
 export function InventoryCategoriesManager() {
   const { toast } = useToast();
-  const [tenants, setTenants] = useState<TenantRow[]>([]);
-  const [tenantId, setTenantId] = useState<string>("");
   const [rows, setRows] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    supabase.from("tenants" as any).select("id, name").order("name").then(({ data }) => {
-      const list = ((data as any) ?? []) as TenantRow[];
-      setTenants(list);
-      if (list[0]) setTenantId(list[0].id);
-    });
-  }, []);
-
-  const load = async (tid: string) => {
-    if (!tid) return;
+  const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("inventory_categories" as any)
       .select("id, tenant_id, name, sort_order")
-      .eq("tenant_id", tid)
+      .is("tenant_id", null)
       .order("sort_order")
       .order("name");
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -48,25 +37,25 @@ export function InventoryCategoriesManager() {
     setLoading(false);
   };
 
-  useEffect(() => { load(tenantId); }, [tenantId]);
+  useEffect(() => { load(); }, []);
 
   const addCategory = async () => {
     const name = newCat.trim();
-    if (!name || !tenantId) return;
+    if (!name) return;
     setBusy(true);
     const sort_order = (rows.at(-1)?.sort_order ?? 0) + 10;
     const { error } = await supabase.from("inventory_categories" as any).insert({
-      tenant_id: tenantId, name, sort_order,
+      tenant_id: null, name, sort_order,
     });
     setBusy(false);
     if (error) toast({ title: "Add failed", description: error.message, variant: "destructive" });
-    else { setNewCat(""); load(tenantId); }
+    else { setNewCat(""); load(); }
   };
 
   const remove = async (id: string) => {
     const { error } = await supabase.from("inventory_categories" as any).delete().eq("id", id);
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    else load(tenantId);
+    else load();
   };
 
   return (
@@ -76,18 +65,8 @@ export function InventoryCategoriesManager() {
         <h2 className="text-lg font-semibold text-foreground">Inventory categories</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Categories shown in the Inventory page Add/Edit form and filters — one list per tenant.
+        <strong>Global</strong> categories used by every tenant's Inventory page.
       </p>
-
-      <div className="space-y-1">
-        <Label className="text-xs">Tenant</Label>
-        <Select value={tenantId} onValueChange={setTenantId}>
-          <SelectTrigger className="w-72"><SelectValue placeholder="Select tenant" /></SelectTrigger>
-          <SelectContent>
-            {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="space-y-2 pt-2">
         <Label className="text-xs">Add category</Label>
@@ -98,7 +77,7 @@ export function InventoryCategoriesManager() {
             onChange={(e) => setNewCat(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addCategory(); }}
           />
-          <Button onClick={addCategory} disabled={busy || !newCat.trim() || !tenantId}>
+          <Button onClick={addCategory} disabled={busy || !newCat.trim()}>
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
         </div>
@@ -109,7 +88,7 @@ export function InventoryCategoriesManager() {
           <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : rows.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No custom categories yet — the app falls back to defaults (Soap, Wax, Towels, Chemicals, Tools, Other).
+            No global categories yet — add the first one above.
           </div>
         ) : (
           <ul className="divide-y divide-border">
