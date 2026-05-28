@@ -13,7 +13,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAppLogo } from "@/hooks/useAppLogo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { Link, useNavigate } from "react-router-dom";
 
 const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; permission: string; alwaysRoles?: StaffRole[] }[] = [
@@ -37,7 +36,6 @@ export default function Settings() {
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd } = useTenant();
-  const { isPlatformAdmin } = usePlatformAdmin();
   const workspaceName = tenant?.name || "AquaWash";
   const navigate = useNavigate();
 
