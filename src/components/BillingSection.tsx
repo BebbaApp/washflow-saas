@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CreditCard, Loader2, Check, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useCurrency } from "@/hooks/useCurrency";
 
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -25,12 +26,13 @@ const STATUS_COPY: Record<string, { label: string; className: string }> = {
   cancelled: { label: "Cancelled", className: "bg-muted text-muted-foreground" },
 };
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(0)}/mo`;
+function formatPrice(cents: number, symbol: string) {
+  return `${symbol}${(cents / 100).toFixed(0)}/mo`;
 }
 
 export function BillingSection() {
   const { tenant, daysUntilTrialEnd, refresh } = useTenant();
+  const { currency } = useCurrency();
   
   const { toast } = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -214,7 +216,7 @@ export function BillingSection() {
                   <div className="flex items-start justify-between">
                     <div>
                       <h5 className="text-lg font-bold text-foreground">{plan.name}</h5>
-                      <p className="text-2xl font-bold text-primary">{formatPrice(plan.price_monthly_cents)}</p>
+                      <p className="text-2xl font-bold text-primary">{formatPrice(plan.price_monthly_cents, currency.symbol)}</p>
                     </div>
                     {isCurrent && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
