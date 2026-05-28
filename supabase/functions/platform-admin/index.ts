@@ -80,7 +80,8 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Missing Authorization" }, 401);
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Missing Authorization" }, 401);
+    const token = authHeader.replace("Bearer ", "");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -89,10 +90,14 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
-    const callerId = userData.user.id;
-    const isBootstrapSuperAdmin = userData.user.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      console.error("getClaims failed", claimsErr);
+      return json({ error: "Unauthorized" }, 401);
+    }
+    const callerId = claimsData.claims.sub as string;
+    const callerEmail = (claimsData.claims.email as string | undefined) ?? "";
+    const isBootstrapSuperAdmin = callerEmail.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
 
     const admin = createClient(supabaseUrl, serviceKey);
 
