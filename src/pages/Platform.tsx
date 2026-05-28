@@ -1,8 +1,8 @@
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
 import { ArrowLeft, Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package } from "lucide-react";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { TenantsAdmin } from "@/components/platform/TenantsAdmin";
 import { UsersAdmin } from "@/components/platform/UsersAdmin";
 import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
@@ -69,7 +69,7 @@ function PlatformSidebar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }
 
 export default function Platform() {
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const { isPlatformAdmin, loading } = usePlatformAdmin();
+  const { isSuperAdmin, loading } = useTenant();
   const [tab, setTab] = useState<Tab>("dashboard");
 
   if (authLoading || loading) {
@@ -81,15 +81,14 @@ export default function Platform() {
   }
   if (!isAuthenticated) return <Navigate to="/" replace />;
 
-  if (!isPlatformAdmin) {
+  if (!isSuperAdmin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="glass-card p-8 max-w-md text-center space-y-3">
           <Shield className="w-10 h-10 mx-auto text-muted-foreground" />
           <h1 className="text-lg font-bold text-foreground">Platform access only</h1>
           <p className="text-sm text-muted-foreground">
-            This area is restricted to platform administrators. If you need access, ask an existing
-            super-admin to grant you the role.
+            This area is restricted to super administrators.
           </p>
           <Link to="/" className="inline-block text-sm text-primary hover:underline">← Back to app</Link>
         </div>
