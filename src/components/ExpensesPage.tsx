@@ -366,17 +366,18 @@ function StatCard({
 }
 
 function ExpenseFormDialog({
-  mode, initial, onClose, onSubmit, currencySymbol,
+  mode, initial, categories, onClose, onSubmit, currencySymbol,
 }: {
   mode: "add" | "edit";
   initial: Expense | null;
+  categories: string[];
   onClose: () => void;
   onSubmit: (data: Omit<Expense, "id" | "createdAt">) => void;
   currencySymbol: string;
 }) {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? "Supplies");
+  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? categories[0] ?? "Other");
   const [vendor, setVendor] = useState(initial?.vendor ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [date, setDate] = useState(() =>
