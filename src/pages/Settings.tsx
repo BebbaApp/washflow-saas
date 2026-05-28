@@ -191,7 +191,47 @@ export default function Settings() {
               <p className="text-muted-foreground text-sm mt-0.5">Manage workers, appearance, and services</p>
             </div>
           </div>
-          <SettingsPage />
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="bg-muted p-1 rounded-xl h-auto flex flex-wrap gap-1">
+              <TabsTrigger value="general" className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                <SettingsIcon className="w-4 h-4 mr-2" />
+                General
+              </TabsTrigger>
+              {isPlatformAdmin && (
+                <TabsTrigger value="console" className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <Monitor className="w-4 h-4 mr-2" />
+                  Console Settings
+                </TabsTrigger>
+              )}
+              {can("expenses.view") && (
+                <TabsTrigger value="expenses" className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <Wallet className="w-4 h-4 mr-2" />
+                  Expenses
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="general">
+              <SettingsPage />
+            </TabsContent>
+
+            {isPlatformAdmin && (
+              <TabsContent value="console">
+                <ConsoleSettings />
+              </TabsContent>
+            )}
+
+            {can("expenses.view") && (
+              <TabsContent value="expenses">
+                <ExpensesPage
+                  orders={orders}
+                  addOpen={addExpenseOpen}
+                  onAddOpenChange={setAddExpenseOpen}
+                />
+              </TabsContent>
+            )}
+          </Tabs>
         </div>
       </main>
     </div>
