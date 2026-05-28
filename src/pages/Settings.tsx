@@ -3,10 +3,12 @@ import {
   Droplets, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
   Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint,
-  ArrowLeft,
+  ArrowLeft, Monitor, Wallet,
 } from "lucide-react";
 import type { StaffRole } from "@/hooks/useAuth";
 import { SettingsPage } from "@/components/SettingsPage";
+import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
+import { ExpensesPage } from "@/components/ExpensesPage";
 import { TenantSwitcher } from "@/components/TenantSwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
@@ -14,6 +16,8 @@ import { useAppLogo } from "@/hooks/useAppLogo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { useOrders } from "@/hooks/useOrders";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useNavigate } from "react-router-dom";
 
 const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; permission: string; alwaysRoles?: StaffRole[] }[] = [
