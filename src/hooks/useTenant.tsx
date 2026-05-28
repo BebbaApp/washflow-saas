@@ -40,7 +40,7 @@ interface TenantContextValue {
   isPlatformAdmin: boolean;
   /** True when the current user is a super admin (bypasses plan gating everywhere). */
   isSuperAdmin: boolean;
-  refresh: () => Promise<void>;
+  refresh: (preferredTenantId?: string) => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
   clearSwitchError: () => void;
 }
