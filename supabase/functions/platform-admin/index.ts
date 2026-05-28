@@ -218,6 +218,25 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
 
+      case "grant_super_admin": {
+        const { error: e1 } = await admin.from("super_admins")
+          .insert({ user_id: body.user_id });
+        if (e1 && (e1 as any).code !== "23505") return json({ error: e1.message }, 500);
+        // Super admins should also be platform admins so they can reach the console.
+        const { error: e2 } = await admin.from("platform_admins")
+          .insert({ user_id: body.user_id });
+        if (e2 && (e2 as any).code !== "23505") return json({ error: e2.message }, 500);
+        return json({ ok: true });
+      }
+
+      case "revoke_super_admin": {
+        if (body.user_id === callerId) return json({ error: "Cannot revoke yourself" }, 400);
+        const { error } = await admin.from("super_admins")
+          .delete().eq("user_id", body.user_id);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
+
       case "add_tenant_member": {
         const { error } = await admin.from("tenant_members")
           .upsert({ tenant_id: body.tenant_id, user_id: body.user_id, tenant_role: body.tenant_role });
