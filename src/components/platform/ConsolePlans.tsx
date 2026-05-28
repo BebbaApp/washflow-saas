@@ -271,10 +271,13 @@ export function ConsolePlans() {
                       {busyId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
                       Delete
                     </Button>
-                    <Button size="sm" onClick={() => savePlanFeatures(p)} disabled={savingPlanId === p.id}>
-                      {savingPlanId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-                      Save features
-                    </Button>
+                    <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2">
+                      {savingPlanId === p.id ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                      ) : (
+                        <><Save className="w-3.5 h-3.5" /> Auto-saves</>
+                      )}
+                    </div>
                   </div>
                 </div>
 
