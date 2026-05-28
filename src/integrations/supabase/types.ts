@@ -1090,6 +1090,21 @@ export type Database = {
           },
         ]
       }
+      super_admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tenant_invitations: {
         Row: {
           accepted_at: string | null
@@ -1362,6 +1377,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _uid: string }; Returns: boolean }
+      is_super_admin: { Args: { _uid: string }; Returns: boolean }
       is_tenant_member: { Args: { _tenant: string }; Returns: boolean }
       next_order_number: { Args: never; Returns: string }
       tenant_has_role: {

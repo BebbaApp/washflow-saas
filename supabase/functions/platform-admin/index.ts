@@ -30,6 +30,10 @@ const ActionSchema = z.discriminatedUnion("action", [
     user_id: z.string().uuid() }),
   z.object({ action: z.literal("revoke_platform_admin"),
     user_id: z.string().uuid() }),
+  z.object({ action: z.literal("grant_super_admin"),
+    user_id: z.string().uuid() }),
+  z.object({ action: z.literal("revoke_super_admin"),
+    user_id: z.string().uuid() }),
   z.object({ action: z.literal("add_tenant_member"),
     tenant_id: z.string().uuid(),
     user_id: z.string().uuid(),
@@ -86,11 +90,18 @@ Deno.serve(async (req) => {
 
     const { data: isAdminRow } = await admin
       .from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle();
-    if (!isAdminRow) return json({ error: "Forbidden: platform admin only" }, 403);
+    const { data: isSuperRow } = await admin
+      .from("super_admins").select("user_id").eq("user_id", callerId).maybeSingle();
+    const isSuper = !!isSuperRow;
+    if (!isAdminRow && !isSuper) return json({ error: "Forbidden: platform admin only" }, 403);
 
     const parsed = ActionSchema.safeParse(await req.json());
     if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
     const body = parsed.data;
+
+    if ((body.action === "grant_super_admin" || body.action === "revoke_super_admin") && !isSuper) {
+      return json({ error: "Forbidden: super admin only" }, 403);
+    }
 
     switch (body.action) {
       case "list_tenants": {
@@ -106,13 +117,15 @@ Deno.serve(async (req) => {
         const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
         if (error) return json({ error: error.message }, 500);
         const ids = list.users.map((u) => u.id);
-        const [{ data: profiles }, { data: members }, { data: padmins }] = await Promise.all([
+        const [{ data: profiles }, { data: members }, { data: padmins }, { data: sadmins }] = await Promise.all([
           admin.from("profiles").select("user_id,name").in("user_id", ids),
           admin.from("tenant_members").select("user_id,tenant_id,tenant_role").in("user_id", ids),
           admin.from("platform_admins").select("user_id").in("user_id", ids),
+          admin.from("super_admins").select("user_id").in("user_id", ids),
         ]);
         const nameMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
         const padminSet = new Set((padmins ?? []).map((p: any) => p.user_id));
+        const sadminSet = new Set((sadmins ?? []).map((p: any) => p.user_id));
         const memberMap = new Map<string, Array<{ tenant_id: string; tenant_role: string }>>();
         (members ?? []).forEach((m: any) => {
           const arr = memberMap.get(m.user_id) ?? [];
@@ -126,6 +139,7 @@ Deno.serve(async (req) => {
           created_at: u.created_at,
           last_sign_in_at: u.last_sign_in_at,
           is_platform_admin: padminSet.has(u.id),
+          is_super_admin: sadminSet.has(u.id),
           memberships: memberMap.get(u.id) ?? [],
         }));
         if (body.tenant_id) {
@@ -199,6 +213,25 @@ Deno.serve(async (req) => {
       case "revoke_platform_admin": {
         if (body.user_id === callerId) return json({ error: "Cannot revoke yourself" }, 400);
         const { error } = await admin.from("platform_admins")
+          .delete().eq("user_id", body.user_id);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
+
+      case "grant_super_admin": {
+        const { error: e1 } = await admin.from("super_admins")
+          .insert({ user_id: body.user_id });
+        if (e1 && (e1 as any).code !== "23505") return json({ error: e1.message }, 500);
+        // Super admins should also be platform admins so they can reach the console.
+        const { error: e2 } = await admin.from("platform_admins")
+          .insert({ user_id: body.user_id });
+        if (e2 && (e2 as any).code !== "23505") return json({ error: e2.message }, 500);
+        return json({ ok: true });
+      }
+
+      case "revoke_super_admin": {
+        if (body.user_id === callerId) return json({ error: "Cannot revoke yourself" }, 400);
+        const { error } = await admin.from("super_admins")
           .delete().eq("user_id", body.user_id);
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
