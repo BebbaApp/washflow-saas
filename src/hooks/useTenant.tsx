@@ -129,15 +129,35 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Priority: JWT claim → localStorage → first membership
+    // Priority: ?tenant=<slug> URL param → JWT claim → localStorage → first membership
+    let urlSlug: string | null = null;
+    try { urlSlug = new URLSearchParams(window.location.search).get("tenant"); } catch { /* ignore */ }
+    const urlMatchId = urlSlug ? list.find((m) => m.slug === urlSlug)?.id : undefined;
     const jwtId = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
     const storedId = readStoredTenant();
     const activeId =
+      urlMatchId ??
       (jwtId && list.find((m) => m.id === jwtId)?.id) ??
       (storedId && list.find((m) => m.id === storedId)?.id) ??
       list[0].id;
     const activeRow = list.find((m) => m.id === activeId) ?? list[0];
     writeStoredTenant(activeRow.id);
+
+    // If a URL slug picked a tenant different from the current JWT claim, sync
+    // the server-side active tenant so RLS-scoped queries hit the right workspace.
+    if (urlMatchId && urlMatchId !== jwtId) {
+      try {
+        await supabase.functions.invoke("switch-tenant", { body: { tenant_id: urlMatchId } });
+        await supabase.auth.refreshSession();
+      } catch (e) {
+        console.warn("URL tenant switch failed", e);
+      }
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("tenant");
+        window.history.replaceState({}, "", url.toString());
+      } catch { /* ignore */ }
+    }
 
     const { data } = await supabase
       .from("tenants" as any)
