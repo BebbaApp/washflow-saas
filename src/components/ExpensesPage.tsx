@@ -260,7 +260,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
                 className="p-4 flex items-center justify-between gap-4 hover:bg-muted/40 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${CAT_TONE[e.category]}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryTone(e.category)}`}>
                     <Receipt className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
