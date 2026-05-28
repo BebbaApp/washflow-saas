@@ -83,6 +83,24 @@ export function AttendancePage() {
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
     useAttendance();
+  // Whether the current user actually has a staff role in THIS workspace.
+  // Platform/super admins viewing other tenants where they have no role
+  // should NOT see themselves on the clock — they aren't part of that
+  // workspace's staff. `null` = still resolving.
+  const [isStaffHere, setIsStaffHere] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!user?.id || !tenant?.id) { setIsStaffHere(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from("user_roles" as any)
+        .select("user_id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("tenant_id", tenant.id);
+      if (!cancelled) setIsStaffHere((count ?? 0) > 0);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, tenant?.id]);
   const [captureMode, setCaptureMode] = useState<null | { kind: "check_in" | "check_out" | "enroll" | "assist_check_in" | "assist_check_out"; targetUserId?: string }>(null);
   const [busy, setBusy] = useState(false);
   const [staff, setStaff] = useState<StaffOption[]>([]);
