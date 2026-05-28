@@ -244,6 +244,45 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "platform_tenants_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount_cents: number
