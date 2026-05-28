@@ -49,6 +49,7 @@ export function TenantsAdmin() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, number>>({});
   const [editTenant, setEditTenant] = useState<PlatformTenant | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
