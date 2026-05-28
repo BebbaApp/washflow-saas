@@ -12,6 +12,7 @@ import autoTable from "jspdf-autotable";
 import type { WashOrder } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { VATReport } from "@/components/VATReport";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface ReportsDashboardProps {
   orders: WashOrder[];
@@ -63,6 +64,9 @@ function rangeStart(r: Range): number {
 
 export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
   const { formatPrice } = useCurrency();
+  const { can } = usePermissions();
+  const canVat = can("reports.vat");
+  const canExport = can("reports.export");
   const [tab, setTab] = useState<"overview" | "vat">("overview");
   const [range, setRange] = useState<Range>("week");
 
@@ -198,7 +202,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
           {([
             { id: "overview" as const, label: "Overview", icon: BarChart3 },
             { id: "vat" as const, label: "VAT Report", icon: Receipt },
-          ]).map((t) => (
+          ]).filter((t) => t.id !== "vat" || canVat).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -233,7 +237,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
               })}
             </div>
           )}
-          {tab === "overview" && (
+          {tab === "overview" && canExport && (
             <button
               onClick={exportPDF}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"

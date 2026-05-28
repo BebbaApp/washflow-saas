@@ -36,6 +36,7 @@ import { useInventoryCategories } from "@/hooks/useInventoryCategories";
 import { useServices } from "@/hooks/useServices";
 import { INVENTORY_PRESETS, UNIT_OPTIONS, type InventoryPreset } from "@/lib/inventoryPresets";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
+import { usePermissions } from "@/hooks/usePermissions";
 import { BookOpen } from "lucide-react";
 
 interface Props {
@@ -49,6 +50,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction } = useInventory();
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
   const { services } = useServices();
+  const { can } = usePermissions();
+  const canEdit = can("inventory.edit");
+  const canDelete = can("inventory.delete");
+  const canAdjust = can("inventory.adjust");
+  const canMapping = can("inventory.mapping");
+  const canExport = can("inventory.exportUsage");
+  const canHistory = can("inventory.history");
 
   const [tab, setTab] = useState<Tab>("items");
   const [search, setSearch] = useState("");
@@ -261,7 +269,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             { id: "items" as const, label: "Items", icon: Boxes },
             { id: "history" as const, label: "History", icon: ClipboardList },
             { id: "usage" as const, label: "Usage Guide", icon: BookOpen },
-          ]).map((t) => {
+          ]).filter((t) => t.id !== "history" || canHistory).map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
             return (
@@ -279,21 +287,25 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
           })}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setRecipesOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-            title="Configure how services consume stock"
-          >
-            <Sliders className="w-4 h-4" />
-            <span className="hidden sm:inline">Service Recipes</span>
-          </button>
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          {canMapping && (
+            <button
+              onClick={() => setRecipesOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+              title="Configure how services consume stock"
+            >
+              <Sliders className="w-4 h-4" />
+              <span className="hidden sm:inline">Service Recipes</span>
+            </button>
+          )}
+          {canExport && (
+            <button
+              onClick={exportCsv}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -375,42 +387,52 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setAdjusting({ item, mode: "add" })}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
-                        title="Add stock"
-                      >
-                        <PackagePlus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setAdjusting({ item, mode: "remove" })}
-                        disabled={item.quantity <= 0}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Use / remove stock"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setThresholdEditing(item)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
-                        title="Edit thresholds"
-                      >
-                        <SlidersHorizontal className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Remove"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canAdjust && (
+                        <button
+                          onClick={() => setAdjusting({ item, mode: "add" })}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
+                          title="Add stock"
+                        >
+                          <PackagePlus className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canAdjust && (
+                        <button
+                          onClick={() => setAdjusting({ item, mode: "remove" })}
+                          disabled={item.quantity <= 0}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Use / remove stock"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => setThresholdEditing(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+                          title="Edit thresholds"
+                        >
+                          <SlidersHorizontal className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
