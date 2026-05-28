@@ -140,26 +140,7 @@ export function ConsolePlans() {
     }
   };
 
-  const togglePlanFeature = (planId: string, key: string, value: boolean) => {
-    setPlans((prev) =>
-      prev.map((p) =>
-        p.id !== planId ? p : { ...p, features: { ...(p.features ?? {}), [key]: value } },
-      ),
-    );
-  };
-
-  const toggleGroup = (planId: string, keys: string[], value: boolean) => {
-    setPlans((prev) =>
-      prev.map((p) => {
-        if (p.id !== planId) return p;
-        const next = { ...(p.features ?? {}) };
-        for (const k of keys) next[k] = value;
-        return { ...p, features: next };
-      }),
-    );
-  };
-
-  const savePlanFeatures = async (plan: Plan) => {
+  const persistFeatures = async (plan: Plan, nextFeatures: Record<string, any>, prevFeatures: Record<string, any>) => {
     setSavingPlanId(plan.id);
     try {
       const { error } = await supabase.functions.invoke("platform-admin", {
@@ -170,17 +151,37 @@ export function ConsolePlans() {
           name: plan.name,
           price_monthly_cents: plan.price_monthly_cents,
           max_users: plan.max_users,
-          features: plan.features ?? {},
+          features: nextFeatures,
           stripe_price_id: plan.stripe_price_id,
         },
       });
       if (error) throw error;
-      toast({ title: "Features saved", description: `Updated "${plan.name}"` });
     } catch (e: any) {
+      // revert
+      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, features: prevFeatures } : p)));
       toast({ title: "Save failed", description: e?.message, variant: "destructive" });
     } finally {
       setSavingPlanId(null);
     }
+  };
+
+  const togglePlanFeature = (planId: string, key: string, value: boolean) => {
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return;
+    const prevFeatures = { ...(plan.features ?? {}) };
+    const nextFeatures = { ...prevFeatures, [key]: value };
+    setPlans((prev) => prev.map((p) => (p.id !== planId ? p : { ...p, features: nextFeatures })));
+    void persistFeatures(plan, nextFeatures, prevFeatures);
+  };
+
+  const toggleGroup = (planId: string, keys: string[], value: boolean) => {
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return;
+    const prevFeatures = { ...(plan.features ?? {}) };
+    const nextFeatures = { ...prevFeatures };
+    for (const k of keys) nextFeatures[k] = value;
+    setPlans((prev) => prev.map((p) => (p.id !== planId ? p : { ...p, features: nextFeatures })));
+    void persistFeatures(plan, nextFeatures, prevFeatures);
   };
 
   const activePlan = plans.find((p) => p.id === activeTab) ?? null;
@@ -270,10 +271,13 @@ export function ConsolePlans() {
                       {busyId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
                       Delete
                     </Button>
-                    <Button size="sm" onClick={() => savePlanFeatures(p)} disabled={savingPlanId === p.id}>
-                      {savingPlanId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-                      Save features
-                    </Button>
+                    <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2">
+                      {savingPlanId === p.id ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                      ) : (
+                        <><Save className="w-3.5 h-3.5" /> Auto-saves</>
+                      )}
+                    </div>
                   </div>
                 </div>
 
