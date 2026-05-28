@@ -205,7 +205,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const presetsInUse = useMemo(() => {
     const ids = new Set(items.map((i) => i.presetId).filter(Boolean) as string[]);
     return INVENTORY_PRESETS.filter((p) => ids.has(p.id));
-  }, [items]);
+  }, [items, INVENTORY_PRESETS]);
 
   const downloadCsv = (filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers, ...rows]
