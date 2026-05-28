@@ -41,7 +41,8 @@ interface Props {
 export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
   const { formatPrice, currency } = useCurrency();
   const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses();
-  const { categories } = useExpenseCategories();
+  const { categories, subcategoriesFor } = useExpenseCategories();
+
 
   const [range, setRange] = useState<Range>("month");
   const [search, setSearch] = useState("");
@@ -267,9 +268,11 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
                     <p className="font-semibold text-foreground truncate">{e.description}</p>
                     <p className="text-xs text-muted-foreground truncate">
                       {new Date(e.date).toLocaleDateString()} · {e.category}
+                      {e.subcategory ? ` › ${e.subcategory}` : ""}
                       {e.vendor ? ` · ${e.vendor}` : ""}
                     </p>
                   </div>
+
                 </div>
                 <div className="flex items-center gap-2 shrink-0" onClick={(ev) => ev.stopPropagation()}>
                   <span className="font-bold text-red-500 mr-1">-{formatPrice(e.amount)}</span>
@@ -299,6 +302,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
           mode="add"
           initial={null}
           categories={categories}
+          subcategoriesFor={subcategoriesFor}
           onClose={() => onAddOpenChange(false)}
           onSubmit={(data) => {
             addExpense(data);
@@ -313,6 +317,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
           mode="edit"
           initial={editExpense}
           categories={categories}
+          subcategoriesFor={subcategoriesFor}
           onClose={() => setEditExpense(null)}
           onSubmit={(data) => {
             updateExpense(editExpense.id, data);
@@ -321,6 +326,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
           currencySymbol={currency.symbol}
         />
       )}
+
 
       {detailExpense && (
         <ExpenseDetailsDialog
@@ -366,11 +372,12 @@ function StatCard({
 }
 
 function ExpenseFormDialog({
-  mode, initial, categories, onClose, onSubmit, currencySymbol,
+  mode, initial, categories, subcategoriesFor, onClose, onSubmit, currencySymbol,
 }: {
   mode: "add" | "edit";
   initial: Expense | null;
   categories: string[];
+  subcategoriesFor: (category: string) => string[];
   onClose: () => void;
   onSubmit: (data: Omit<Expense, "id" | "createdAt">) => void;
   currencySymbol: string;
@@ -378,12 +385,15 @@ function ExpenseFormDialog({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
   const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? categories[0] ?? "Other");
+  const [subcategory, setSubcategory] = useState<string>(initial?.subcategory ?? "");
   const [vendor, setVendor] = useState(initial?.vendor ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [date, setDate] = useState(() =>
     initial ? new Date(initial.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
   );
   const [error, setError] = useState("");
+
+  const subOptions = useMemo(() => subcategoriesFor(category), [category, subcategoriesFor]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -395,11 +405,13 @@ function ExpenseFormDialog({
       description: description.trim(),
       amount: amt,
       category,
+      subcategory: subcategory.trim() || undefined,
       vendor: vendor.trim() || undefined,
       notes: notes.trim() || undefined,
       date: new Date(date).toISOString(),
     });
   };
+
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
