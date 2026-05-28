@@ -117,13 +117,15 @@ Deno.serve(async (req) => {
         const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
         if (error) return json({ error: error.message }, 500);
         const ids = list.users.map((u) => u.id);
-        const [{ data: profiles }, { data: members }, { data: padmins }] = await Promise.all([
+        const [{ data: profiles }, { data: members }, { data: padmins }, { data: sadmins }] = await Promise.all([
           admin.from("profiles").select("user_id,name").in("user_id", ids),
           admin.from("tenant_members").select("user_id,tenant_id,tenant_role").in("user_id", ids),
           admin.from("platform_admins").select("user_id").in("user_id", ids),
+          admin.from("super_admins").select("user_id").in("user_id", ids),
         ]);
         const nameMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
         const padminSet = new Set((padmins ?? []).map((p: any) => p.user_id));
+        const sadminSet = new Set((sadmins ?? []).map((p: any) => p.user_id));
         const memberMap = new Map<string, Array<{ tenant_id: string; tenant_role: string }>>();
         (members ?? []).forEach((m: any) => {
           const arr = memberMap.get(m.user_id) ?? [];
@@ -137,6 +139,7 @@ Deno.serve(async (req) => {
           created_at: u.created_at,
           last_sign_in_at: u.last_sign_in_at,
           is_platform_admin: padminSet.has(u.id),
+          is_super_admin: sadminSet.has(u.id),
           memberships: memberMap.get(u.id) ?? [],
         }));
         if (body.tenant_id) {
