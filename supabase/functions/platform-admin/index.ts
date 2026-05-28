@@ -444,6 +444,36 @@ Deno.serve(async (req) => {
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
       }
+
+      case "clear_tenant_staff": {
+        const t = body.tenant_id;
+        // Preserve the owner so the workspace remains accessible.
+        const { data: ownerRow } = await admin.from("tenant_members")
+          .select("user_id").eq("tenant_id", t).eq("tenant_role", "owner")
+          .order("created_at", { ascending: true }).limit(1).maybeSingle();
+        const ownerId = (ownerRow as any)?.user_id ?? null;
+
+        const tables = [
+          "attendance_audit_log","attendance_records","time_off_requests",
+          "shifts","staff_face_enrollments","staff_pins","user_roles",
+          "tenant_invitations",
+        ];
+        for (const tbl of tables) {
+          const { error } = await admin.from(tbl).delete().eq("tenant_id", t);
+          if (error) return json({ error: `${tbl}: ${error.message}` }, 500);
+        }
+
+        let memQuery = admin.from("tenant_members").delete().eq("tenant_id", t);
+        if (ownerId) memQuery = memQuery.neq("user_id", ownerId);
+        const { error: mErr } = await memQuery;
+        if (mErr) return json({ error: `tenant_members: ${mErr.message}` }, 500);
+
+        await admin.from("license_events").insert({
+          tenant_id: t, kind: "platform.tenant_staff_cleared",
+          payload: { by: callerId, kept_owner: ownerId },
+        });
+        return json({ ok: true });
+      }
     }
   } catch (e) {
     console.error("platform-admin error", e);
