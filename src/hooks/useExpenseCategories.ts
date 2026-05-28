@@ -1,35 +1,59 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { EXPENSE_CATEGORIES as DEFAULT_CATEGORIES } from "@/hooks/useExpenses";
 
+export interface CategoryNode {
+  id: string;
+  name: string;
+  sort_order: number;
+  parent_id: string | null;
+  subcategories: CategoryNode[];
+}
+
 /**
  * Loads tenant-scoped expense categories managed in the admin console
- * (`expense_categories` table). Falls back to the built-in defaults when
- * the tenant has not configured any categories yet.
+ * (`expense_categories` table) as a two-level tree (category → subcategories).
+ * Falls back to the built-in defaults when the tenant has no rows yet.
  */
 export function useExpenseCategories() {
   const { tenant } = useTenant();
-  const [categories, setCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
+  const [tree, setTree] = useState<CategoryNode[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     if (!tenant?.id) {
-      setCategories([...DEFAULT_CATEGORIES]);
+      setTree(DEFAULT_CATEGORIES.map((name, i) => ({
+        id: `default-${name}`, name, sort_order: i * 10, parent_id: null, subcategories: [],
+      })));
       setLoading(false);
       return;
     }
     setLoading(true);
     const { data, error } = await supabase
       .from("expense_categories" as any)
-      .select("name, sort_order")
+      .select("id, name, sort_order, parent_id")
       .eq("tenant_id", tenant.id)
       .order("sort_order")
       .order("name");
     if (!error && data && (data as any[]).length > 0) {
-      setCategories((data as any[]).map((r) => String(r.name)));
+      const rows = (data as any[]) as { id: string; name: string; sort_order: number; parent_id: string | null }[];
+      const parents = rows.filter((r) => !r.parent_id);
+      const childByParent = new Map<string, typeof rows>();
+      rows.filter((r) => r.parent_id).forEach((r) => {
+        const arr = childByParent.get(r.parent_id!) ?? [];
+        arr.push(r); childByParent.set(r.parent_id!, arr);
+      });
+      setTree(parents.map((p) => ({
+        id: p.id, name: p.name, sort_order: p.sort_order, parent_id: null,
+        subcategories: (childByParent.get(p.id) ?? []).map((c) => ({
+          id: c.id, name: c.name, sort_order: c.sort_order, parent_id: p.id, subcategories: [],
+        })),
+      })));
     } else {
-      setCategories([...DEFAULT_CATEGORIES]);
+      setTree(DEFAULT_CATEGORIES.map((name, i) => ({
+        id: `default-${name}`, name, sort_order: i * 10, parent_id: null, subcategories: [],
+      })));
     }
     setLoading(false);
   }, [tenant?.id]);
@@ -47,7 +71,13 @@ export function useExpenseCategories() {
     return () => { supabase.removeChannel(ch); };
   }, [tenant?.id, fetchAll]);
 
-  return { categories, loading, refresh: fetchAll };
+  const categories = useMemo(() => tree.map((c) => c.name), [tree]);
+  const subcategoriesFor = useCallback(
+    (categoryName: string) => tree.find((c) => c.name === categoryName)?.subcategories.map((s) => s.name) ?? [],
+    [tree]
+  );
+
+  return { tree, categories, subcategoriesFor, loading, refresh: fetchAll };
 }
 
 const TONE_PALETTE = [

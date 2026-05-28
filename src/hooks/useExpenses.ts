@@ -19,6 +19,7 @@ export interface Expense {
   description: string;
   amount: number;
   category: ExpenseCategory;
+  subcategory?: string;
   vendor?: string;
   notes?: string;
   date: string; // ISO
@@ -34,12 +35,14 @@ function rowToExpense(r: any): Expense {
     description: r.description,
     amount: Number(r.amount),
     category: r.category as ExpenseCategory,
+    subcategory: r.subcategory ?? undefined,
     vendor: r.vendor ?? undefined,
     notes: r.notes ?? undefined,
     date: r.date,
     createdAt: r.created_at,
   };
 }
+
 
 export function useExpenses() {
   const { user } = useAuth();
@@ -114,6 +117,7 @@ export function useExpenses() {
         description: data.description,
         amount: data.amount,
         category: data.category,
+        subcategory: data.subcategory ?? null,
         vendor: data.vendor ?? null,
         notes: data.notes ?? null,
         date: data.date,
@@ -132,12 +136,14 @@ export function useExpenses() {
     if (patch.description !== undefined) update.description = patch.description;
     if (patch.amount !== undefined) update.amount = patch.amount;
     if (patch.category !== undefined) update.category = patch.category;
+    if (patch.subcategory !== undefined) update.subcategory = patch.subcategory ?? null;
     if (patch.vendor !== undefined) update.vendor = patch.vendor ?? null;
     if (patch.notes !== undefined) update.notes = patch.notes ?? null;
     if (patch.date !== undefined) update.date = patch.date;
     const { error } = await supabase.from("expenses" as any).update(update).eq("id", id);
     if (!error) setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }, []);
+
 
   const deleteExpense = useCallback(async (id: string) => {
     const { error } = await supabase.from("expenses" as any).delete().eq("id", id);
