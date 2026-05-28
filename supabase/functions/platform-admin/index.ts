@@ -46,6 +46,11 @@ const ActionSchema = z.discriminatedUnion("action", [
     tenant_id: z.string().uuid(),
     name: z.string().min(1).max(120).optional(),
     slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/).optional() }),
+  z.object({ action: z.literal("create_tenant"),
+    name: z.string().min(1).max(120),
+    slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/),
+    plan_id: z.string().uuid().optional(),
+    trial_days: z.number().int().min(0).max(365).optional() }),
   z.object({ action: z.literal("get_platform_settings") }),
   z.object({ action: z.literal("update_platform_settings"),
     currency: z.string().min(1).max(8).optional(),
@@ -268,6 +273,25 @@ Deno.serve(async (req) => {
         });
         return json({ ok: true });
       }
+
+      case "create_tenant": {
+        const trialDays = body.trial_days ?? 30;
+        const trialEnds = new Date(Date.now() + trialDays * 86_400_000).toISOString();
+        const { data: created, error } = await admin.from("tenants").insert({
+          name: body.name,
+          slug: body.slug,
+          plan_id: body.plan_id ?? null,
+          status: "trialing",
+          trial_ends_at: trialEnds,
+        }).select("id, slug, name").single();
+        if (error) return json({ error: error.message }, 500);
+        await admin.from("license_events").insert({
+          tenant_id: created.id, kind: "platform.tenant_created",
+          payload: { by: callerId, name: body.name, slug: body.slug },
+        });
+        return json({ ok: true, tenant: created });
+      }
+
 
       case "get_platform_settings": {
         const { data, error } = await admin.from("platform_settings")

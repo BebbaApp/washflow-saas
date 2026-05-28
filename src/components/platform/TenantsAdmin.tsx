@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil } from "lucide-react";
+import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus } from "lucide-react";
 import { EditTenantDialog } from "./EditTenantDialog";
+import { AddTenantDialog } from "./AddTenantDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ export function TenantsAdmin() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extendDays, setExtendDays] = useState<Record<string, number>>({});
   const [editTenant, setEditTenant] = useState<PlatformTenant | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -134,9 +136,14 @@ export function TenantsAdmin() {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
-          </Button>
+          <div className="flex gap-2 items-center">
+            <Button size="sm" onClick={() => setAddOpen(true)}>
+              <Plus className="w-4 h-4" /> Add tenant
+            </Button>
+            <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
         </div>
 
         <div className="border border-border rounded-lg overflow-hidden">
@@ -244,6 +251,14 @@ export function TenantsAdmin() {
         tenant={editTenant ? { id: editTenant.id, name: editTenant.name, slug: editTenant.slug } : null}
         onSaved={load}
       />
+
+      <AddTenantDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        plans={plans}
+        onCreated={load}
+      />
+
     </div>
   );
 }
