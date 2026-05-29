@@ -258,7 +258,8 @@ export function TenantManagementSection() {
                     {ROLE_ICON[m.tenant_role]}
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-foreground truncate">
-                        {isSelf ? "You" : m.user_id.slice(0, 8) + "…"}
+                        {m.name ?? (isSelf ? "You" : m.user_id.slice(0, 8) + "…")}
+                        {isSelf && m.name && <span className="ml-1 text-[11px] text-muted-foreground">(you)</span>}
                       </div>
                       <div className="text-[11px] text-muted-foreground">Joined {new Date(m.created_at).toLocaleDateString()}</div>
                     </div>
