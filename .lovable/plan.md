@@ -1,79 +1,56 @@
-# Phase 6 hardening — per-tenant receipts + extended audit log
+# Inventory → Supabase + Expenses + Suppliers
 
-## Goals
-1. Make `receipt_settings` per-tenant instead of a global singleton row.
-2. Extend `membership_audit_log` to capture more sensitive actions:
-   tenant settings updates, billing changes, platform-admin changes,
-   receipt-settings edits.
+## 1. Database (new migration)
 
-## 1. Per-tenant receipt settings
+New tables (all tenant-scoped, RLS + GRANTs):
 
-### Schema change (`supabase/sql/phase6_hardening.sql`)
-- Drop the `id BOOLEAN PRIMARY KEY` singleton constraint.
-- Add `tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE`.
-- Make `tenant_id` the primary key (one row per tenant).
-- Backfill: for every existing tenant, insert a default row if missing.
-  Existing singleton row content is preserved by copying it to the
-  current_tenant_id() owner if exactly one tenant exists, otherwise just
-  used as the default template for new rows.
-- Rewrite RLS:
-  - SELECT: any member of the tenant.
-  - INSERT/UPDATE: owners/admins/managers of that tenant.
-- Keep realtime publication.
+- `inventory_items` — id, tenant_id, name, category, subtype, preset_id, unit, quantity, threshold, recommended_min, recommended_max, **unit_cost** (numeric), **expense_category** (text, nullable — overrides category default), **supplier_id** (uuid, nullable), created_at, updated_at.
+- `inventory_transactions` — id, tenant_id, item_id, item_name, delta, balance, type (`restock|consume|adjust`), source, notes, flow, **unit_cost** (snapshot), **total_cost** (snapshot), **expense_id** (nullable FK to expenses), created_at.
+- `suppliers` — id, tenant_id, name, contact_name, phone, email, address, notes, created_at, updated_at.
+- `inventory_category_defaults` — id, tenant_id, category (text), expense_category (text). Lets admins say "all 'Chemicals' default to expense category 'Supplies'".
 
-### App changes
-- `src/hooks/useReceiptSettings.ts`
-  - Pull `tenant_id` from `useTenant()` and scope every query
-    (`eq("tenant_id", tenant.id)`) and upsert (`onConflict: "tenant_id"`).
-  - Reset and re-fetch when the active tenant changes.
-  - LocalStorage cache key becomes per-tenant
-    (`aquawash-receipt-settings:<tenant_id>`).
-  - Realtime channel filters on `tenant_id=eq.<id>`.
-- No UI changes to `SettingsPage` / `ReceiptPreview` needed — they read
-  through the hook.
+Keep existing localStorage-only state for recipes / vehicle map / processed sets (out of scope — those stay local for now).
 
-## 2. Extended audit logging
+## 2. Auto-expense logic
 
-### Schema change (same migration)
-- Loosen the `action` check constraint on `public.membership_audit_log`
-  to accept the new action codes:
-  - `tenant.settings_updated`
-  - `tenant.billing_updated`
-  - `platform_admin.granted`
-  - `platform_admin.revoked`
-  - `receipt_settings.updated`
-- Add triggers (all `security definer`, write via service-role bypass):
-  - `trg_log_tenant_update` on `public.tenants` (AFTER UPDATE) — diff
-    name/slug/plan_id/status and log `tenant.settings_updated` or
-    `tenant.billing_updated` (when plan/status changes).
-  - `trg_log_platform_admin` on `public.platform_admins`
-    (AFTER INSERT/DELETE) — log granted/revoked. `tenant_id` is set to
-    `current_tenant_id()` when present, else null-skipped (the table
-    requires non-null tenant_id, so platform_admin events are written
-    only when the actor has an active tenant; otherwise inserted via the
-    edge function which always sets one).
-  - `trg_log_receipt_settings` on `public.receipt_settings`
-    (AFTER UPDATE) — log `receipt_settings.updated` with a payload of
-    changed fields.
-- Adjust the `tenant_id` column on `membership_audit_log` to allow
-  cross-tenant platform actions if necessary (we'll only emit when a
-  tenant scope exists, so leave NOT NULL).
+When an item is **added with quantity > 0** OR **stock is adjusted up** (restock):
+- `total = unit_cost × delta`
+- Resolve expense category: item.expense_category → category default → fallback `"Supplies"`.
+- Insert row into `expenses` (description = `Restock: <item name> (<qty> <unit>)`, vendor = supplier name if any).
+- Store the new `expense_id` on the transaction row.
 
-### Edge function tweaks
-- None required for triggers to fire; the existing `accept-invite` /
-  `invite-member` functions already emit explicit audit rows and remain
-  the source of truth for invite lifecycle.
+Consumption/downward adjustments do NOT create expenses.
 
-### UI
-- `MembershipAuditLog.tsx` — add the new action codes to the `ACTIONS`
-  filter list and `LABEL` map so they render nicely.
+## 3. Reorder button
+
+On each inventory row + details modal: **Reorder** button → opens a small dialog prefilled with last restock's qty, unit cost, and supplier. User can tweak qty / new unit cost / supplier, confirm → applies positive stock delta + creates expense (path above) + updates item's `unit_cost` and `supplier_id` to the new values.
+
+## 4. Suppliers UI
+
+- New `useSuppliers` hook (Supabase + realtime).
+- Inventory add/edit form: supplier dropdown (+ "New supplier" inline).
+- Settings → Workspace tab: new **Suppliers** section directly below Members. CRUD list (name, contact, phone, email).
+
+## 5. Members display fix
+
+Settings → Workspace → Members currently shows UUIDs. Join `tenant_members` with `profiles` (already in `useWorkers` rewrite) and render `profile.name || email` instead of `user_id`.
+
+## 6. Rewrite `useInventory`
+
+Replace the entire localStorage singleton with Supabase-backed hook + realtime subscription on `inventory_items` and `inventory_transactions`. Keep the same public API (`items`, `addItem`, `updateItem`, `adjustStock`, `confirmConsumption`, `consumeForWash`, etc.) so InventoryPage and CompleteWashDialog don't break. Recipes/vehicle-map/water-item stay in localStorage for this pass.
 
 ## Files touched
-- `supabase/sql/phase6_hardening.sql` (new)
-- `src/hooks/useReceiptSettings.ts`
-- `src/components/MembershipAuditLog.tsx`
 
-## Out of scope
-- Renaming/relabelling receipt UI copy.
-- Adding per-tenant overrides for currency/VAT (already tenant-scoped
-  elsewhere or planned for a later phase).
+- `supabase/sql/phase20_inventory_suppliers.sql` (new migration via tool)
+- `src/hooks/useInventory.ts` (full rewrite, same API surface)
+- `src/hooks/useSuppliers.ts` (new)
+- `src/hooks/useInventoryCategoryDefaults.ts` (new)
+- `src/components/InventoryPage.tsx` (add unit cost, supplier, reorder button, expense-category override field)
+- `src/components/InventoryItemDetailsModal.tsx` (show supplier, unit cost, reorder)
+- `src/components/ReorderDialog.tsx` (new)
+- `src/components/SettingsPage.tsx` (Suppliers section under Members; members render by profile name)
+
+## Out of scope (this pass)
+
+- Recipes, vehicle mappings, water item, idempotency sets — remain localStorage.
+- Migrating existing localStorage inventory data — users start fresh in Supabase (will note this in chat).
