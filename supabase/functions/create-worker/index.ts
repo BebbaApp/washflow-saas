@@ -130,8 +130,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    const newUserId = newUser.user.id;
+
+    // Defensive cleanup: if the handle_new_user_tenant trigger still
+    // auto-created a personal tenant for this worker (e.g. stripped metadata,
+    // legacy trigger), remove that membership + tenant so they only belong to
+    // the inviting workspace.
+    const { data: autoMemberships } = await adminClient
+      .from("tenant_members")
+      .select("tenant_id, tenant_role")
+      .eq("user_id", newUserId);
+
+    for (const m of autoMemberships ?? []) {
+      if (m.tenant_id === tenant_id) continue;
+      if (m.tenant_role !== "owner") continue;
+      // Only delete tenants where this new user is the sole owner/member
+      const { count } = await adminClient
+        .from("tenant_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("tenant_id", m.tenant_id);
+      if ((count ?? 0) <= 1) {
+        await adminClient.from("tenant_members").delete().eq("tenant_id", m.tenant_id);
+        await adminClient.from("tenants").delete().eq("id", m.tenant_id);
+      }
+    }
+
     const { error: memberErr } = await adminClient.from("tenant_members").upsert(
-      { tenant_id, user_id: newUser.user.id, tenant_role: "member" },
+      { tenant_id, user_id: newUserId, tenant_role: "member" },
       { onConflict: "tenant_id,user_id" },
     );
 
@@ -144,7 +169,7 @@ Deno.serve(async (req) => {
 
     // Assign role
     const { error: roleErr } = await adminClient.from("user_roles").insert({
-      user_id: newUser.user.id,
+      user_id: newUserId,
       tenant_id,
       role,
     });
