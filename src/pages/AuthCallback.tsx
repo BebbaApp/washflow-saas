@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 type Status = "working" | "success" | "error";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { refresh } = useAuth();
   const [status, setStatus] = useState<Status>("working");
   const [message, setMessage] = useState("Confirming your email…");
 
