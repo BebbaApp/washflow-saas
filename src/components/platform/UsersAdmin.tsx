@@ -322,6 +322,47 @@ export function UsersAdmin() {
           : "Only super admins can grant or revoke the super-admin role."}
         {" "}Changes take effect on the affected user's next page load or tenant switch.
       </p>
+
+      <Dialog open={!!assignTenantId} onOpenChange={(o) => !o && setAssignTenantId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign user to workspace</DialogTitle>
+            <DialogDescription>
+              {assignTenantId && `Add a user to ${tenantName(assignTenantId)}. If they don't have an account yet, they'll receive an email to set up login credentials.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="assign-email" className="text-xs">Email</Label>
+              <Input
+                id="assign-email" type="email" placeholder="user@example.com"
+                value={assignEmail} onChange={(e) => setAssignEmail(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Workspace role</Label>
+              <Select value={assignRole} onValueChange={(v) => setAssignRole(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="owner">Owner</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAssignTenantId(null)} disabled={assigning}>
+              Cancel
+            </Button>
+            <Button onClick={submitAssign} disabled={assigning || !assignEmail.trim()}>
+              {assigning ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <UserPlus className="w-4 h-4 mr-1" />}
+              Assign & send invite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
