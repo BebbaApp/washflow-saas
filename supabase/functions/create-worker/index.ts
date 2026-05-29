@@ -89,17 +89,39 @@ Deno.serve(async (req) => {
 
     // Create auth user. We set `invited_to_tenant` in app_metadata so the
     // `handle_new_user_tenant` trigger skips creating a brand-new tenant for
-    // this worker (they are joining an existing tenant).
-    const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+    // this worker (they are joining an existing tenant). Some existing DBs also
+    // have an auth confirmation trigger that writes tenant-scoped roles without
+    // a tenant context; if that path fails, retry unconfirmed and assign the
+    // correct tenant role below with the service-role client.
+    const userPayload = {
       email,
       password,
-      email_confirm: true,
       user_metadata: { name },
       app_metadata: { active_tenant_id: tenant_id, invited_to_tenant: tenant_id },
+    };
+    let { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+      ...userPayload,
+      email_confirm: true,
     });
+
+    if (createErr?.message?.toLowerCase().includes("database error creating new user")) {
+      const retry = await adminClient.auth.admin.createUser({
+        ...userPayload,
+        email_confirm: false,
+      });
+      newUser = retry.data;
+      createErr = retry.error;
+    }
 
     if (createErr) {
       return new Response(JSON.stringify({ error: createErr.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!newUser?.user?.id) {
+      return new Response(JSON.stringify({ error: "User was not created" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
