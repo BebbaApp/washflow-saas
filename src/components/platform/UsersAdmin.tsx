@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Shield, ShieldOff, Search, Crown, ChevronDown, Building2, Users as UsersIcon } from "lucide-react";
+import { Loader2, Shield, ShieldOff, Search, Crown, ChevronDown, Building2, Users as UsersIcon, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface PlatformUser {
   id: string;
