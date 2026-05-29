@@ -248,20 +248,22 @@ function WorkersSection() {
     setPinTarget(null);
   };
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (silent = false) => {
     if (!isAuthenticated || !authUser) return;
     if (!tenant?.id) {
       setLoading(tenantLoading);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setCurrentUserId(authUser.id);
 
     const res = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant?.id } });
     if (res.error || res.data?.error) {
       const info = await extractFnError(res);
-      toast({ title: "Could not load staff", description: fnErrorDescription(info), variant: "destructive" });
-      setLoading(false);
+      if (!silent) {
+        toast({ title: "Could not load staff", description: fnErrorDescription(info), variant: "destructive" });
+        setLoading(false);
+      }
       return;
     }
     setUsers(res.data.users ?? []);
@@ -276,6 +278,21 @@ function WorkersSection() {
     }
     loadUsers();
   }, [authLoading, tenantLoading, isAuthenticated, loadUsers]);
+
+  useEffect(() => {
+    if (authLoading || tenantLoading || !isAuthenticated || !tenant?.id) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") loadUsers(true);
+    };
+    const interval = window.setInterval(refreshIfVisible, 8000);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
+  }, [authLoading, tenantLoading, isAuthenticated, tenant?.id, loadUsers]);
 
 
   const handleRoleChange = async (userId: string, newRole: WorkerRole) => {
