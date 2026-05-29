@@ -82,22 +82,16 @@ Deno.serve(async (req) => {
       }
     } else {
       const variants = phoneVariants(rawId);
-      const { data } = await admin
+      console.log("[pin-login] phone lookup", { rawId, variants });
+      // Always fetch all and match in code — RLS/encoding issues with .in() can silently miss.
+      const { data: pins, error: pinsErr } = await admin
         .from("staff_pins")
-        .select("user_id, pin_hash, phone")
-        .in("phone", variants);
-
-      if (data?.length) {
-        rec = { user_id: data[0].user_id, pin_hash: data[0].pin_hash };
-      } else {
-        // Fallback for older stored phones that include unexpected formatting:
-        // compare normalized variants in code so 083..., 83..., 2783..., and +2783... all work.
-        const { data: pins } = await admin
-          .from("staff_pins")
-          .select("user_id, pin_hash, phone");
-        const match = (pins ?? []).find((row) => phoneMatchKeys(row.phone).some((key) => variants.includes(key)));
-        rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
-      }
+        .select("user_id, pin_hash, phone");
+      if (pinsErr) console.log("[pin-login] staff_pins query error", pinsErr);
+      console.log("[pin-login] staff_pins rows", pins?.length, pins?.map((p) => p.phone));
+      const variantSet = new Set(variants);
+      const match = (pins ?? []).find((row) => phoneMatchKeys(row.phone).some((key) => variantSet.has(key)));
+      rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
     }
 
     if (!rec) {
