@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
+import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
 
@@ -26,6 +27,7 @@ const GatedRoutes = () => {
       <Route path="/settings" element={<Navigate to="/?tab=settings" replace />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/platform" element={<Platform />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
