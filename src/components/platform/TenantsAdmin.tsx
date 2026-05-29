@@ -263,6 +263,12 @@ export function TenantsAdmin() {
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => { setDeleteTenant(t); setDeleteConfirm(""); }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete workspace
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
