@@ -595,7 +595,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             {/* Cost / supplier / expense category */}
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Unit cost</Label>
+                <Label className="text-sm text-secondary-foreground">Unit cost (per item)</Label>
                 <Input
                   type="number"
                   min="0"
@@ -606,9 +606,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                   className="bg-secondary border-border text-foreground"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Used to auto-log an expense when stock is captured or restocked.
+                  Expense = unit cost × quantity captured (not multiplied by the unit of measurement).
+                  {Number(unitCost) > 0 && Number(quantity) > 0 && (
+                    <> Total: <span className="text-foreground font-mono">${(Number(unitCost) * Number(quantity)).toFixed(2)}</span></>
+                  )}
                 </p>
               </div>
+
               <div className="space-y-2">
                 <Label className="text-sm text-secondary-foreground">Supplier</Label>
                 <Select value={supplierId} onValueChange={setSupplierId}>
