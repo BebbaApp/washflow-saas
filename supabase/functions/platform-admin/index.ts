@@ -475,6 +475,39 @@ Deno.serve(async (req) => {
         });
         return json({ ok: true });
       }
+
+      case "delete_tenant": {
+        const t = body.tenant_id;
+        const { data: tenantRow, error: tErr } = await admin.from("tenants")
+          .select("id, slug, name").eq("id", t).maybeSingle();
+        if (tErr) return json({ error: tErr.message }, 500);
+        if (!tenantRow) return json({ error: "Tenant not found" }, 404);
+        if ((tenantRow as any).slug !== body.confirm_slug) {
+          return json({ error: "Slug confirmation does not match" }, 400);
+        }
+
+        const tables = [
+          "attendance_audit_log","attendance_records","time_off_requests",
+          "shifts","shift_templates","staff_face_enrollments","staff_pins",
+          "user_roles","tenant_invitations","loyalty_transactions",
+          "orders","customers","expenses","services","receipt_settings",
+          "role_permissions","membership_audit_log","invoices","subscriptions",
+          "tenant_members","license_events",
+        ];
+        for (const tbl of tables) {
+          const { error } = await admin.from(tbl).delete().eq("tenant_id", t);
+          if (error) return json({ error: `${tbl}: ${error.message}` }, 500);
+        }
+
+        const { error: delErr } = await admin.from("tenants").delete().eq("id", t);
+        if (delErr) return json({ error: delErr.message }, 500);
+
+        await admin.from("license_events").insert({
+          tenant_id: null, kind: "platform.tenant_deleted",
+          payload: { by: callerId, tenant_id: t, name: (tenantRow as any).name, slug: (tenantRow as any).slug },
+        });
+        return json({ ok: true });
+      }
     }
   } catch (e) {
     console.error("platform-admin error", e);
