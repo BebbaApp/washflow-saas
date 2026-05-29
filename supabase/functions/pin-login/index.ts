@@ -54,13 +54,24 @@ Deno.serve(async (req) => {
         rec = data ?? null;
       }
     } else {
-      const normalizedPhone = rawId.replace(/\s+/g, "");
+      // Normalize: strip spaces, dashes, parens
+      const cleaned = rawId.replace(/[\s\-()]/g, "");
+      // Build candidate variants so users can type either "0834951182" or "+27834951182"
+      const digits = cleaned.replace(/^\+/, "");
+      const variants = new Set<string>([cleaned, digits, "+" + digits]);
+      if (digits.startsWith("0")) {
+        // Local SA-style: 0XXXXXXXXX -> +27XXXXXXXXX
+        const local = digits.slice(1);
+        variants.add("+27" + local);
+        variants.add("27" + local);
+      } else if (digits.startsWith("27")) {
+        variants.add("0" + digits.slice(2));
+      }
       const { data } = await admin
         .from("staff_pins")
-        .select("user_id, pin_hash")
-        .eq("phone", normalizedPhone)
-        .maybeSingle();
-      rec = data ?? null;
+        .select("user_id, pin_hash, phone")
+        .in("phone", Array.from(variants));
+      rec = (data && data[0]) ? { user_id: data[0].user_id, pin_hash: data[0].pin_hash } : null;
     }
 
     if (!rec) {
