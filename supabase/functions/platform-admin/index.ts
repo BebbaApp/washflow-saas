@@ -36,6 +36,8 @@ const ActionSchema = z.discriminatedUnion("action", [
     user_id: z.string().uuid() }),
   z.object({ action: z.literal("revoke_super_admin"),
     user_id: z.string().uuid() }),
+  z.object({ action: z.literal("purge_super_admin_by_email"),
+    email: z.string().email() }),
   z.object({ action: z.literal("add_tenant_member"),
     tenant_id: z.string().uuid(),
     user_id: z.string().uuid(),
@@ -137,6 +139,12 @@ Deno.serve(async (req) => {
       case "list_users": {
         const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
         if (error) return json({ error: error.message }, 500);
+        const staleSuperAdminIds = list.users
+          .filter((u) => (u.email ?? "").toLowerCase() === "umbandre10@gmail.com")
+          .map((u) => u.id);
+        if (staleSuperAdminIds.length > 0) {
+          await admin.from("super_admins").delete().in("user_id", staleSuperAdminIds);
+        }
         const ids = list.users.map((u) => u.id);
         const [{ data: profiles }, { data: members }, { data: padmins }, { data: sadmins }] = await Promise.all([
           admin.from("profiles").select("user_id,name").in("user_id", ids),
@@ -276,6 +284,20 @@ Deno.serve(async (req) => {
           .delete().eq("user_id", body.user_id);
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
+      }
+
+      case "purge_super_admin_by_email": {
+        const email = body.email.toLowerCase();
+        if (email === BOOTSTRAP_SUPER_ADMIN_EMAIL) return json({ error: "Cannot purge bootstrap super admin" }, 400);
+        const { data: list, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
+        if (listErr) return json({ error: listErr.message }, 500);
+        const ids = (list.users ?? [])
+          .filter((u) => (u.email ?? "").toLowerCase() === email)
+          .map((u) => u.id);
+        if (ids.length === 0) return json({ ok: true, purged: 0 });
+        const { error } = await admin.from("super_admins").delete().in("user_id", ids);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, purged: ids.length });
       }
 
 
