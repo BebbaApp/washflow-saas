@@ -14,7 +14,14 @@ import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
 
 const GatedRoutes = () => {
   const { isAuthenticated } = useAuth();
