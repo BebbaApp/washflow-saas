@@ -92,10 +92,15 @@ export default function AuthCallback() {
         await refresh();
         setMessage(confirmed ? "You're verified. Redirecting…" : "Almost done. Redirecting…");
         setTimeout(() => navigate("/", { replace: true }), 800);
+      } catch (err) {
+        if (cancelled) return;
+        setStatus("error");
+        setMessage((err as Error).message || "Verification failed.");
+      }
     })();
 
     return () => { cancelled = true; };
-  }, [navigate]);
+  }, [navigate, refresh]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
