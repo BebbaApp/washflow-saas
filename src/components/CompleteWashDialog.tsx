@@ -130,16 +130,16 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
     setExtras((prev) => prev.map((e) => (e.uid === uid ? { ...e, ...patch } : e)));
   const removeExtra = (uid: string) => setExtras((prev) => prev.filter((e) => e.uid !== uid));
 
-  const handleConfirm = (override: boolean) => {
+  const handleConfirm = async (override: boolean) => {
     if (!noteValid) return;
     const opts = { override, overrideNote: override ? overrideNote.trim() : undefined };
-    const a = confirmConsumption(order, opts);
+    const a = await confirmConsumption(order, opts);
     if (!a.ok) return;
     const validExtras = extras
       .map((e) => ({ itemId: e.itemId, qty: parseFloat(e.qty), note: e.note.trim() }))
       .filter((e) => e.itemId && e.qty > 0);
     if (order.vehicle || validExtras.length > 0) {
-      consumeForWash(
+      await consumeForWash(
         {
           orderId: order.id,
           orderNumber: order.orderNumber,
