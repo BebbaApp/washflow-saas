@@ -75,6 +75,11 @@ const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delete_plan"), id: z.string().uuid() }),
   z.object({ action: z.literal("clear_tenant_staff"), tenant_id: z.string().uuid() }),
   z.object({ action: z.literal("delete_tenant"), tenant_id: z.string().uuid(), confirm_slug: z.string().min(1) }),
+  z.object({ action: z.literal("invite_user_to_tenant"),
+    tenant_id: z.string().uuid(),
+    email: z.string().email(),
+    tenant_role: z.enum(["owner", "admin", "member"]).default("member"),
+    redirect_to: z.string().url().optional() }),
 ]);
 
 Deno.serve(async (req) => {
