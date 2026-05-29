@@ -82,28 +82,21 @@ Deno.serve(async (req) => {
       }
     } else {
       const variants = phoneVariants(rawId);
-      const { data } = await admin
+      const { data: pins } = await admin
         .from("staff_pins")
-        .select("user_id, pin_hash, phone")
-        .in("phone", variants);
-
-      if (data?.length) {
-        rec = { user_id: data[0].user_id, pin_hash: data[0].pin_hash };
-      } else {
-        // Fallback for older stored phones that include unexpected formatting:
-        // compare normalized variants in code so 083..., 83..., 2783..., and +2783... all work.
-        const { data: pins } = await admin
-          .from("staff_pins")
-          .select("user_id, pin_hash, phone");
-        const match = (pins ?? []).find((row) => phoneMatchKeys(row.phone).some((key) => variants.includes(key)));
-        rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
-      }
+        .select("user_id, pin_hash, phone");
+      const variantSet = new Set(variants);
+      const match = (pins ?? []).find((row) => phoneMatchKeys(row.phone).some((key) => variantSet.has(key)));
+      rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
     }
 
     if (!rec) {
-      return new Response(JSON.stringify({ error: "Invalid credentials" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "No PIN found for this phone or email. Ask an admin to set up your PIN in Staff settings.",
+        }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const ok = bcrypt.compareSync(String(pin), rec.pin_hash);
