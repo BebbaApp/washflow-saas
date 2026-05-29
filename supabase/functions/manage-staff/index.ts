@@ -3,7 +3,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-send-verification-email";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-global-admin-precedence";
+const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -137,10 +138,11 @@ Deno.serve(async (req) => {
       return reply({ error: "Unable to resolve tenant" }, 400);
     }
 
-    const [{ data: callerRoles }, { data: callerMemberships }, { data: platformAdmin }] = await Promise.all([
+    const [{ data: callerRoles }, { data: callerMemberships }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
       admin.from("user_roles").select("role,tenant_id").eq("user_id", callerId),
       admin.from("tenant_members").select("tenant_id,tenant_role").eq("user_id", callerId),
       admin.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
+      admin.from("super_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
     ]);
     const tenantRoles = (callerRoles ?? []).filter((r: any) => r.tenant_id === tenantId);
     const tenantMembership = (callerMemberships ?? []).find((m: any) => m.tenant_id === tenantId);
@@ -148,7 +150,8 @@ Deno.serve(async (req) => {
     const hasStaffManagerRole = tenantRoles.some((r: any) => STAFF_MANAGER_ROLES.includes(r.role)) ||
       (callerRoles ?? []).some((r: any) => STAFF_MANAGER_ROLES.includes(r.role) && !r.tenant_id);
     const isTenantAdmin = tenantMembership?.tenant_role === "owner" || tenantMembership?.tenant_role === "admin";
-    const isPlatformAdmin = !!platformAdmin;
+    const isSuperAdmin = !!superAdmin || userData.user.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
+    const isPlatformAdmin = !!platformAdmin || isSuperAdmin;
 
     if (!action) {
       return reply({ error: "Unknown action", received: body?.action ?? null }, 400);
@@ -166,11 +169,13 @@ Deno.serve(async (req) => {
       const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (error) return reply({ error: error.message }, 500);
       const ids = list.users.map((u) => u.id);
-      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }] = await Promise.all([
         admin.from("profiles").select("user_id,name").in("user_id", ids),
         admin.from("user_roles").select("user_id,role").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("staff_pins").select("user_id,phone").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).in("user_id", ids),
+        admin.from("platform_admins").select("user_id").in("user_id", ids),
+        admin.from("super_admins").select("user_id").in("user_id", ids),
       ]);
       const tenantUserIds = new Set<string>([
         ...(tenantMembers ?? []).map((m: any) => m.user_id),
@@ -178,6 +183,10 @@ Deno.serve(async (req) => {
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
+      const globalAdminIds = new Set<string>([
+        ...(platformAdmins ?? []).map((p: any) => p.user_id),
+        ...(superAdmins ?? []).map((s: any) => s.user_id),
+      ]);
       const rMap = new Map<string, string[]>();
       (roles ?? []).forEach((r: any) => {
         const arr = rMap.get(r.user_id) ?? [];
@@ -190,7 +199,9 @@ Deno.serve(async (req) => {
           id: u.id,
           email: u.email ?? "",
           name: pMap.get(u.id) ?? (u.user_metadata?.name as string) ?? "",
-          role: ROLE_PRIORITY.find((p) => userRoles.includes(p)) ?? null,
+          role: globalAdminIds.has(u.id) || u.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL
+            ? "admin"
+            : ROLE_PRIORITY.find((p) => userRoles.includes(p)) ?? null,
           roles: userRoles,
           phone: pinMap.get(u.id) ?? null,
           has_pin: pinMap.has(u.id),
