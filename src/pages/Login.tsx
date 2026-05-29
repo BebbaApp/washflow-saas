@@ -196,8 +196,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
           <TabsContent value="phone">
             <form onSubmit={handlePinSubmit} className="glass-card p-6 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm text-secondary-foreground">Phone Number</Label>
-                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="tel" />
+                <Label htmlFor="pin-identifier" className="text-sm text-secondary-foreground">Phone or Email</Label>
+                <Input id="pin-identifier" type="text" value={pinIdentifier} onChange={(e) => setPinIdentifier(e.target.value)} placeholder="+1 234 567 8900 or you@company.com" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="username" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="pin" className="text-sm text-secondary-foreground">PIN</Label>
