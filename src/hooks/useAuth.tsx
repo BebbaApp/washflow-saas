@@ -26,6 +26,7 @@ interface AuthContextValue {
   signup: (email: string, password: string, name: string, phone?: string, companyName?: string) => Promise<string | null>;
   logout: () => Promise<void>;
   updateProfile: (updates: { name?: string; phone?: string }) => Promise<string | null>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
