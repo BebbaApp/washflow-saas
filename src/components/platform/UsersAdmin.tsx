@@ -280,14 +280,24 @@ export function UsersAdmin() {
             return (
               <Collapsible key={tid} open={open} onOpenChange={() => toggle(tid)}>
                 <div className="border border-border rounded-lg overflow-hidden">
-                  <CollapsibleTrigger className="w-full flex items-center gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors">
-                    <ChevronDown className={`w-4 h-4 transition-transform ${open ? "" : "-rotate-90"}`} />
-                    <Building2 className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-foreground">{label}</span>
-                    <span className="text-[11px] text-muted-foreground ml-auto">
-                      {unique.length} {unique.length === 1 ? "user" : "users"}
-                    </span>
-                  </CollapsibleTrigger>
+                  <div className="w-full flex items-center gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                      <ChevronDown className={`w-4 h-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+                      <Building2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">{label}</span>
+                      <span className="text-[11px] text-muted-foreground ml-auto">
+                        {unique.length} {unique.length === 1 ? "user" : "users"}
+                      </span>
+                    </CollapsibleTrigger>
+                    {tid !== NO_WORKSPACE && (
+                      <Button
+                        size="sm" variant="ghost" className="h-7"
+                        onClick={(e) => { e.stopPropagation(); openAssign(tid); }}
+                      >
+                        <UserPlus className="w-3.5 h-3.5 mr-1" /> Assign user
+                      </Button>
+                    )}
+                  </div>
                   <CollapsibleContent>
                     {headerRow}
                     <ul className="divide-y divide-border">
