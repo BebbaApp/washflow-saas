@@ -82,29 +82,21 @@ Deno.serve(async (req) => {
       }
     } else {
       const variants = phoneVariants(rawId);
-      console.log("[pin-login] phone lookup", { rawId, variants });
-      // Always fetch all and match in code — RLS/encoding issues with .in() can silently miss.
-      const { data: pins, error: pinsErr } = await admin
+      const { data: pins } = await admin
         .from("staff_pins")
         .select("user_id, pin_hash, phone");
-      if (pinsErr) console.log("[pin-login] staff_pins query error", pinsErr);
-      console.log("[pin-login] staff_pins rows", pins?.length, pins?.map((p) => p.phone));
       const variantSet = new Set(variants);
       const match = (pins ?? []).find((row) => phoneMatchKeys(row.phone).some((key) => variantSet.has(key)));
       rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
     }
 
     if (!rec) {
-      // Temporary debug payload to diagnose why lookup misses.
-      let debug: any = { isEmail, rawId };
-      if (!isEmail) {
-        const { data: pins } = await admin.from("staff_pins").select("phone");
-        debug.variants = phoneVariants(rawId);
-        debug.stored_phones = (pins ?? []).map((p) => p.phone);
-      }
-      return new Response(JSON.stringify({ error: "Invalid credentials", debug }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "No PIN found for this phone or email. Ask an admin to set up your PIN in Staff settings.",
+        }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const ok = bcrypt.compareSync(String(pin), rec.pin_hash);
