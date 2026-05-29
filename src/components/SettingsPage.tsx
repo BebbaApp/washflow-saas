@@ -163,6 +163,7 @@ interface StaffUser {
   created_at: string;
   phone?: string | null;
   has_pin?: boolean;
+  is_global_admin?: boolean;
 }
 
 function WorkersSection() {
@@ -403,6 +404,7 @@ function WorkersSection() {
         {users.map((u) => {
           const isAdminUser = u.role === "admin";
           const isSelf = u.id === currentUserId;
+          const isGlobalAdmin = !!u.is_global_admin;
           return (
             <div key={u.id} className="glass-card p-4 flex items-center gap-4">
               <div className="flex-1 min-w-0">
@@ -410,7 +412,7 @@ function WorkersSection() {
                   <p className="text-sm font-semibold text-foreground truncate">{u.name || "Unnamed"}</p>
                   {isAdminUser && (
                     <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                      <Shield className="w-3 h-3" /> Admin
+                      <Shield className="w-3 h-3" /> {isGlobalAdmin ? "Super Admin" : "Admin"}
                     </span>
                   )}
                   {!u.email_confirmed && (
@@ -456,7 +458,7 @@ function WorkersSection() {
               <Select
                 value={u.role ?? ""}
                 onValueChange={(v: WorkerRole) => handleRoleChange(u.id, v)}
-                disabled={savingId === u.id}
+                disabled={savingId === u.id || isGlobalAdmin}
               >
                 <SelectTrigger className="w-32 h-9 bg-secondary border-border text-foreground">
                   {savingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <SelectValue placeholder="No role" />}
