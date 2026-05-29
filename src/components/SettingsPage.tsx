@@ -328,7 +328,7 @@ function WorkersSection() {
         action: "resend_verification",
         tenant_id: tenant?.id,
         user_id: u.id,
-        redirect_to: window.location.origin,
+        redirect_to: `${window.location.origin}/auth/callback`,
       },
     });
     setResendingId(null);
