@@ -177,19 +177,25 @@ Deno.serve(async (req) => {
         admin.from("platform_admins").select("user_id").in("user_id", ids),
         admin.from("super_admins").select("user_id").in("user_id", ids),
       ]);
-      const tenantUserIds = new Set<string>([
-        ...(tenantMembers ?? []).map((m: any) => m.user_id),
-        ...(roles ?? []).map((r: any) => r.user_id),
-      ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
+      const superAdminIds = new Set<string>((superAdmins ?? []).map((s: any) => s.user_id));
+      list.users.forEach((u) => {
+        if (u.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) superAdminIds.add(u.id);
+      });
       const globalAdminIds = new Set<string>([
         ...(platformAdmins ?? []).map((p: any) => p.user_id),
-        ...(superAdmins ?? []).map((s: any) => s.user_id),
+        ...superAdminIds,
       ]);
-      list.users.forEach((u) => {
-        if (u.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) globalAdminIds.add(u.id);
-      });
+      // Super admins must never appear as workspace staff — scrub any stale
+      // tenant_members or user_roles rows for them.
+      if (superAdminIds.size > 0) {
+        const ids = Array.from(superAdminIds);
+        await Promise.all([
+          admin.from("user_roles").delete().eq("tenant_id", tenantId).in("user_id", ids),
+          admin.from("tenant_members").delete().eq("tenant_id", tenantId).in("user_id", ids),
+        ]);
+      }
       if (globalAdminIds.size > 0) {
         await admin
           .from("user_roles")
@@ -198,13 +204,18 @@ Deno.serve(async (req) => {
           .in("user_id", Array.from(globalAdminIds))
           .neq("role", "admin");
       }
+      const tenantUserIds = new Set<string>([
+        ...(tenantMembers ?? []).map((m: any) => m.user_id).filter((id: string) => !superAdminIds.has(id)),
+        ...(roles ?? []).map((r: any) => r.user_id).filter((id: string) => !superAdminIds.has(id)),
+      ]);
       const rMap = new Map<string, string[]>();
       (roles ?? []).forEach((r: any) => {
         const arr = rMap.get(r.user_id) ?? [];
         arr.push(r.role);
         rMap.set(r.user_id, arr);
       });
-      const users = list.users.filter((u) => tenantUserIds.has(u.id)).map((u) => {
+      const users = list.users.filter((u) => tenantUserIds.has(u.id) && !superAdminIds.has(u.id)).map((u) => {
+
         const userRoles = rMap.get(u.id) ?? [];
         return {
           id: u.id,
