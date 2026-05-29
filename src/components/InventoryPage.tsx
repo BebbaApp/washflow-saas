@@ -627,7 +627,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 <p className="text-[11px] text-muted-foreground">
                   Expense = unit cost × quantity captured (not multiplied by the unit of measurement).
                   {Number(unitCost) > 0 && Number(quantity) > 0 && (
-                    <> Total: <span className="text-foreground font-mono">${(Number(unitCost) * Number(quantity)).toFixed(2)}</span></>
+                    <> Total: <span className="text-foreground font-mono">{formatPrice(Number(unitCost) * Number(quantity))}</span></>
                   )}
                 </p>
               </div>
