@@ -99,6 +99,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setSubtype("");
     setRecMin("");
     setRecMax("");
+    setUnitCost("0");
+    setSupplierId("__none");
+    setExpenseCategory("__default");
     setEditing(null);
   };
 
@@ -117,6 +120,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setSubtype(item.subtype ?? "");
     setRecMin(item.recommendedMin != null ? String(item.recommendedMin) : "");
     setRecMax(item.recommendedMax != null ? String(item.recommendedMax) : "");
+    setUnitCost(String(item.unitCost ?? 0));
+    setSupplierId(item.supplierId ?? "__none");
+    setExpenseCategory(item.expenseCategory ?? "__default");
     onAddOpenChange(true);
   };
 
@@ -140,8 +146,10 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     if (!trimmed) return toast.error("Name is required");
     const q = Number(quantity);
     const t = Number(threshold);
+    const uc = Number(unitCost);
     if (Number.isNaN(q) || q < 0) return toast.error("Quantity must be positive");
     if (Number.isNaN(t) || t < 0) return toast.error("Threshold must be positive");
+    if (Number.isNaN(uc) || uc < 0) return toast.error("Unit cost must be ≥ 0");
     const minN = recMin === "" ? undefined : Number(recMin);
     const maxN = recMax === "" ? undefined : Number(recMax);
     if (minN !== undefined && (Number.isNaN(minN) || minN < 0)) return toast.error("Min must be positive");
@@ -158,6 +166,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       subtype: subtype.trim() || undefined,
       recommendedMin: minN,
       recommendedMax: maxN,
+      unitCost: uc,
+      supplierId: supplierId === "__none" ? undefined : supplierId,
+      expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
     };
 
     if (editing) {
@@ -165,11 +176,12 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       toast.success("Item updated");
     } else {
       addItem(payload);
-      toast.success("Item added");
+      toast.success(uc > 0 && q > 0 ? `Item added · expense $${(uc * q).toFixed(2)} logged` : "Item added");
     }
     onAddOpenChange(false);
     resetForm();
   };
+
 
   const handleDelete = (id: string) => {
     if (!confirm("Remove this item from inventory?")) return;
