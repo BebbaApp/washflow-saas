@@ -410,6 +410,18 @@ function WorkersSection() {
                 )}
               </div>
 
+              {!u.email_confirmed && (
+                <button
+                  onClick={() => handleResendVerification(u)}
+                  disabled={resendingId === u.id}
+                  title="Send verification email"
+                  className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium bg-warning/10 text-warning hover:bg-warning/20 transition-colors disabled:opacity-60"
+                >
+                  {resendingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MailCheck className="w-3.5 h-3.5" />}
+                  {resendingId === u.id ? "Sending…" : "Send verification"}
+                </button>
+              )}
+
               <button
                 onClick={() => openPinDialog(u)}
                 title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
@@ -422,6 +434,7 @@ function WorkersSection() {
                 <KeyRound className="w-3.5 h-3.5" />
                 {u.has_pin ? "PIN set" : "Set PIN"}
               </button>
+
 
               <Select
                 value={u.role ?? ""}
