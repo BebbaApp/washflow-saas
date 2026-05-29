@@ -27,7 +27,17 @@ export default function AuthCallback() {
         const code = url.searchParams.get("code");
         if (code) {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+          if (error) {
+            const message = error.message.toLowerCase();
+            if (message.includes("code verifier") || message.includes("flow state") || message.includes("invalid flow")) {
+              if (cancelled) return;
+              setStatus("success");
+              setMessage("Email confirmed. Please sign in to continue.");
+              setTimeout(() => navigate("/", { replace: true }), 1800);
+              return;
+            }
+            throw error;
+          }
           verifiedSession = data.session;
         } else {
           // Email-template flow: ?token_hash=...&type=signup
