@@ -32,7 +32,8 @@ export interface Worker {
  * permissions and auth invites stay consistent.
  */
 export function useWorkers() {
-  const { tenantId } = useTenant();
+  const { tenant } = useTenant();
+  const tenantId = tenant?.id ?? null;
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
 
