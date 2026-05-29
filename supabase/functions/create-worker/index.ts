@@ -87,13 +87,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create auth user
+    // Create auth user. We set `invited_to_tenant` in app_metadata so the
+    // `handle_new_user_tenant` trigger skips creating a brand-new tenant for
+    // this worker (they are joining an existing tenant).
     const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: { name },
-      app_metadata: { active_tenant_id: tenant_id },
+      app_metadata: { active_tenant_id: tenant_id, invited_to_tenant: tenant_id },
     });
 
     if (createErr) {
