@@ -107,8 +107,53 @@ export function UsersAdmin() {
   };
 
   const toggle = (key: string) =>
-    setOpenMap((m) => ({ ...m, [key]: !(m[key] ?? true) }));
-  const isOpen = (key: string) => openMap[key] ?? true;
+    setOpenMap((m) => ({ ...m, [key]: !(m[key] ?? false) }));
+  const isOpen = (key: string) => openMap[key] ?? false;
+
+  // Assign user dialog state
+  const [assignTenantId, setAssignTenantId] = useState<string | null>(null);
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignRole, setAssignRole] = useState<"owner" | "admin" | "member">("member");
+  const [assigning, setAssigning] = useState(false);
+
+  const openAssign = (tid: string) => {
+    setAssignTenantId(tid);
+    setAssignEmail("");
+    setAssignRole("member");
+  };
+
+  const submitAssign = async () => {
+    if (!assignTenantId) return;
+    const email = assignEmail.trim().toLowerCase();
+    if (!email) return;
+    setAssigning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("platform-admin", {
+        body: {
+          action: "invite_user_to_tenant",
+          tenant_id: assignTenantId,
+          email,
+          tenant_role: assignRole,
+          redirect_to: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+      const invited = (data as any)?.invited;
+      toast({
+        title: invited ? "Invite email sent" : "User assigned",
+        description: invited
+          ? `${email} will receive an email to set up credentials.`
+          : `${email} added to the workspace.`,
+      });
+      setAssignTenantId(null);
+      await load();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
 
   const renderUserRow = (u: PlatformUser, ctxRole?: string) => (
     <li key={`${u.id}-${ctxRole ?? "super"}`} className="grid grid-cols-[2fr_2fr_1fr_120px_140px] gap-2 px-3 py-3 items-center text-sm">
