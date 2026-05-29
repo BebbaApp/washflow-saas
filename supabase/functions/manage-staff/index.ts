@@ -297,6 +297,9 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    return reply({ error: "Unknown action" }, 400);
+
+
   } catch (err) {
     return reply({ error: (err as Error).message }, 500);
   }
