@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Save, Loader2, Mail, Trash2, Copy, UserPlus, Crown, ShieldCheck, User as UserIcon, Building2 } from "lucide-react";
+import { Save, Loader2, Mail, Trash2, Copy, UserPlus, Crown, ShieldCheck, User as UserIcon, Building2, Truck, Plus, Pencil, X, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant, TenantRole } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MembershipAuditLog } from "@/components/MembershipAuditLog";
+import { useSuppliers, Supplier } from "@/hooks/useSuppliers";
 
 interface MemberRow {
   user_id: string;
   tenant_role: TenantRole;
   created_at: string;
   email?: string;
+  name?: string;
 }
 
 interface InviteRow {
