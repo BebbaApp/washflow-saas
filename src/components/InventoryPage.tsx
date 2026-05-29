@@ -405,11 +405,22 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.category} · {item.quantity}{item.unit ? ` ${item.unit}` : ""} · alert at {item.threshold}{item.unit ? ` ${item.unit}` : ""}
-                        {item.unitCost > 0 && (
-                          <> · ${item.unitCost.toFixed(2)}/{item.unit || "unit"} · total ${(item.unitCost * item.quantity).toFixed(2)}</>
-                        )}
+                        {(() => {
+                          const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
+                          const unitLabel = item.unit ? ` ${item.unit}` : "";
+                          const fmtQty = (n: number) =>
+                            ps > 1 && item.unit ? `${n} × ${ps}${item.unit}` : `${n}${unitLabel}`;
+                          return (
+                            <>
+                              {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
+                              {item.unitCost > 0 && (
+                                <> · {formatPrice(item.unitCost)}/each · total {formatPrice(item.unitCost * item.quantity)}</>
+                              )}
+                            </>
+                          );
+                        })()}
                       </p>
+
 
                     </div>
                     <div className="flex items-center gap-1">
