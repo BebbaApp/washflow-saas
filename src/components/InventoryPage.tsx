@@ -86,6 +86,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [recMin, setRecMin] = useState<string>("");
   const [recMax, setRecMax] = useState<string>("");
   const [unitCost, setUnitCost] = useState<string>("0");
+  const [packSize, setPackSize] = useState<string>("1");
   const [supplierId, setSupplierId] = useState<string>("__none");
   const [expenseCategory, setExpenseCategory] = useState<string>("__default");
 
@@ -100,6 +101,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setRecMin("");
     setRecMax("");
     setUnitCost("0");
+    setPackSize("1");
     setSupplierId("__none");
     setExpenseCategory("__default");
     setEditing(null);
@@ -121,6 +123,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setRecMin(item.recommendedMin != null ? String(item.recommendedMin) : "");
     setRecMax(item.recommendedMax != null ? String(item.recommendedMax) : "");
     setUnitCost(String(item.unitCost ?? 0));
+    setPackSize(item.packSize != null ? String(item.packSize) : "1");
     setSupplierId(item.supplierId ?? "__none");
     setExpenseCategory(item.expenseCategory ?? "__default");
     onAddOpenChange(true);
@@ -145,9 +148,11 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     const q = Number(quantity);
     const t = Number(threshold);
     const uc = Number(unitCost);
+    const ps = packSize === "" ? 1 : Number(packSize);
     if (Number.isNaN(q) || q < 0) return toast.error("Quantity must be positive");
     if (Number.isNaN(t) || t < 0) return toast.error("Threshold must be positive");
     if (Number.isNaN(uc) || uc < 0) return toast.error("Unit cost must be ≥ 0");
+    if (Number.isNaN(ps) || ps <= 0) return toast.error("Each must be greater than 0");
     const minN = recMin === "" ? undefined : Number(recMin);
     const maxN = recMax === "" ? undefined : Number(recMax);
     if (minN !== undefined && (Number.isNaN(minN) || minN < 0)) return toast.error("Min must be positive");
@@ -165,6 +170,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       recommendedMin: minN,
       recommendedMax: maxN,
       unitCost: uc,
+      packSize: ps,
       supplierId: supplierId === "__none" ? undefined : supplierId,
       expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
     };
@@ -562,7 +568,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Measured in (unit)</Label>
+                <Label className="text-sm text-secondary-foreground">Unit Symbol</Label>
                 <Select value={UNIT_OPTIONS.includes(unit as typeof UNIT_OPTIONS[number]) ? unit : "__custom"} onValueChange={(v) => { if (v !== "__custom") setUnit(v); else setUnit(""); }}>
                   <SelectTrigger className="bg-secondary border-border text-foreground">
                     <SelectValue placeholder="Select unit" />
@@ -580,14 +586,24 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Quantity{unit ? ` (${unit})` : ""}</Label>
-                <Input type="number" min="0" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-secondary border-border text-foreground" />
+                <Label className="text-sm text-secondary-foreground">Each{unit ? ` (${unit})` : ""}</Label>
+                <Input type="number" min="0" step="0.1" value={packSize} onChange={(e) => setPackSize(e.target.value)} placeholder="1" className="bg-secondary border-border text-foreground" />
+                <p className="text-[11px] text-muted-foreground">Size per unit (e.g. 5 = a 5{unit || "L"} bottle).</p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Low at</Label>
-                <Input type="number" min="0" step="0.1" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="bg-secondary border-border text-foreground" />
+                <Label className="text-sm text-secondary-foreground">Quantity (units)</Label>
+                <Input type="number" min="0" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-secondary border-border text-foreground" />
+                {Number(packSize) > 0 && Number(quantity) > 0 && unit && (
+                  <p className="text-[11px] text-muted-foreground">
+                    = {(Number(packSize) * Number(quantity)).toString()} {unit} total
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm text-secondary-foreground">Low at (units)</Label>
+                <Input type="number" min="0" step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="bg-secondary border-border text-foreground" />
               </div>
             </div>
 
