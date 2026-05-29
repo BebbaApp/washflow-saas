@@ -616,6 +616,66 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               </p>
             )}
 
+            {/* Cost / supplier / expense category */}
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label className="text-sm text-secondary-foreground">Unit cost</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  placeholder="0.00"
+                  className="bg-secondary border-border text-foreground"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Used to auto-log an expense when stock is captured or restocked.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm text-secondary-foreground">Supplier</Label>
+                <Select value={supplierId} onValueChange={setSupplierId}>
+                  <SelectTrigger className="bg-secondary border-border text-foreground">
+                    <SelectValue placeholder="No supplier" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border max-h-72">
+                    <SelectItem value="__none">No supplier</SelectItem>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Manage the list in Settings → Workspace → Suppliers.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Expense category override</Label>
+              <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                <SelectTrigger className="bg-secondary border-border text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border max-h-72">
+                  <SelectItem value="__default">Use category default</SelectItem>
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Optional. Overrides the default expense category mapped to "{category}".
+              </p>
+            </div>
+
+            {Number(unitCost) > 0 && Number(quantity) > 0 && !editing && (
+              <p className="text-[11px] text-info">
+                Capturing this item will auto-log an expense of ${(Number(unitCost) * Number(quantity)).toFixed(2)}.
+              </p>
+            )}
+
             <button type="submit" className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity">
               {editing ? "Save Changes" : "Add Item"}
             </button>
