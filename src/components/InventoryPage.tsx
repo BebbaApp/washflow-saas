@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp } from "lucide-react";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -36,6 +36,9 @@ import { useInventoryCategories } from "@/hooks/useInventoryCategories";
 import { useServices } from "@/hooks/useServices";
 import { UNIT_OPTIONS, type InventoryPreset } from "@/lib/inventoryPresets";
 import { useProductTypes } from "@/hooks/useProductTypes";
+import { useSuppliers } from "@/hooks/useSuppliers";
+import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
+import { ReorderDialog } from "@/components/ReorderDialog";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
 import { usePermissions } from "@/hooks/usePermissions";
 import { BookOpen } from "lucide-react";
@@ -49,6 +52,8 @@ type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction } = useInventory();
+  const { suppliers } = useSuppliers();
+  const [reordering, setReordering] = useState<InventoryItem | null>(null);
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
   const { presets: INVENTORY_PRESETS } = useProductTypes();
   const { services } = useServices();
@@ -80,6 +85,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [subtype, setSubtype] = useState("");
   const [recMin, setRecMin] = useState<string>("");
   const [recMax, setRecMax] = useState<string>("");
+  const [unitCost, setUnitCost] = useState<string>("0");
+  const [supplierId, setSupplierId] = useState<string>("__none");
+  const [expenseCategory, setExpenseCategory] = useState<string>("__default");
 
   const resetForm = () => {
     setName("");
@@ -91,6 +99,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setSubtype("");
     setRecMin("");
     setRecMax("");
+    setUnitCost("0");
+    setSupplierId("__none");
+    setExpenseCategory("__default");
     setEditing(null);
   };
 
@@ -109,6 +120,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setSubtype(item.subtype ?? "");
     setRecMin(item.recommendedMin != null ? String(item.recommendedMin) : "");
     setRecMax(item.recommendedMax != null ? String(item.recommendedMax) : "");
+    setUnitCost(String(item.unitCost ?? 0));
+    setSupplierId(item.supplierId ?? "__none");
+    setExpenseCategory(item.expenseCategory ?? "__default");
     onAddOpenChange(true);
   };
 
@@ -132,8 +146,10 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     if (!trimmed) return toast.error("Name is required");
     const q = Number(quantity);
     const t = Number(threshold);
+    const uc = Number(unitCost);
     if (Number.isNaN(q) || q < 0) return toast.error("Quantity must be positive");
     if (Number.isNaN(t) || t < 0) return toast.error("Threshold must be positive");
+    if (Number.isNaN(uc) || uc < 0) return toast.error("Unit cost must be ≥ 0");
     const minN = recMin === "" ? undefined : Number(recMin);
     const maxN = recMax === "" ? undefined : Number(recMax);
     if (minN !== undefined && (Number.isNaN(minN) || minN < 0)) return toast.error("Min must be positive");
@@ -150,6 +166,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       subtype: subtype.trim() || undefined,
       recommendedMin: minN,
       recommendedMax: maxN,
+      unitCost: uc,
+      supplierId: supplierId === "__none" ? undefined : supplierId,
+      expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
     };
 
     if (editing) {
@@ -157,11 +176,12 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       toast.success("Item updated");
     } else {
       addItem(payload);
-      toast.success("Item added");
+      toast.success(uc > 0 && q > 0 ? `Item added · expense $${(uc * q).toFixed(2)} logged` : "Item added");
     }
     onAddOpenChange(false);
     resetForm();
   };
+
 
   const handleDelete = (id: string) => {
     if (!confirm("Remove this item from inventory?")) return;
@@ -400,6 +420,15 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       )}
                       {canAdjust && (
                         <button
+                          onClick={() => setReordering(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Reorder"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canAdjust && (
+                        <button
                           onClick={() => setAdjusting({ item, mode: "remove" })}
                           disabled={item.quantity <= 0}
                           className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -477,8 +506,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
         open={undoOpen}
         last={transactions[0] ?? null}
         onOpenChange={setUndoOpen}
-        onConfirm={() => {
-          const result = undoLastTransaction();
+        onConfirm={async () => {
+          const result = await undoLastTransaction();
           setUndoOpen(false);
           if (result.ok) toast.success("Transaction reversed");
           else toast.error(result.reason ?? "Could not undo");
