@@ -140,7 +140,11 @@ export function useExpenses() {
       .single();
     if (error || !row) return null;
     const e = rowToExpense(row);
-    setExpenses((prev) => [e, ...prev]);
+    setExpenses((prev) => {
+      const next = [e, ...prev];
+      if (tenant?.id) expensesCache.set(tenant.id, next);
+      return next;
+    });
     return e;
   }, [tenant?.id, user?.id]);
 
@@ -154,14 +158,22 @@ export function useExpenses() {
     if (patch.notes !== undefined) update.notes = patch.notes ?? null;
     if (patch.date !== undefined) update.date = patch.date;
     const { error } = await supabase.from("expenses" as any).update(update).eq("id", id);
-    if (!error) setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  }, []);
+    if (!error) setExpenses((prev) => {
+      const next = prev.map((e) => (e.id === id ? { ...e, ...patch } : e));
+      if (tenant?.id) expensesCache.set(tenant.id, next);
+      return next;
+    });
+  }, [tenant?.id]);
 
 
   const deleteExpense = useCallback(async (id: string) => {
     const { error } = await supabase.from("expenses" as any).delete().eq("id", id);
-    if (!error) setExpenses((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+    if (!error) setExpenses((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      if (tenant?.id) expensesCache.set(tenant.id, next);
+      return next;
+    });
+  }, [tenant?.id]);
 
   return { expenses, loading, addExpense, updateExpense, deleteExpense, refresh: fetchAll };
 }
