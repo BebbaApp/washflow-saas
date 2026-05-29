@@ -85,6 +85,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [subtype, setSubtype] = useState("");
   const [recMin, setRecMin] = useState<string>("");
   const [recMax, setRecMax] = useState<string>("");
+  const [unitCost, setUnitCost] = useState<string>("0");
+  const [supplierId, setSupplierId] = useState<string>("__none");
+  const [expenseCategory, setExpenseCategory] = useState<string>("__default");
 
   const resetForm = () => {
     setName("");
