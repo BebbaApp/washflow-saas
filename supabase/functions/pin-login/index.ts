@@ -7,6 +7,33 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const phoneVariants = (raw: string): string[] => {
+  const cleaned = raw.trim().replace(/[\s\-().]/g, "");
+  const digits = cleaned.replace(/^\+/, "").replace(/\D/g, "");
+  const variants = new Set<string>();
+
+  if (cleaned) variants.add(cleaned);
+  if (digits) {
+    variants.add(digits);
+    variants.add(`+${digits}`);
+  }
+
+  if (digits.startsWith("0") && digits.length > 1) {
+    const localWithoutZero = digits.slice(1);
+    variants.add(localWithoutZero);
+    variants.add(`27${localWithoutZero}`);
+    variants.add(`+27${localWithoutZero}`);
+  } else if (digits.startsWith("27") && digits.length > 2) {
+    const localWithoutCode = digits.slice(2);
+    variants.add(localWithoutCode);
+    variants.add(`0${localWithoutCode}`);
+  }
+
+  return Array.from(variants);
+};
+
+const phoneMatchKeys = (raw: string | null | undefined): string[] => phoneVariants(String(raw ?? ""));
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -54,24 +81,23 @@ Deno.serve(async (req) => {
         rec = data ?? null;
       }
     } else {
-      // Normalize: strip spaces, dashes, parens
-      const cleaned = rawId.replace(/[\s\-()]/g, "");
-      // Build candidate variants so users can type either "0834951182" or "+27834951182"
-      const digits = cleaned.replace(/^\+/, "");
-      const variants = new Set<string>([cleaned, digits, "+" + digits]);
-      if (digits.startsWith("0")) {
-        // Local SA-style: 0XXXXXXXXX -> +27XXXXXXXXX
-        const local = digits.slice(1);
-        variants.add("+27" + local);
-        variants.add("27" + local);
-      } else if (digits.startsWith("27")) {
-        variants.add("0" + digits.slice(2));
-      }
+      const variants = phoneVariants(rawId);
       const { data } = await admin
         .from("staff_pins")
         .select("user_id, pin_hash, phone")
-        .in("phone", Array.from(variants));
-      rec = (data && data[0]) ? { user_id: data[0].user_id, pin_hash: data[0].pin_hash } : null;
+        .in("phone", variants);
+
+      if (data?.length) {
+        rec = { user_id: data[0].user_id, pin_hash: data[0].pin_hash };
+      } else {
+        // Fallback for older stored phones that include unexpected formatting:
+        // compare normalized variants in code so 083..., 83..., 2783..., and +2783... all work.
+        const { data: pins } = await admin
+          .from("staff_pins")
+          .select("user_id, pin_hash, phone");
+        const match = (pins ?? []).find((row) => phoneMatchKeys(row.phone).some((key) => variants.includes(key)));
+        rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
+      }
     }
 
     if (!rec) {
