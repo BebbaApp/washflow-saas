@@ -27,6 +27,7 @@ const GatedRoutes = () => {
       <Route path="/settings" element={<Navigate to="/?tab=settings" replace />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/platform" element={<Platform />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
