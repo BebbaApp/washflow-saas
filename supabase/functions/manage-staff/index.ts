@@ -253,12 +253,12 @@ Deno.serve(async (req) => {
       if (!user_id || !VALID_ROLES.includes(role)) {
         return reply({ error: "Invalid input" }, 400);
       }
-      const [{ data: targetPlatformAdmin }, { data: targetSuperAdmin }, { data: targetAuthUser }] = await Promise.all([
+      const [{ data: targetPlatformAdmin }, { data: targetSuperAdmin }, targetAuthRes] = await Promise.all([
         admin.from("platform_admins").select("user_id").eq("user_id", user_id).maybeSingle(),
         admin.from("super_admins").select("user_id").eq("user_id", user_id).maybeSingle(),
         admin.auth.admin.getUserById(user_id),
       ]);
-      if (targetPlatformAdmin || targetSuperAdmin || targetAuthUser?.user?.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) {
+      if (targetPlatformAdmin || targetSuperAdmin || targetAuthRes?.data?.user?.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) {
         return reply({ error: "Global admin roles cannot be changed from Workers" }, 400);
       }
       await admin.from("user_roles").delete().eq("user_id", user_id).eq("tenant_id", tenantId);
