@@ -57,6 +57,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     delete: "delete",
     delete_user: "delete",
     remove_user: "delete",
+
+    resend_verification: "resend_verification",
+    send_verification: "resend_verification",
+    resend_confirmation: "resend_verification",
+    send_confirmation_email: "resend_verification",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
