@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
+import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
 
