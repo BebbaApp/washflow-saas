@@ -477,8 +477,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
         open={undoOpen}
         last={transactions[0] ?? null}
         onOpenChange={setUndoOpen}
-        onConfirm={() => {
-          const result = undoLastTransaction();
+        onConfirm={async () => {
+          const result = await undoLastTransaction();
           setUndoOpen(false);
           if (result.ok) toast.success("Transaction reversed");
           else toast.error(result.reason ?? "Could not undo");
