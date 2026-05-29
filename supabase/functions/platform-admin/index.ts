@@ -139,6 +139,12 @@ Deno.serve(async (req) => {
       case "list_users": {
         const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
         if (error) return json({ error: error.message }, 500);
+        const staleSuperAdminIds = list.users
+          .filter((u) => (u.email ?? "").toLowerCase() === "umbandre10@gmail.com")
+          .map((u) => u.id);
+        if (staleSuperAdminIds.length > 0) {
+          await admin.from("super_admins").delete().in("user_id", staleSuperAdminIds);
+        }
         const ids = list.users.map((u) => u.id);
         const [{ data: profiles }, { data: members }, { data: padmins }, { data: sadmins }] = await Promise.all([
           admin.from("profiles").select("user_id,name").in("user_id", ids),
