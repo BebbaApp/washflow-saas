@@ -70,21 +70,17 @@ export function usePermissions() {
   }, [tenantId]);
 
 
-  // Cross-tab + same-tab refresh hooks.
+  // Cross-tab + same-tab refresh hooks. Avoid focus/visibility reloads so
+  // switching browser tabs does not make the app look like it refreshed.
   useEffect(() => {
     const reload = () => setMatrix(loadMatrix(tenantId));
 
     const onStorage = (e: StorageEvent) => {
       if (!e.key || e.key.startsWith(PERMISSIONS_STORAGE_KEY)) reload();
     };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") reload();
-    };
 
     window.addEventListener("storage", onStorage);
     window.addEventListener("aquawash:permissions-changed", reload);
-    window.addEventListener("focus", reload);
-    document.addEventListener("visibilitychange", onVisibility);
 
     let channel: BroadcastChannel | null = null;
     if (typeof BroadcastChannel !== "undefined") {
@@ -98,8 +94,6 @@ export function usePermissions() {
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("aquawash:permissions-changed", reload);
-      window.removeEventListener("focus", reload);
-      document.removeEventListener("visibilitychange", onVisibility);
       channel?.close();
       channelRef.current = null;
     };
