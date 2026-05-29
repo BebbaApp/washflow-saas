@@ -69,7 +69,19 @@ export function TenantManagementSection() {
         .eq("tenant_id", tenant.id)
         .order("created_at", { ascending: false }),
     ]);
-    setMembers(((memRes.data as any) ?? []) as MemberRow[]);
+    const rawMembers = ((memRes.data as any) ?? []) as MemberRow[];
+    const ids = rawMembers.map((m) => m.user_id);
+    let nameMap: Record<string, string> = {};
+    if (ids.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles" as any)
+        .select("user_id, name")
+        .in("user_id", ids);
+      for (const p of (profs as any[]) ?? []) {
+        if (p?.name && String(p.name).trim()) nameMap[p.user_id] = p.name;
+      }
+    }
+    setMembers(rawMembers.map((m) => ({ ...m, name: nameMap[m.user_id] })));
     setInvites(((invRes.data as any) ?? []) as InviteRow[]);
     setLoadingLists(false);
   };
