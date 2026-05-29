@@ -3,11 +3,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-21-member-list-admin-manage";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-resend-verification";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete", "resend_verification"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,6 +57,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     delete: "delete",
     delete_user: "delete",
     remove_user: "delete",
+
+    resend_verification: "resend_verification",
+    send_verification: "resend_verification",
+    resend_confirmation: "resend_verification",
+    send_confirmation_email: "resend_verification",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
@@ -263,7 +268,38 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    if (action === "resend_verification") {
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      const { data: target, error: getErr } = await admin.auth.admin.getUserById(user_id);
+      if (getErr || !target?.user) return reply({ error: getErr?.message ?? "User not found" }, 404);
+      if (target.user.email_confirmed_at) {
+        return reply({ error: "User is already verified" }, 400);
+      }
+      const email = target.user.email;
+      if (!email) return reply({ error: "User has no email" }, 400);
+
+      const redirectTo = body?.redirect_to ?? req.headers.get("origin") ?? undefined;
+      // Generate a signup confirmation link — this triggers Supabase to send the
+      // confirmation email via the configured email provider/template.
+      const { error: linkErr } = await admin.auth.admin.generateLink({
+        type: "signup",
+        email,
+        options: redirectTo ? { redirectTo } : undefined,
+      });
+      if (linkErr) {
+        // Fallback: try invite (sends email; only works if not already invited)
+        const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
+          redirectTo,
+        });
+        if (inviteErr) return reply({ error: linkErr.message }, 500);
+      }
+      return reply({ success: true });
+    }
+
     return reply({ error: "Unknown action" }, 400);
+
+
   } catch (err) {
     return reply({ error: (err as Error).message }, 500);
   }

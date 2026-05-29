@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye, CheckCircle2, AlertCircle, CloudOff, Cloud, RefreshCw, CreditCard, Building2 } from "lucide-react";
+import { Sun, Moon, Plus, Trash2, Edit2, Save, X, Users, Palette, Package, Phone, DollarSign, Loader2, KeyRound, Shield, Mail, MailCheck, Upload, Camera, Image as ImageIcon, ShieldCheck, Smartphone, Printer, Bluetooth, BluetoothOff, FileText, Eye, CheckCircle2, AlertCircle, CloudOff, Cloud, RefreshCw, CreditCard, Building2 } from "lucide-react";
 import { BillingSection } from "@/components/BillingSection";
 import { TenantManagementSection } from "@/components/TenantManagementSection";
 import { useReceiptSettings } from "@/hooks/useReceiptSettings";
@@ -176,6 +176,7 @@ function WorkersSection() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -316,6 +317,31 @@ function WorkersSection() {
     toast({ title: "User deleted" });
   };
 
+  const handleResendVerification = async (u: StaffUser) => {
+    if (!tenant?.id) {
+      toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
+      return;
+    }
+    setResendingId(u.id);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "resend_verification",
+        tenant_id: tenant?.id,
+        user_id: u.id,
+        redirect_to: window.location.origin,
+      },
+    });
+    setResendingId(null);
+    if (res.error || res.data?.error) {
+      const info = await extractFnError(res);
+      toast({ title: "Failed to send", description: fnErrorDescription(info), variant: "destructive" });
+      return;
+    }
+    toast({ title: "Verification email sent", description: `Sent to ${u.email}` });
+  };
+
+
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -384,6 +410,18 @@ function WorkersSection() {
                 )}
               </div>
 
+              {!u.email_confirmed && (
+                <button
+                  onClick={() => handleResendVerification(u)}
+                  disabled={resendingId === u.id}
+                  title="Send verification email"
+                  className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium bg-warning/10 text-warning hover:bg-warning/20 transition-colors disabled:opacity-60"
+                >
+                  {resendingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MailCheck className="w-3.5 h-3.5" />}
+                  {resendingId === u.id ? "Sending…" : "Send verification"}
+                </button>
+              )}
+
               <button
                 onClick={() => openPinDialog(u)}
                 title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
@@ -396,6 +434,7 @@ function WorkersSection() {
                 <KeyRound className="w-3.5 h-3.5" />
                 {u.has_pin ? "PIN set" : "Set PIN"}
               </button>
+
 
               <Select
                 value={u.role ?? ""}
