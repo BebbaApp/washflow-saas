@@ -131,7 +131,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
         <Tabs defaultValue="email" className="w-full" onValueChange={() => setError("")}>
           <TabsList className="grid grid-cols-2 w-full mb-4">
             <TabsTrigger value="email">Email</TabsTrigger>
-            <TabsTrigger value="phone">Phone + PIN</TabsTrigger>
+            <TabsTrigger value="phone">PIN Login</TabsTrigger>
           </TabsList>
 
           <TabsContent value="email">
