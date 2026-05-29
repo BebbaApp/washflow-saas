@@ -245,7 +245,8 @@ function useAuthInternal(): AuthContextValue {
       await supabase.auth.refreshSession();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) {
-        setUser(null);
+        resolvedUserIdRef.current = null;
+        setResolvedUser(null);
         setAuthedUserId(null);
         setAuthedEmail(null);
         return;
@@ -253,11 +254,12 @@ function useAuthInternal(): AuthContextValue {
       setAuthedUserId(authUser.id);
       setAuthedEmail(authUser.email ?? null);
       const staffUser = await fetchProfile(authUser);
-      setUser(staffUser);
+      resolvedUserIdRef.current = authUser.id;
+      setResolvedUser(staffUser);
     } catch (e) {
       console.warn("[useAuth] refresh failed:", e);
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, setResolvedUser]);
 
   return {
     user, authedUserId, authedEmail, loading,
