@@ -59,6 +59,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { presets: INVENTORY_PRESETS } = useProductTypes();
   const { services } = useServices();
   const { can } = usePermissions();
+  const { formatPrice } = useCurrency();
   const canEdit = can("inventory.edit");
   const canDelete = can("inventory.delete");
   const canAdjust = can("inventory.adjust");
