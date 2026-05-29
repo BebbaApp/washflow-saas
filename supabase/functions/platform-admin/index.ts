@@ -256,8 +256,18 @@ Deno.serve(async (req) => {
         const { error: e2 } = await admin.from("platform_admins")
           .insert({ user_id: body.user_id });
         if (e2 && (e2 as any).code !== "23505") return json({ error: e2.message }, 500);
+        // Super admins operate platform-wide and must not appear as workspace
+        // staff/members anywhere. Remove all tenant memberships and per-tenant
+        // roles so they vanish from employee/staff lists immediately.
+        await Promise.all([
+          admin.from("tenant_members").delete().eq("user_id", body.user_id),
+          admin.from("user_roles").delete().eq("user_id", body.user_id),
+          admin.from("staff_pins").delete().eq("user_id", body.user_id),
+          admin.from("staff_face_enrollments").delete().eq("user_id", body.user_id),
+        ]);
         return json({ ok: true });
       }
+
 
       case "revoke_super_admin": {
         if (body.user_id === callerId) return json({ error: "Cannot revoke yourself" }, 400);
