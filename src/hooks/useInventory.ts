@@ -25,6 +25,8 @@ export interface InventoryItem {
   expenseCategory?: string;
   /** Supplier reference. */
   supplierId?: string;
+  /** Pack size — how much each counted unit contains (e.g. 5 for a 5L bottle). */
+  packSize?: number;
 }
 
 export type InventoryFlow = "confirmed" | "auto" | "override" | "manual" | "undo";
@@ -94,6 +96,7 @@ function rowToItem(r: any): InventoryItem {
     unitCost: Number(r.unit_cost ?? 0),
     expenseCategory: r.expense_category ?? undefined,
     supplierId: r.supplier_id ?? undefined,
+    packSize: r.pack_size != null ? Number(r.pack_size) : undefined,
   };
 }
 
@@ -261,6 +264,7 @@ export function useInventory() {
         unit_cost: unitCost,
         expense_category: data.expenseCategory ?? null,
         supplier_id: data.supplierId ?? null,
+        pack_size: data.packSize ?? null,
       })
       .select("*")
       .single();
@@ -301,6 +305,7 @@ export function useInventory() {
     if (patch.unitCost !== undefined) update.unit_cost = patch.unitCost;
     if (patch.expenseCategory !== undefined) update.expense_category = patch.expenseCategory ?? null;
     if (patch.supplierId !== undefined) update.supplier_id = patch.supplierId ?? null;
+    if (patch.packSize !== undefined) update.pack_size = patch.packSize ?? null;
     await supabase.from("inventory_items" as any).update(update).eq("id", id);
 
     // Log manual qty edit as adjust (no auto-expense; restocks go through adjustStock).
