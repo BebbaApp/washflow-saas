@@ -197,7 +197,7 @@ function useAuthInternal(): AuthContextValue {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, setResolvedUser]);
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -230,15 +230,20 @@ function useAuthInternal(): AuthContextValue {
         .from("profiles").update({ name: updates.name }).eq("user_id", authUser.id);
       if (profErr) return profErr.message;
     }
-    setUser((prev) => prev ? { ...prev, name: updates.name ?? prev.name, phone: updates.phone ?? prev.phone } : prev);
+    setUser((prev) => {
+      const next = prev ? { ...prev, name: updates.name ?? prev.name, phone: updates.phone ?? prev.phone } : prev;
+      userRef.current = next;
+      return next;
+    });
     return null;
   }, []);
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
+    resolvedUserIdRef.current = null;
     setAuthedUserId(null);
-    setUser(null);
-  }, []);
+    setResolvedUser(null);
+  }, [setResolvedUser]);
 
   const refresh = useCallback(async () => {
     try {
