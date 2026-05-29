@@ -75,6 +75,11 @@ const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delete_plan"), id: z.string().uuid() }),
   z.object({ action: z.literal("clear_tenant_staff"), tenant_id: z.string().uuid() }),
   z.object({ action: z.literal("delete_tenant"), tenant_id: z.string().uuid(), confirm_slug: z.string().min(1) }),
+  z.object({ action: z.literal("invite_user_to_tenant"),
+    tenant_id: z.string().uuid(),
+    email: z.string().email(),
+    tenant_role: z.enum(["owner", "admin", "member"]).default("member"),
+    redirect_to: z.string().url().optional() }),
 ]);
 
 Deno.serve(async (req) => {
@@ -259,6 +264,38 @@ Deno.serve(async (req) => {
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
       }
+
+      case "invite_user_to_tenant": {
+        const email = body.email.toLowerCase();
+        // Look up existing user by email
+        let userId: string | null = null;
+        const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+        const existing = list?.users?.find((u) => (u.email ?? "").toLowerCase() === email);
+        let invited = false;
+        if (existing) {
+          userId = existing.id;
+        } else {
+          const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
+            redirectTo: body.redirect_to,
+          });
+          if (invErr || !inv?.user) return json({ error: invErr?.message ?? "Invite failed" }, 500);
+          userId = inv.user.id;
+          invited = true;
+        }
+        const { error: memErr } = await admin.from("tenant_members")
+          .upsert({ tenant_id: body.tenant_id, user_id: userId, tenant_role: body.tenant_role });
+        if (memErr) return json({ error: memErr.message }, 500);
+        await admin.from("membership_audit_log").insert({
+          tenant_id: body.tenant_id,
+          actor_user_id: callerId,
+          actor_email: callerEmail,
+          target_user_id: userId,
+          target_email: email,
+          action: invited ? "platform.user_invited" : "platform.user_assigned",
+          to_role: body.tenant_role,
+          payload: { by: callerId },
+        });
+        return json({ ok: true, invited, user_id: userId });
 
       case "remove_tenant_member": {
         const { error } = await admin.from("tenant_members")

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Shield, ShieldOff, Search, Crown, ChevronDown, Building2, Users as UsersIcon } from "lucide-react";
+import { Loader2, Shield, ShieldOff, Search, Crown, ChevronDown, Building2, Users as UsersIcon, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface PlatformUser {
   id: string;
@@ -104,8 +107,53 @@ export function UsersAdmin() {
   };
 
   const toggle = (key: string) =>
-    setOpenMap((m) => ({ ...m, [key]: !(m[key] ?? true) }));
-  const isOpen = (key: string) => openMap[key] ?? true;
+    setOpenMap((m) => ({ ...m, [key]: !(m[key] ?? false) }));
+  const isOpen = (key: string) => openMap[key] ?? false;
+
+  // Assign user dialog state
+  const [assignTenantId, setAssignTenantId] = useState<string | null>(null);
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignRole, setAssignRole] = useState<"owner" | "admin" | "member">("member");
+  const [assigning, setAssigning] = useState(false);
+
+  const openAssign = (tid: string) => {
+    setAssignTenantId(tid);
+    setAssignEmail("");
+    setAssignRole("member");
+  };
+
+  const submitAssign = async () => {
+    if (!assignTenantId) return;
+    const email = assignEmail.trim().toLowerCase();
+    if (!email) return;
+    setAssigning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("platform-admin", {
+        body: {
+          action: "invite_user_to_tenant",
+          tenant_id: assignTenantId,
+          email,
+          tenant_role: assignRole,
+          redirect_to: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+      const invited = (data as any)?.invited;
+      toast({
+        title: invited ? "Invite email sent" : "User assigned",
+        description: invited
+          ? `${email} will receive an email to set up credentials.`
+          : `${email} added to the workspace.`,
+      });
+      setAssignTenantId(null);
+      await load();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
 
   const renderUserRow = (u: PlatformUser, ctxRole?: string) => (
     <li key={`${u.id}-${ctxRole ?? "super"}`} className="grid grid-cols-[2fr_2fr_1fr_120px_140px] gap-2 px-3 py-3 items-center text-sm">
@@ -232,14 +280,24 @@ export function UsersAdmin() {
             return (
               <Collapsible key={tid} open={open} onOpenChange={() => toggle(tid)}>
                 <div className="border border-border rounded-lg overflow-hidden">
-                  <CollapsibleTrigger className="w-full flex items-center gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors">
-                    <ChevronDown className={`w-4 h-4 transition-transform ${open ? "" : "-rotate-90"}`} />
-                    <Building2 className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-foreground">{label}</span>
-                    <span className="text-[11px] text-muted-foreground ml-auto">
-                      {unique.length} {unique.length === 1 ? "user" : "users"}
-                    </span>
-                  </CollapsibleTrigger>
+                  <div className="w-full flex items-center gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                      <ChevronDown className={`w-4 h-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+                      <Building2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">{label}</span>
+                      <span className="text-[11px] text-muted-foreground ml-auto">
+                        {unique.length} {unique.length === 1 ? "user" : "users"}
+                      </span>
+                    </CollapsibleTrigger>
+                    {tid !== NO_WORKSPACE && (
+                      <Button
+                        size="sm" variant="ghost" className="h-7"
+                        onClick={(e) => { e.stopPropagation(); openAssign(tid); }}
+                      >
+                        <UserPlus className="w-3.5 h-3.5 mr-1" /> Assign user
+                      </Button>
+                    )}
+                  </div>
                   <CollapsibleContent>
                     {headerRow}
                     <ul className="divide-y divide-border">
@@ -264,6 +322,47 @@ export function UsersAdmin() {
           : "Only super admins can grant or revoke the super-admin role."}
         {" "}Changes take effect on the affected user's next page load or tenant switch.
       </p>
+
+      <Dialog open={!!assignTenantId} onOpenChange={(o) => !o && setAssignTenantId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign user to workspace</DialogTitle>
+            <DialogDescription>
+              {assignTenantId && `Add a user to ${tenantName(assignTenantId)}. If they don't have an account yet, they'll receive an email to set up login credentials.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="assign-email" className="text-xs">Email</Label>
+              <Input
+                id="assign-email" type="email" placeholder="user@example.com"
+                value={assignEmail} onChange={(e) => setAssignEmail(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Workspace role</Label>
+              <Select value={assignRole} onValueChange={(v) => setAssignRole(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="owner">Owner</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAssignTenantId(null)} disabled={assigning}>
+              Cancel
+            </Button>
+            <Button onClick={submitAssign} disabled={assigning || !assignEmail.trim()}>
+              {assigning ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <UserPlus className="w-4 h-4 mr-1" />}
+              Assign & send invite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
