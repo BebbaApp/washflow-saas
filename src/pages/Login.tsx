@@ -76,7 +76,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     setSubmitting(true);
     try {
       const { data, error: invokeErr } = await supabase.functions.invoke("pin-login", {
-        body: { phone: phone.trim(), pin: pin.trim() },
+        body: { identifier: pinIdentifier.trim(), pin: pin.trim() },
       });
       if (invokeErr || data?.error) {
         setError(data?.error || invokeErr?.message || "Login failed");
