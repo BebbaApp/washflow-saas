@@ -26,6 +26,7 @@ interface AuthContextValue {
   signup: (email: string, password: string, name: string, phone?: string, companyName?: string) => Promise<string | null>;
   logout: () => Promise<void>;
   updateProfile: (updates: { name?: string; phone?: string }) => Promise<string | null>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -203,12 +204,31 @@ function useAuthInternal(): AuthContextValue {
     setUser(null);
   }, []);
 
+  const refresh = useCallback(async () => {
+    try {
+      await supabase.auth.refreshSession();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        setUser(null);
+        setAuthedUserId(null);
+        setAuthedEmail(null);
+        return;
+      }
+      setAuthedUserId(authUser.id);
+      setAuthedEmail(authUser.email ?? null);
+      const staffUser = await fetchProfile(authUser);
+      setUser(staffUser);
+    } catch (e) {
+      console.warn("[useAuth] refresh failed:", e);
+    }
+  }, [fetchProfile]);
+
   return {
     user, authedUserId, authedEmail, loading,
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     authedNoRole: !!authedEmail && !user,
-    login, signup, logout, updateProfile,
+    login, signup, logout, updateProfile, refresh,
   };
 }
 

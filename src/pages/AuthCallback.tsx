@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 type Status = "working" | "success" | "error";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { refresh } = useAuth();
   const [status, setStatus] = useState<Status>("working");
   const [message, setMessage] = useState("Confirming your email…");
 
@@ -74,7 +76,22 @@ export default function AuthCallback() {
         if (cancelled) return;
         setStatus("success");
         setMessage("Email verified. Signing you in…");
-        setTimeout(() => navigate("/", { replace: true }), 1200);
+
+        // Poll for confirmed status + role assignment, then refresh app state in place.
+        const deadline = Date.now() + 15000;
+        let confirmed = false;
+        while (!cancelled && Date.now() < deadline) {
+          try {
+            await supabase.auth.refreshSession();
+            const { data: { user: u } } = await supabase.auth.getUser();
+            if (u?.email_confirmed_at) { confirmed = true; break; }
+          } catch { /* keep polling */ }
+          await new Promise((r) => setTimeout(r, 1200));
+        }
+        if (cancelled) return;
+        await refresh();
+        setMessage(confirmed ? "You're verified. Redirecting…" : "Almost done. Redirecting…");
+        setTimeout(() => navigate("/", { replace: true }), 800);
       } catch (err) {
         if (cancelled) return;
         setStatus("error");
@@ -83,7 +100,7 @@ export default function AuthCallback() {
     })();
 
     return () => { cancelled = true; };
-  }, [navigate]);
+  }, [navigate, refresh]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
