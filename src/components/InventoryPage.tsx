@@ -135,10 +135,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setCategory(p.category);
     setUnit(p.unit);
     setThreshold(String(p.recommendedMin));
-    setRecMin(String(p.recommendedMin));
-    setRecMax(String(p.recommendedMax));
-    if (p.description) setSubtype(p.description);
   };
+
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
