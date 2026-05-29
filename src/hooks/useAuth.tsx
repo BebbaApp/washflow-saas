@@ -38,7 +38,7 @@ function useAuthInternal(): AuthContextValue {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
-    const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }] = await Promise.all([
+    const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }, { data: platformAdmin }] = await Promise.all([
       supabase
         .from("profiles")
         .select("name")
@@ -53,10 +53,16 @@ function useAuthInternal(): AuthContextValue {
         .select("user_id")
         .eq("user_id", authUser.id)
         .maybeSingle(),
+      supabase
+        .from("platform_admins" as any)
+        .select("user_id")
+        .eq("user_id", authUser.id)
+        .maybeSingle(),
     ]);
 
     const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
     const isBootstrapSuperAdmin = authUser.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
+    const isGlobalAdmin = !!superAdmin || !!platformAdmin || isBootstrapSuperAdmin;
     const makeUser = (role: StaffRole): StaffUser => ({
       id: authUser.id,
       email: authUser.email || "",
@@ -67,7 +73,11 @@ function useAuthInternal(): AuthContextValue {
 
     if (profileError || rolesError) {
       console.error("[useAuth] Failed to load staff profile:", profileError || rolesError);
-      return superAdmin || isBootstrapSuperAdmin ? makeUser("admin") : null;
+      return isGlobalAdmin ? makeUser("admin") : null;
+    }
+
+    if (isGlobalAdmin) {
+      return makeUser("admin");
     }
 
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -77,7 +87,7 @@ function useAuthInternal(): AuthContextValue {
     if (bestRole) {
       return makeUser(bestRole);
     }
-    return superAdmin || isBootstrapSuperAdmin ? makeUser("admin") : null;
+    return null;
   }, []);
 
   useEffect(() => {
