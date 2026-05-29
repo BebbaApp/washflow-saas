@@ -534,8 +534,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">
-                Choosing a preset auto-fills category, measurement unit, and recommended stock range.
+                Choosing a preset auto-fills category, measurement unit, and low-stock threshold.
               </p>
+
             </div>
 
             <div className="space-y-2">
