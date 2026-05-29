@@ -18,6 +18,7 @@ export default function AuthCallback() {
       try {
         const url = new URL(window.location.href);
         const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        let verifiedSession = null;
 
         const errorDesc = url.searchParams.get("error_description") || hash.get("error_description");
         if (errorDesc) throw new Error(errorDesc);
@@ -25,20 +26,50 @@ export default function AuthCallback() {
         // PKCE flow: ?code=...
         const code = url.searchParams.get("code");
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            const message = error.message.toLowerCase();
+            if (message.includes("code verifier") || message.includes("flow state") || message.includes("invalid flow")) {
+              if (cancelled) return;
+              setStatus("success");
+              setMessage("Email confirmed. Please sign in to continue.");
+              setTimeout(() => navigate("/", { replace: true }), 1800);
+              return;
+            }
+            throw error;
+          }
+          verifiedSession = data.session;
         } else {
+          // Email-template flow: ?token_hash=...&type=signup
+          const token_hash = url.searchParams.get("token_hash") || hash.get("token_hash");
+          const type = url.searchParams.get("type") || hash.get("type") || "signup";
+          if (token_hash) {
+            const { data, error } = await supabase.auth.verifyOtp({
+              token_hash,
+              type: type as "signup" | "invite" | "magiclink" | "recovery" | "email_change",
+            });
+            if (error) throw error;
+            verifiedSession = data.session;
+          }
+
           // Implicit flow: #access_token=...&refresh_token=...
           const access_token = hash.get("access_token");
           const refresh_token = hash.get("refresh_token");
           if (access_token && refresh_token) {
-            const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+            const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
             if (error) throw error;
+            verifiedSession = data.session;
           }
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("Verification link is invalid or has expired.");
+        const { data: { session } } = verifiedSession ? { data: { session: verifiedSession } } : await supabase.auth.getSession();
+        if (!session) {
+          if (cancelled) return;
+          setStatus("success");
+          setMessage("Email confirmed. Please sign in to continue.");
+          setTimeout(() => navigate("/", { replace: true }), 1800);
+          return;
+        }
 
         if (cancelled) return;
         setStatus("success");
