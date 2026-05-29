@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
 
     // Assign role
     const { error: roleErr } = await adminClient.from("user_roles").insert({
-      user_id: newUser.user.id,
+      user_id: newUserId,
       tenant_id,
       role,
     });
