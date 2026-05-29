@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -36,6 +36,13 @@ function useAuthInternal(): AuthContextValue {
   const [authedUserId, setAuthedUserId] = useState<string | null>(null);
   const [authedEmail, setAuthedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const resolvedUserIdRef = useRef<string | null>(null);
+  const userRef = useRef<StaffUser | null>(null);
+
+  const setResolvedUser = useCallback((next: StaffUser | null) => {
+    userRef.current = next;
+    setUser(next);
+  }, []);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
     const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }, { data: platformAdmin }] = await Promise.all([
