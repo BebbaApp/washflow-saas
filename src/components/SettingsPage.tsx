@@ -280,22 +280,6 @@ function WorkersSection() {
     loadUsers();
   }, [authLoading, tenantLoading, isAuthenticated, loadUsers]);
 
-  useEffect(() => {
-    if (authLoading || tenantLoading || !isAuthenticated || !tenant?.id) return;
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") loadUsers(true);
-    };
-    const interval = window.setInterval(refreshIfVisible, 8000);
-    window.addEventListener("focus", refreshIfVisible);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refreshIfVisible);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-    };
-  }, [authLoading, tenantLoading, isAuthenticated, tenant?.id, loadUsers]);
-
-
   const handleRoleChange = async (userId: string, newRole: WorkerRole) => {
     if (!tenant?.id) {
       toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
