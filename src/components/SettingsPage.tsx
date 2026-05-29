@@ -317,6 +317,31 @@ function WorkersSection() {
     toast({ title: "User deleted" });
   };
 
+  const handleResendVerification = async (u: StaffUser) => {
+    if (!tenant?.id) {
+      toast({ title: "Workspace is still loading", description: "Please try again in a moment.", variant: "destructive" });
+      return;
+    }
+    setResendingId(u.id);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "resend_verification",
+        tenant_id: tenant?.id,
+        user_id: u.id,
+        redirect_to: window.location.origin,
+      },
+    });
+    setResendingId(null);
+    if (res.error || res.data?.error) {
+      const info = await extractFnError(res);
+      toast({ title: "Failed to send", description: fnErrorDescription(info), variant: "destructive" });
+      return;
+    }
+    toast({ title: "Verification email sent", description: `Sent to ${u.email}` });
+  };
+
+
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !password.trim()) {
