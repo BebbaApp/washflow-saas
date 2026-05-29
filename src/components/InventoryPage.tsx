@@ -396,15 +396,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                           {state.label}
                         </span>
                       </div>
-                      {item.subtype && (
-                        <p className="text-xs text-muted-foreground/90 mt-0.5 italic truncate">{item.subtype}</p>
-                      )}
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {item.category} · {item.quantity}{item.unit ? ` ${item.unit}` : ""} · alert at {item.threshold}{item.unit ? ` ${item.unit}` : ""}
-                        {item.recommendedMin != null && item.recommendedMax != null && (
-                          <> · recommended {item.recommendedMin}–{item.recommendedMax}{item.unit ? ` ${item.unit}` : ""}</>
+                        {item.unitCost > 0 && (
+                          <> · ${item.unitCost.toFixed(2)}/{item.unit || "unit"} · total ${(item.unitCost * item.quantity).toFixed(2)}</>
                         )}
                       </p>
+
                     </div>
                     <div className="flex items-center gap-1">
                       {canAdjust && (
