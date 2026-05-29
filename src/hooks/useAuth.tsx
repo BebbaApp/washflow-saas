@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -36,6 +36,13 @@ function useAuthInternal(): AuthContextValue {
   const [authedUserId, setAuthedUserId] = useState<string | null>(null);
   const [authedEmail, setAuthedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const resolvedUserIdRef = useRef<string | null>(null);
+  const userRef = useRef<StaffUser | null>(null);
+
+  const setResolvedUser = useCallback((next: StaffUser | null) => {
+    userRef.current = next;
+    setUser(next);
+  }, []);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
     const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }, { data: platformAdmin }] = await Promise.all([
@@ -97,15 +104,20 @@ function useAuthInternal(): AuthContextValue {
     const resolveSession = (session: Session | null) => {
       const currentRequest = ++requestId;
       if (!session?.user) {
+        resolvedUserIdRef.current = null;
         setAuthedUserId(null);
         setAuthedEmail(null);
-        setUser(null);
+        setResolvedUser(null);
         setLoading(false);
         return;
       }
       const authUser = session.user;
       setAuthedUserId(authUser.id);
       setAuthedEmail(authUser.email ?? null);
+      if (resolvedUserIdRef.current === authUser.id && userRef.current) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setTimeout(() => {
         // Validate the session is still alive server-side. Stale JWTs (session
@@ -118,7 +130,8 @@ function useAuthInternal(): AuthContextValue {
             supabase.auth.signOut().finally(() => {
               if (!cancelled && currentRequest === requestId) {
                 setAuthedEmail(null);
-                setUser(null);
+                resolvedUserIdRef.current = null;
+                setResolvedUser(null);
                 setLoading(false);
               }
             });
@@ -126,11 +139,17 @@ function useAuthInternal(): AuthContextValue {
           }
           fetchProfile(authUser)
             .then((staffUser) => {
-              if (!cancelled && currentRequest === requestId) setUser(staffUser);
+              if (!cancelled && currentRequest === requestId) {
+                resolvedUserIdRef.current = authUser.id;
+                setResolvedUser(staffUser);
+              }
             })
             .catch((error) => {
               console.error("[useAuth] Failed to resolve authenticated user:", error);
-              if (!cancelled && currentRequest === requestId) setUser(null);
+              if (!cancelled && currentRequest === requestId) {
+                resolvedUserIdRef.current = null;
+                setResolvedUser(null);
+              }
             })
             .finally(() => {
               if (!cancelled && currentRequest === requestId) setLoading(false);
@@ -178,7 +197,7 @@ function useAuthInternal(): AuthContextValue {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, setResolvedUser]);
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -211,22 +230,28 @@ function useAuthInternal(): AuthContextValue {
         .from("profiles").update({ name: updates.name }).eq("user_id", authUser.id);
       if (profErr) return profErr.message;
     }
-    setUser((prev) => prev ? { ...prev, name: updates.name ?? prev.name, phone: updates.phone ?? prev.phone } : prev);
+    setUser((prev) => {
+      const next = prev ? { ...prev, name: updates.name ?? prev.name, phone: updates.phone ?? prev.phone } : prev;
+      userRef.current = next;
+      return next;
+    });
     return null;
   }, []);
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
+    resolvedUserIdRef.current = null;
     setAuthedUserId(null);
-    setUser(null);
-  }, []);
+    setResolvedUser(null);
+  }, [setResolvedUser]);
 
   const refresh = useCallback(async () => {
     try {
       await supabase.auth.refreshSession();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) {
-        setUser(null);
+        resolvedUserIdRef.current = null;
+        setResolvedUser(null);
         setAuthedUserId(null);
         setAuthedEmail(null);
         return;
@@ -234,11 +259,12 @@ function useAuthInternal(): AuthContextValue {
       setAuthedUserId(authUser.id);
       setAuthedEmail(authUser.email ?? null);
       const staffUser = await fetchProfile(authUser);
-      setUser(staffUser);
+      resolvedUserIdRef.current = authUser.id;
+      setResolvedUser(staffUser);
     } catch (e) {
       console.warn("[useAuth] refresh failed:", e);
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, setResolvedUser]);
 
   return {
     user, authedUserId, authedEmail, loading,
