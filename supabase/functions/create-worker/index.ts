@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
+const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [{ data: callerRoles }, { data: callerMembership }, { data: platformAdmin }] = await Promise.all([
+    const [{ data: callerRoles }, { data: callerMembership }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
       adminClient
         .from("user_roles")
         .select("role")
@@ -68,11 +69,13 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenant_id)
         .maybeSingle(),
       adminClient.from("platform_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
+      adminClient.from("super_admins").select("user_id").eq("user_id", callerId).maybeSingle(),
     ]);
 
     const hasStaffManagerRole = (callerRoles ?? []).some((r: any) => STAFF_MANAGER_ROLES.includes(r.role));
     const isTenantAdmin = callerMembership?.tenant_role === "owner" || callerMembership?.tenant_role === "admin";
-    if (!hasStaffManagerRole && !isTenantAdmin && !platformAdmin) {
+    const isGlobalAdmin = !!platformAdmin || !!superAdmin || claims.claims.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
+    if (!hasStaffManagerRole && !isTenantAdmin && !isGlobalAdmin) {
       return new Response(JSON.stringify({ error: "Only admins can create workers" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
