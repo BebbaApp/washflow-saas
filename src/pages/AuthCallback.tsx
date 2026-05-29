@@ -1,20 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
 type Status = "working" | "success" | "error";
+
+const POLL_INTERVAL_MS = 1200;
+const DEADLINE_MS = 15000;
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const [status, setStatus] = useState<Status>("working");
   const [message, setMessage] = useState("Confirming your email…");
+  const [pollCount, setPollCount] = useState(0);
+  const [progressPct, setProgressPct] = useState(0);
+  const startRef = useRef<number>(0);
 
   useEffect(() => {
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     (async () => {
       try {
@@ -30,11 +37,12 @@ export default function AuthCallback() {
         if (code) {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
-            const message = error.message.toLowerCase();
-            if (message.includes("code verifier") || message.includes("flow state") || message.includes("invalid flow")) {
+            const msg = error.message.toLowerCase();
+            if (msg.includes("code verifier") || msg.includes("flow state") || msg.includes("invalid flow")) {
               if (cancelled) return;
               setStatus("success");
               setMessage("Email confirmed. Please sign in to continue.");
+              setProgressPct(100);
               setTimeout(() => navigate("/", { replace: true }), 1800);
               return;
             }
@@ -69,49 +77,104 @@ export default function AuthCallback() {
           if (cancelled) return;
           setStatus("success");
           setMessage("Email confirmed. Please sign in to continue.");
+          setProgressPct(100);
           setTimeout(() => navigate("/", { replace: true }), 1800);
           return;
         }
 
         if (cancelled) return;
         setStatus("success");
-        setMessage("Email verified. Signing you in…");
+        setMessage("Email verified. Checking your account…");
+        startRef.current = Date.now();
 
         // Poll for confirmed status + role assignment, then refresh app state in place.
-        const deadline = Date.now() + 15000;
+        let pollsDone = 0;
         let confirmed = false;
-        while (!cancelled && Date.now() < deadline) {
+        pollTimer = setInterval(() => {
+          const elapsed = Date.now() - startRef.current;
+          const pct = Math.min(100, Math.round((elapsed / DEADLINE_MS) * 100));
+          setProgressPct(pct);
+        }, 100);
+
+        while (!cancelled && Date.now() - startRef.current < DEADLINE_MS) {
           try {
             await supabase.auth.refreshSession();
             const { data: { user: u } } = await supabase.auth.getUser();
-            if (u?.email_confirmed_at) { confirmed = true; break; }
+            if (u?.email_confirmed_at) {
+              confirmed = true;
+              break;
+            }
           } catch { /* keep polling */ }
-          await new Promise((r) => setTimeout(r, 1200));
+          pollsDone += 1;
+          if (!cancelled) {
+            setPollCount(pollsDone);
+            setMessage(`Checking your account… (attempt ${pollsDone})`);
+          }
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         }
+
+        if (pollTimer) clearInterval(pollTimer);
         if (cancelled) return;
+
+        setProgressPct(100);
         await refresh();
         setMessage(confirmed ? "You're verified. Redirecting…" : "Almost done. Redirecting…");
         setTimeout(() => navigate("/", { replace: true }), 800);
       } catch (err) {
+        if (pollTimer) clearInterval(pollTimer);
         if (cancelled) return;
         setStatus("error");
+        setProgressPct(0);
         setMessage((err as Error).message || "Verification failed.");
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+    };
   }, [navigate, refresh]);
+
+  const isPolling = status === "working" || (status === "success" && progressPct > 0 && progressPct < 100);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="max-w-md w-full text-center space-y-4 rounded-2xl border border-border bg-card p-8 shadow-sm">
-        {status === "working" && <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />}
-        {status === "success" && <CheckCircle2 className="h-10 w-10 mx-auto text-primary" />}
-        {status === "error" && <XCircle className="h-10 w-10 mx-auto text-destructive" />}
-        <h1 className="text-xl font-semibold text-foreground">
-          {status === "success" ? "You're verified" : status === "error" ? "Verification failed" : "Just a moment"}
-        </h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
+      <div className="max-w-md w-full text-center space-y-5 rounded-2xl border border-border bg-card p-8 shadow-sm">
+        <div className="mx-auto flex items-center justify-center">
+          {status === "working" && (
+            <div className="relative">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            </div>
+          )}
+          {status === "success" && <CheckCircle2 className="h-10 w-10 text-primary" />}
+          {status === "error" && <XCircle className="h-10 w-10 text-destructive" />}
+        </div>
+
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">
+            {status === "success" ? "You're verified" : status === "error" ? "Verification failed" : "Just a moment"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">{message}</p>
+        </div>
+
+        {isPolling && (
+          <div className="space-y-2">
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <Shield className="h-3 w-3" />
+                Securing session
+              </span>
+              <span>{progressPct}%</span>
+            </div>
+          </div>
+        )}
+
         {status === "error" && (
           <Button onClick={() => navigate("/", { replace: true })} className="mt-2">
             Back to login
