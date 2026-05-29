@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus } from "lucide-react";
+import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 import { EditTenantDialog } from "./EditTenantDialog";
 import { AddTenantDialog } from "./AddTenantDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +55,28 @@ export function TenantsAdmin() {
   const [extendDays, setExtendDays] = useState<Record<string, number>>({});
   const [editTenant, setEditTenant] = useState<PlatformTenant | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTenant, setDeleteTenant] = useState<PlatformTenant | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!deleteTenant) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke("platform-admin", {
+        body: { action: "delete_tenant", tenant_id: deleteTenant.id, confirm_slug: deleteConfirm.trim() },
+      });
+      if (error) throw error;
+      toast({ title: `Deleted ${deleteTenant.name}` });
+      setDeleteTenant(null);
+      setDeleteConfirm("");
+      await load();
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -236,6 +263,12 @@ export function TenantsAdmin() {
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => { setDeleteTenant(t); setDeleteConfirm(""); }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete workspace
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -259,6 +292,43 @@ export function TenantsAdmin() {
         plans={plans}
         onCreated={load}
       />
+
+      <AlertDialog
+        open={!!deleteTenant}
+        onOpenChange={(o) => { if (!o) { setDeleteTenant(null); setDeleteConfirm(""); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes <strong>{deleteTenant?.name}</strong> and all of its data
+              (orders, customers, expenses, services, members, shifts, attendance, invoices…).
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">
+              Type the workspace slug <code className="px-1 py-0.5 rounded bg-muted text-foreground">{deleteTenant?.slug}</code> to confirm
+            </Label>
+            <Input
+              autoFocus
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={deleteTenant?.slug ?? ""}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting || deleteConfirm.trim() !== (deleteTenant?.slug ?? "")}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete forever"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );
