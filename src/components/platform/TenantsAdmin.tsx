@@ -55,6 +55,28 @@ export function TenantsAdmin() {
   const [extendDays, setExtendDays] = useState<Record<string, number>>({});
   const [editTenant, setEditTenant] = useState<PlatformTenant | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTenant, setDeleteTenant] = useState<PlatformTenant | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!deleteTenant) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke("platform-admin", {
+        body: { action: "delete_tenant", tenant_id: deleteTenant.id, confirm_slug: deleteConfirm.trim() },
+      });
+      if (error) throw error;
+      toast({ title: `Deleted ${deleteTenant.name}` });
+      setDeleteTenant(null);
+      setDeleteConfirm("");
+      await load();
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
