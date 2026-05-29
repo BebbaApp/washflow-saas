@@ -43,22 +43,35 @@ function rowToExpense(r: any): Expense {
   };
 }
 
+// Module-level cache so switching tabs doesn't flash an empty list while the
+// query refetches. Keyed by tenant id; survives component remounts.
+const expensesCache = new Map<string, Expense[]>();
 
 export function useExpenses() {
   const { user } = useAuth();
   const { tenant } = useTenant();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [expenses, setExpenses] = useState<Expense[]>(
+    () => (tenant?.id ? expensesCache.get(tenant.id) ?? [] : [])
+  );
+  const [loading, setLoading] = useState(
+    () => !(tenant?.id && expensesCache.has(tenant.id))
+  );
 
   const fetchAll = useCallback(async () => {
     if (!tenant?.id) { setExpenses([]); setLoading(false); return; }
-    setLoading(true);
+    // Only show a spinner the first time per tenant; subsequent refetches
+    // keep cached rows on screen to avoid a flash of the empty state.
+    if (!expensesCache.has(tenant.id)) setLoading(true);
     const { data, error } = await supabase
       .from("expenses" as any)
       .select("*")
       .eq("tenant_id", tenant.id)
       .order("date", { ascending: false });
-    if (!error && data) setExpenses((data as any[]).map(rowToExpense));
+    if (!error && data) {
+      const list = (data as any[]).map(rowToExpense);
+      expensesCache.set(tenant.id, list);
+      setExpenses(list);
+    }
     setLoading(false);
   }, [tenant?.id]);
 
