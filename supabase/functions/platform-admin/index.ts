@@ -225,6 +225,11 @@ Deno.serve(async (req) => {
       }
 
       case "grant_platform_admin": {
+        // Platform admin only. Defensively ensure they are NOT super admin —
+        // "Make admin" must never elevate to super.
+        const { error: eDel } = await admin.from("super_admins")
+          .delete().eq("user_id", body.user_id);
+        if (eDel) return json({ error: eDel.message }, 500);
         const { error } = await admin.from("platform_admins")
           .insert({ user_id: body.user_id });
         if (error && (error as any).code !== "23505") return json({ error: error.message }, 500);
@@ -233,6 +238,10 @@ Deno.serve(async (req) => {
 
       case "revoke_platform_admin": {
         if (body.user_id === callerId) return json({ error: "Cannot revoke yourself" }, 400);
+        // Revoking platform admin also revokes super admin (super implies platform).
+        const { error: eSuper } = await admin.from("super_admins")
+          .delete().eq("user_id", body.user_id);
+        if (eSuper) return json({ error: eSuper.message }, 500);
         const { error } = await admin.from("platform_admins")
           .delete().eq("user_id", body.user_id);
         if (error) return json({ error: error.message }, 500);
@@ -252,11 +261,13 @@ Deno.serve(async (req) => {
 
       case "revoke_super_admin": {
         if (body.user_id === callerId) return json({ error: "Cannot revoke yourself" }, 400);
+        // Only remove super-admin status; platform admin is preserved.
         const { error } = await admin.from("super_admins")
           .delete().eq("user_id", body.user_id);
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
       }
+
 
       case "add_tenant_member": {
         const { error } = await admin.from("tenant_members")
