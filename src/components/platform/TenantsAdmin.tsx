@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus } from "lucide-react";
+import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 import { EditTenantDialog } from "./EditTenantDialog";
 import { AddTenantDialog } from "./AddTenantDialog";
 import { supabase } from "@/integrations/supabase/client";
