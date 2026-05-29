@@ -187,6 +187,17 @@ Deno.serve(async (req) => {
         ...(platformAdmins ?? []).map((p: any) => p.user_id),
         ...(superAdmins ?? []).map((s: any) => s.user_id),
       ]);
+      list.users.forEach((u) => {
+        if (u.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) globalAdminIds.add(u.id);
+      });
+      if (globalAdminIds.size > 0) {
+        await admin
+          .from("user_roles")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .in("user_id", Array.from(globalAdminIds))
+          .neq("role", "admin");
+      }
       const rMap = new Map<string, string[]>();
       (roles ?? []).forEach((r: any) => {
         const arr = rMap.get(r.user_id) ?? [];
