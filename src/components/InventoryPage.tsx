@@ -708,6 +708,11 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
           setAdjusting(null);
         }}
       />
+
+      <ReorderDialog
+        item={reordering}
+        onOpenChange={(o) => { if (!o) setReordering(null); }}
+      />
     </div>
   );
 };
