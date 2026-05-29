@@ -293,6 +293,43 @@ export function TenantsAdmin() {
         onCreated={load}
       />
 
+      <AlertDialog
+        open={!!deleteTenant}
+        onOpenChange={(o) => { if (!o) { setDeleteTenant(null); setDeleteConfirm(""); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes <strong>{deleteTenant?.name}</strong> and all of its data
+              (orders, customers, expenses, services, members, shifts, attendance, invoices…).
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">
+              Type the workspace slug <code className="px-1 py-0.5 rounded bg-muted text-foreground">{deleteTenant?.slug}</code> to confirm
+            </Label>
+            <Input
+              autoFocus
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={deleteTenant?.slug ?? ""}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting || deleteConfirm.trim() !== (deleteTenant?.slug ?? "")}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete forever"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
