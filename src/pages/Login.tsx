@@ -16,6 +16,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
+  const [pinIdentifier, setPinIdentifier] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   // Pre-select signup mode when arriving from a tenant share link or /signup route.
