@@ -104,15 +104,20 @@ function useAuthInternal(): AuthContextValue {
     const resolveSession = (session: Session | null) => {
       const currentRequest = ++requestId;
       if (!session?.user) {
+        resolvedUserIdRef.current = null;
         setAuthedUserId(null);
         setAuthedEmail(null);
-        setUser(null);
+        setResolvedUser(null);
         setLoading(false);
         return;
       }
       const authUser = session.user;
       setAuthedUserId(authUser.id);
       setAuthedEmail(authUser.email ?? null);
+      if (resolvedUserIdRef.current === authUser.id && userRef.current) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setTimeout(() => {
         // Validate the session is still alive server-side. Stale JWTs (session
@@ -125,7 +130,8 @@ function useAuthInternal(): AuthContextValue {
             supabase.auth.signOut().finally(() => {
               if (!cancelled && currentRequest === requestId) {
                 setAuthedEmail(null);
-                setUser(null);
+                resolvedUserIdRef.current = null;
+                setResolvedUser(null);
                 setLoading(false);
               }
             });
@@ -133,11 +139,17 @@ function useAuthInternal(): AuthContextValue {
           }
           fetchProfile(authUser)
             .then((staffUser) => {
-              if (!cancelled && currentRequest === requestId) setUser(staffUser);
+              if (!cancelled && currentRequest === requestId) {
+                resolvedUserIdRef.current = authUser.id;
+                setResolvedUser(staffUser);
+              }
             })
             .catch((error) => {
               console.error("[useAuth] Failed to resolve authenticated user:", error);
-              if (!cancelled && currentRequest === requestId) setUser(null);
+              if (!cancelled && currentRequest === requestId) {
+                resolvedUserIdRef.current = null;
+                setResolvedUser(null);
+              }
             })
             .finally(() => {
               if (!cancelled && currentRequest === requestId) setLoading(false);
