@@ -102,8 +102,8 @@ export const UsageReferencePanel = () => {
     downloadCsv("wash-usage-calculation.csv", rows);
   };
 
-  const handleLogUsage = () => {
-    const res = consumeForWash({ vehicleInput: logVehicle, source: `Manual ${logVehicle} wash` });
+  const handleLogUsage = async () => {
+    const res = await consumeForWash({ vehicleInput: logVehicle, source: `Manual ${logVehicle} wash` });
     if (!res.ok) {
       toast.error(`Insufficient stock: ${res.negativeItems.join(", ")}`);
       return;
