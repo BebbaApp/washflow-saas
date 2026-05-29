@@ -420,6 +420,15 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       )}
                       {canAdjust && (
                         <button
+                          onClick={() => setReordering(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                          title="Reorder"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canAdjust && (
+                        <button
                           onClick={() => setAdjusting({ item, mode: "remove" })}
                           disabled={item.quantity <= 0}
                           className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
