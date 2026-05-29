@@ -157,6 +157,13 @@ function useAuthInternal(): AuthContextValue {
         window.location.replace("/reset-password" + window.location.search + window.location.hash);
         return;
       }
+      if (event === "TOKEN_REFRESHED") {
+        if (session?.user) {
+          setAuthedUserId(session.user.id);
+          setAuthedEmail(session.user.email ?? null);
+        }
+        return;
+      }
       resolveSession(session);
     });
 
