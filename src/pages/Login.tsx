@@ -16,6 +16,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
+  const [pinIdentifier, setPinIdentifier] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   // Pre-select signup mode when arriving from a tenant share link or /signup route.
@@ -75,7 +76,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     setSubmitting(true);
     try {
       const { data, error: invokeErr } = await supabase.functions.invoke("pin-login", {
-        body: { phone: phone.trim(), pin: pin.trim() },
+        body: { identifier: pinIdentifier.trim(), pin: pin.trim() },
       });
       if (invokeErr || data?.error) {
         setError(data?.error || invokeErr?.message || "Login failed");
@@ -130,7 +131,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
         <Tabs defaultValue="email" className="w-full" onValueChange={() => setError("")}>
           <TabsList className="grid grid-cols-2 w-full mb-4">
             <TabsTrigger value="email">Email</TabsTrigger>
-            <TabsTrigger value="phone">Phone + PIN</TabsTrigger>
+            <TabsTrigger value="phone">PIN Login</TabsTrigger>
           </TabsList>
 
           <TabsContent value="email">
@@ -195,8 +196,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
           <TabsContent value="phone">
             <form onSubmit={handlePinSubmit} className="glass-card p-6 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm text-secondary-foreground">Phone Number</Label>
-                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="tel" />
+                <Label htmlFor="pin-identifier" className="text-sm text-secondary-foreground">Phone or Email</Label>
+                <Input id="pin-identifier" type="text" value={pinIdentifier} onChange={(e) => setPinIdentifier(e.target.value)} placeholder="+1 234 567 8900 or you@company.com" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="username" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="pin" className="text-sm text-secondary-foreground">PIN</Label>
