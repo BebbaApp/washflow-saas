@@ -95,7 +95,14 @@ Deno.serve(async (req) => {
     }
 
     if (!rec) {
-      return new Response(JSON.stringify({ error: "Invalid credentials" }), {
+      // Temporary debug payload to diagnose why lookup misses.
+      let debug: any = { isEmail, rawId };
+      if (!isEmail) {
+        const { data: pins } = await admin.from("staff_pins").select("phone");
+        debug.variants = phoneVariants(rawId);
+        debug.stored_phones = (pins ?? []).map((p) => p.phone);
+      }
+      return new Response(JSON.stringify({ error: "Invalid credentials", debug }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
