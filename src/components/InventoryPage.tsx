@@ -579,7 +579,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-sm text-secondary-foreground">Quantity{unit ? ` (${unit})` : ""}</Label>
                 <Input type="number" min="0" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-secondary border-border text-foreground" />
@@ -588,27 +588,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 <Label className="text-sm text-secondary-foreground">Low at</Label>
                 <Input type="number" min="0" step="0.1" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="bg-secondary border-border text-foreground" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Recommended</Label>
-                <div className="flex items-center gap-1">
-                  <Input type="number" min="0" step="0.1" value={recMin} onChange={(e) => setRecMin(e.target.value)} placeholder="min" className="bg-secondary border-border text-foreground" />
-                  <span className="text-muted-foreground text-xs">–</span>
-                  <Input type="number" min="0" step="0.1" value={recMax} onChange={(e) => setRecMax(e.target.value)} placeholder="max" className="bg-secondary border-border text-foreground" />
-                </div>
-              </div>
             </div>
 
-            {recMin !== "" && recMax !== "" && Number(quantity) > 0 && (
-              <p className="text-[11px] text-muted-foreground">
-                {Number(quantity) < Number(recMin) ? (
-                  <span className="text-warning">Stock is below recommended minimum ({recMin}{unit ? ` ${unit}` : ""}).</span>
-                ) : Number(quantity) > Number(recMax) ? (
-                  <span className="text-info">Stock is above the typical maximum ({recMax}{unit ? ` ${unit}` : ""}).</span>
-                ) : (
-                  <span className="text-success">Stock is within the recommended range.</span>
-                )}
-              </p>
-            )}
+
 
             {/* Cost / supplier / expense category */}
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
