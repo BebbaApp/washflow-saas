@@ -176,6 +176,7 @@ function WorkersSection() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
