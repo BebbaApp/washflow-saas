@@ -182,7 +182,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       toast.success("Item updated");
     } else {
       addItem(payload);
-      toast.success(uc > 0 && q > 0 ? `Item added · expense $${(uc * q).toFixed(2)} logged` : "Item added");
+      toast.success(uc > 0 && q > 0 ? `Item added · expense ${formatPrice(uc * q)} logged` : "Item added");
     }
     onAddOpenChange(false);
     resetForm();
