@@ -283,6 +283,161 @@ export type Database = {
           },
         ]
       }
+      inventory_category_defaults: {
+        Row: {
+          category: string
+          created_at: string
+          expense_category: string
+          id: string
+          tenant_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          expense_category: string
+          id?: string
+          tenant_id?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          expense_category?: string
+          id?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      inventory_items: {
+        Row: {
+          category: string
+          created_at: string
+          expense_category: string | null
+          id: string
+          name: string
+          preset_id: string | null
+          quantity: number
+          recommended_max: number | null
+          recommended_min: number | null
+          subtype: string | null
+          supplier_id: string | null
+          tenant_id: string
+          threshold: number
+          unit: string
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          expense_category?: string | null
+          id?: string
+          name: string
+          preset_id?: string | null
+          quantity?: number
+          recommended_max?: number | null
+          recommended_min?: number | null
+          subtype?: string | null
+          supplier_id?: string | null
+          tenant_id?: string
+          threshold?: number
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          expense_category?: string | null
+          id?: string
+          name?: string
+          preset_id?: string | null
+          quantity?: number
+          recommended_max?: number | null
+          recommended_min?: number | null
+          subtype?: string | null
+          supplier_id?: string | null
+          tenant_id?: string
+          threshold?: number
+          unit?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_transactions: {
+        Row: {
+          balance: number
+          created_at: string
+          delta: number
+          expense_id: string | null
+          flow: string | null
+          id: string
+          item_id: string | null
+          item_name: string
+          notes: string | null
+          source: string
+          tenant_id: string
+          total_cost: number | null
+          type: string
+          unit_cost: number | null
+        }
+        Insert: {
+          balance: number
+          created_at?: string
+          delta: number
+          expense_id?: string | null
+          flow?: string | null
+          id?: string
+          item_id?: string | null
+          item_name: string
+          notes?: string | null
+          source: string
+          tenant_id?: string
+          total_cost?: number | null
+          type: string
+          unit_cost?: number | null
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          delta?: number
+          expense_id?: string | null
+          flow?: string | null
+          id?: string
+          item_id?: string | null
+          item_name?: string
+          notes?: string | null
+          source?: string
+          tenant_id?: string
+          total_cost?: number | null
+          type?: string
+          unit_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_transactions_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_transactions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount_cents: number
@@ -1138,6 +1293,45 @@ export type Database = {
         Update: {
           created_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string
         }
         Relationships: []
       }

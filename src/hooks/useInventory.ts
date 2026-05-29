@@ -155,10 +155,10 @@ export function useInventory() {
   useEffect(() => {
     if (!tenantId) return;
     const ch = supabase
-      .channel(`inventory_${tenantId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "inventory_items", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "inventory_transactions", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "inventory_category_defaults", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
+      .channel(`inventory_${tenantId}_${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_items", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_transactions", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_category_defaults", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tenantId, fetchAll]);

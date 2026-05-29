@@ -47,8 +47,8 @@ export function useSuppliers() {
   useEffect(() => {
     if (!tenantId) return;
     const ch = supabase
-      .channel(`suppliers_${tenantId}`)
-      .on("postgres_changes",
+      .channel(`suppliers_${tenantId}_${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes" as any,
         { event: "*", schema: "public", table: "suppliers", filter: `tenant_id=eq.${tenantId}` },
         () => fetchAll())
       .subscribe();

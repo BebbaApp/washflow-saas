@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Save, Loader2, Mail, Trash2, Copy, UserPlus, Crown, ShieldCheck, User as UserIcon, Building2 } from "lucide-react";
+import { Save, Loader2, Mail, Trash2, Copy, UserPlus, Crown, ShieldCheck, User as UserIcon, Building2, Truck, Plus, Pencil, X, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant, TenantRole } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MembershipAuditLog } from "@/components/MembershipAuditLog";
+import { useSuppliers, Supplier } from "@/hooks/useSuppliers";
 
 interface MemberRow {
   user_id: string;
   tenant_role: TenantRole;
   created_at: string;
   email?: string;
+  name?: string;
 }
 
 interface InviteRow {
@@ -67,7 +69,19 @@ export function TenantManagementSection() {
         .eq("tenant_id", tenant.id)
         .order("created_at", { ascending: false }),
     ]);
-    setMembers(((memRes.data as any) ?? []) as MemberRow[]);
+    const rawMembers = ((memRes.data as any) ?? []) as MemberRow[];
+    const ids = rawMembers.map((m) => m.user_id);
+    let nameMap: Record<string, string> = {};
+    if (ids.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles" as any)
+        .select("user_id, name")
+        .in("user_id", ids);
+      for (const p of (profs as any[]) ?? []) {
+        if (p?.name && String(p.name).trim()) nameMap[p.user_id] = p.name;
+      }
+    }
+    setMembers(rawMembers.map((m) => ({ ...m, name: nameMap[m.user_id] })));
     setInvites(((invRes.data as any) ?? []) as InviteRow[]);
     setLoadingLists(false);
   };
@@ -244,7 +258,8 @@ export function TenantManagementSection() {
                     {ROLE_ICON[m.tenant_role]}
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-foreground truncate">
-                        {isSelf ? "You" : m.user_id.slice(0, 8) + "…"}
+                        {m.name ?? (isSelf ? "You" : m.user_id.slice(0, 8) + "…")}
+                        {isSelf && m.name && <span className="ml-1 text-[11px] text-muted-foreground">(you)</span>}
                       </div>
                       <div className="text-[11px] text-muted-foreground">Joined {new Date(m.created_at).toLocaleDateString()}</div>
                     </div>
@@ -276,6 +291,11 @@ export function TenantManagementSection() {
           </ul>
         )}
       </div>
+
+      {/* Suppliers */}
+      <SuppliersSection canManage={canManage} />
+
+
 
       {/* Invitations */}
       {canManage && (
@@ -353,3 +373,141 @@ export function TenantManagementSection() {
     </div>
   );
 }
+
+// --------------------------- Suppliers section ---------------------------
+
+function SuppliersSection({ canManage }: { canManage: boolean }) {
+  const { suppliers, loading, addSupplier, updateSupplier, deleteSupplier } = useSuppliers();
+  const { toast } = useToast();
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Omit<Supplier, "id">>({ name: "", contactName: "", phone: "", email: "", address: "", notes: "" });
+  const [adding, setAdding] = useState(false);
+
+  const startAdd = () => {
+    setEditingId(null);
+    setDraft({ name: "", contactName: "", phone: "", email: "", address: "", notes: "" });
+    setAdding(true);
+  };
+  const startEdit = (s: Supplier) => {
+    setAdding(false);
+    setEditingId(s.id);
+    setDraft({
+      name: s.name,
+      contactName: s.contactName ?? "",
+      phone: s.phone ?? "",
+      email: s.email ?? "",
+      address: s.address ?? "",
+      notes: s.notes ?? "",
+    });
+  };
+  const cancel = () => { setAdding(false); setEditingId(null); };
+
+  const save = async () => {
+    const name = draft.name.trim();
+    if (!name) { toast({ title: "Name required", variant: "destructive" }); return; }
+    if (editingId) {
+      await updateSupplier(editingId, draft);
+      toast({ title: "Supplier updated" });
+    } else {
+      const created = await addSupplier(draft);
+      if (!created) { toast({ title: "Could not add supplier", variant: "destructive" }); return; }
+      toast({ title: "Supplier added" });
+    }
+    cancel();
+  };
+
+  const remove = async (s: Supplier) => {
+    if (!confirm(`Remove supplier "${s.name}"?`)) return;
+    await deleteSupplier(s.id);
+    toast({ title: "Supplier removed" });
+  };
+
+  const formOpen = adding || editingId !== null;
+
+  return (
+    <div className="glass-card p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Truck className="w-4 h-4 text-primary" /> Suppliers ({suppliers.length})
+        </h3>
+        {canManage && !formOpen && (
+          <Button size="sm" onClick={startAdd}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Add supplier
+          </Button>
+        )}
+      </div>
+
+      {formOpen && (
+        <div className="rounded-lg border border-border bg-secondary/40 p-3 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">Name *</Label>
+              <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Contact name</Label>
+              <Input value={draft.contactName ?? ""} onChange={(e) => setDraft({ ...draft, contactName: e.target.value })} maxLength={120} />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Phone</Label>
+              <Input value={draft.phone ?? ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} maxLength={40} />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <Input type="email" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} maxLength={160} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Address</Label>
+              <Input value={draft.address ?? ""} onChange={(e) => setDraft({ ...draft, address: e.target.value })} maxLength={240} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Notes</Label>
+              <Input value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} maxLength={240} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={cancel}>
+              <X className="w-3.5 h-3.5 mr-1" /> Cancel
+            </Button>
+            <Button size="sm" onClick={save}>
+              <Check className="w-3.5 h-3.5 mr-1" /> {editingId ? "Save changes" : "Add"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center p-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : suppliers.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">
+          No suppliers yet. {canManage && "Click \"Add supplier\" to create one — they'll appear in the inventory item form."}
+        </p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {suppliers.map((s) => (
+            <li key={s.id} className="py-2 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-foreground truncate">{s.name}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {[s.contactName, s.phone, s.email].filter(Boolean).join(" · ") || "No contact details"}
+                </div>
+              </div>
+              {canManage && (
+                <>
+                  <Button size="icon" variant="ghost" onClick={() => startEdit(s)} title="Edit">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => remove(s)} title="Remove">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
