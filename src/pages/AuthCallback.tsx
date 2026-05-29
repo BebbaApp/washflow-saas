@@ -76,12 +76,22 @@ export default function AuthCallback() {
         if (cancelled) return;
         setStatus("success");
         setMessage("Email verified. Signing you in…");
-        setTimeout(() => navigate("/", { replace: true }), 1200);
-      } catch (err) {
+
+        // Poll for confirmed status + role assignment, then refresh app state in place.
+        const deadline = Date.now() + 15000;
+        let confirmed = false;
+        while (!cancelled && Date.now() < deadline) {
+          try {
+            await supabase.auth.refreshSession();
+            const { data: { user: u } } = await supabase.auth.getUser();
+            if (u?.email_confirmed_at) { confirmed = true; break; }
+          } catch { /* keep polling */ }
+          await new Promise((r) => setTimeout(r, 1200));
+        }
         if (cancelled) return;
-        setStatus("error");
-        setMessage((err as Error).message || "Verification failed.");
-      }
+        await refresh();
+        setMessage(confirmed ? "You're verified. Redirecting…" : "Almost done. Redirecting…");
+        setTimeout(() => navigate("/", { replace: true }), 800);
     })();
 
     return () => { cancelled = true; };
