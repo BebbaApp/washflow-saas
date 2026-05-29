@@ -292,6 +292,11 @@ export function TenantManagementSection() {
         )}
       </div>
 
+      {/* Suppliers */}
+      <SuppliersSection canManage={canManage} />
+
+
+
       {/* Invitations */}
       {canManage && (
         <div className="glass-card p-6 space-y-4">
