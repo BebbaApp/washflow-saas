@@ -296,6 +296,9 @@ Deno.serve(async (req) => {
           payload: { by: callerId },
         });
         return json({ ok: true, invited, user_id: userId });
+      }
+
+
 
       case "remove_tenant_member": {
         const { error } = await admin.from("tenant_members")
