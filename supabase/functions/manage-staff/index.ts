@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
           roles: userRoles,
           phone: pinMap.get(u.id) ?? null,
           has_pin: pinMap.has(u.id),
-          email_confirmed: !!u.email_confirmed_at,
+          email_confirmed: !!(u.email_confirmed_at || u.confirmed_at || u.last_sign_in_at),
           created_at: u.created_at,
         };
       });
