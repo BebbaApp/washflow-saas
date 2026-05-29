@@ -314,6 +314,7 @@ export type Database = {
           expense_category: string | null
           id: string
           name: string
+          pack_size: number | null
           preset_id: string | null
           quantity: number
           recommended_max: number | null
@@ -332,6 +333,7 @@ export type Database = {
           expense_category?: string | null
           id?: string
           name: string
+          pack_size?: number | null
           preset_id?: string | null
           quantity?: number
           recommended_max?: number | null
@@ -350,6 +352,7 @@ export type Database = {
           expense_category?: string | null
           id?: string
           name?: string
+          pack_size?: number | null
           preset_id?: string | null
           quantity?: number
           recommended_max?: number | null
