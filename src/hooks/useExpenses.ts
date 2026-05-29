@@ -43,22 +43,35 @@ function rowToExpense(r: any): Expense {
   };
 }
 
+// Module-level cache so switching tabs doesn't flash an empty list while the
+// query refetches. Keyed by tenant id; survives component remounts.
+const expensesCache = new Map<string, Expense[]>();
 
 export function useExpenses() {
   const { user } = useAuth();
   const { tenant } = useTenant();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [expenses, setExpenses] = useState<Expense[]>(
+    () => (tenant?.id ? expensesCache.get(tenant.id) ?? [] : [])
+  );
+  const [loading, setLoading] = useState(
+    () => !(tenant?.id && expensesCache.has(tenant.id))
+  );
 
   const fetchAll = useCallback(async () => {
     if (!tenant?.id) { setExpenses([]); setLoading(false); return; }
-    setLoading(true);
+    // Only show a spinner the first time per tenant; subsequent refetches
+    // keep cached rows on screen to avoid a flash of the empty state.
+    if (!expensesCache.has(tenant.id)) setLoading(true);
     const { data, error } = await supabase
       .from("expenses" as any)
       .select("*")
       .eq("tenant_id", tenant.id)
       .order("date", { ascending: false });
-    if (!error && data) setExpenses((data as any[]).map(rowToExpense));
+    if (!error && data) {
+      const list = (data as any[]).map(rowToExpense);
+      expensesCache.set(tenant.id, list);
+      setExpenses(list);
+    }
     setLoading(false);
   }, [tenant?.id]);
 
@@ -127,7 +140,11 @@ export function useExpenses() {
       .single();
     if (error || !row) return null;
     const e = rowToExpense(row);
-    setExpenses((prev) => [e, ...prev]);
+    setExpenses((prev) => {
+      const next = [e, ...prev];
+      if (tenant?.id) expensesCache.set(tenant.id, next);
+      return next;
+    });
     return e;
   }, [tenant?.id, user?.id]);
 
@@ -141,14 +158,22 @@ export function useExpenses() {
     if (patch.notes !== undefined) update.notes = patch.notes ?? null;
     if (patch.date !== undefined) update.date = patch.date;
     const { error } = await supabase.from("expenses" as any).update(update).eq("id", id);
-    if (!error) setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  }, []);
+    if (!error) setExpenses((prev) => {
+      const next = prev.map((e) => (e.id === id ? { ...e, ...patch } : e));
+      if (tenant?.id) expensesCache.set(tenant.id, next);
+      return next;
+    });
+  }, [tenant?.id]);
 
 
   const deleteExpense = useCallback(async (id: string) => {
     const { error } = await supabase.from("expenses" as any).delete().eq("id", id);
-    if (!error) setExpenses((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+    if (!error) setExpenses((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      if (tenant?.id) expensesCache.set(tenant.id, next);
+      return next;
+    });
+  }, [tenant?.id]);
 
   return { expenses, loading, addExpense, updateExpense, deleteExpense, refresh: fetchAll };
 }
