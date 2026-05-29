@@ -86,6 +86,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [recMin, setRecMin] = useState<string>("");
   const [recMax, setRecMax] = useState<string>("");
   const [unitCost, setUnitCost] = useState<string>("0");
+  const [packSize, setPackSize] = useState<string>("1");
   const [supplierId, setSupplierId] = useState<string>("__none");
   const [expenseCategory, setExpenseCategory] = useState<string>("__default");
 
@@ -100,6 +101,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setRecMin("");
     setRecMax("");
     setUnitCost("0");
+    setPackSize("1");
     setSupplierId("__none");
     setExpenseCategory("__default");
     setEditing(null);
@@ -121,6 +123,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setRecMin(item.recommendedMin != null ? String(item.recommendedMin) : "");
     setRecMax(item.recommendedMax != null ? String(item.recommendedMax) : "");
     setUnitCost(String(item.unitCost ?? 0));
+    setPackSize(item.packSize != null ? String(item.packSize) : "1");
     setSupplierId(item.supplierId ?? "__none");
     setExpenseCategory(item.expenseCategory ?? "__default");
     onAddOpenChange(true);
@@ -145,9 +148,11 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     const q = Number(quantity);
     const t = Number(threshold);
     const uc = Number(unitCost);
+    const ps = packSize === "" ? 1 : Number(packSize);
     if (Number.isNaN(q) || q < 0) return toast.error("Quantity must be positive");
     if (Number.isNaN(t) || t < 0) return toast.error("Threshold must be positive");
     if (Number.isNaN(uc) || uc < 0) return toast.error("Unit cost must be ≥ 0");
+    if (Number.isNaN(ps) || ps <= 0) return toast.error("Each must be greater than 0");
     const minN = recMin === "" ? undefined : Number(recMin);
     const maxN = recMax === "" ? undefined : Number(recMax);
     if (minN !== undefined && (Number.isNaN(minN) || minN < 0)) return toast.error("Min must be positive");
@@ -165,6 +170,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       recommendedMin: minN,
       recommendedMax: maxN,
       unitCost: uc,
+      packSize: ps,
       supplierId: supplierId === "__none" ? undefined : supplierId,
       expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
     };
