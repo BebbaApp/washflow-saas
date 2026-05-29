@@ -135,10 +135,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setCategory(p.category);
     setUnit(p.unit);
     setThreshold(String(p.recommendedMin));
-    setRecMin(String(p.recommendedMin));
-    setRecMax(String(p.recommendedMax));
-    if (p.description) setSubtype(p.description);
   };
+
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -398,15 +396,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                           {state.label}
                         </span>
                       </div>
-                      {item.subtype && (
-                        <p className="text-xs text-muted-foreground/90 mt-0.5 italic truncate">{item.subtype}</p>
-                      )}
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {item.category} · {item.quantity}{item.unit ? ` ${item.unit}` : ""} · alert at {item.threshold}{item.unit ? ` ${item.unit}` : ""}
-                        {item.recommendedMin != null && item.recommendedMax != null && (
-                          <> · recommended {item.recommendedMin}–{item.recommendedMax}{item.unit ? ` ${item.unit}` : ""}</>
+                        {item.unitCost > 0 && (
+                          <> · ${item.unitCost.toFixed(2)}/{item.unit || "unit"} · total ${(item.unitCost * item.quantity).toFixed(2)}</>
                         )}
                       </p>
+
                     </div>
                     <div className="flex items-center gap-1">
                       {canAdjust && (
@@ -538,8 +534,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">
-                Choosing a preset auto-fills category, measurement unit, and recommended stock range.
+                Choosing a preset auto-fills category, measurement unit, and low-stock threshold.
               </p>
+
             </div>
 
             <div className="space-y-2">
@@ -547,10 +544,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Microfiber towels" maxLength={100} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm text-secondary-foreground">Subtype / Description</Label>
-              <Input value={subtype} onChange={(e) => setSubtype(e.target.value)} placeholder="e.g. High-foam, varied colors" maxLength={120} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-            </div>
+
+
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -585,7 +580,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-sm text-secondary-foreground">Quantity{unit ? ` (${unit})` : ""}</Label>
                 <Input type="number" min="0" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-secondary border-border text-foreground" />
@@ -594,32 +589,14 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 <Label className="text-sm text-secondary-foreground">Low at</Label>
                 <Input type="number" min="0" step="0.1" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="bg-secondary border-border text-foreground" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Recommended</Label>
-                <div className="flex items-center gap-1">
-                  <Input type="number" min="0" step="0.1" value={recMin} onChange={(e) => setRecMin(e.target.value)} placeholder="min" className="bg-secondary border-border text-foreground" />
-                  <span className="text-muted-foreground text-xs">–</span>
-                  <Input type="number" min="0" step="0.1" value={recMax} onChange={(e) => setRecMax(e.target.value)} placeholder="max" className="bg-secondary border-border text-foreground" />
-                </div>
-              </div>
             </div>
 
-            {recMin !== "" && recMax !== "" && Number(quantity) > 0 && (
-              <p className="text-[11px] text-muted-foreground">
-                {Number(quantity) < Number(recMin) ? (
-                  <span className="text-warning">Stock is below recommended minimum ({recMin}{unit ? ` ${unit}` : ""}).</span>
-                ) : Number(quantity) > Number(recMax) ? (
-                  <span className="text-info">Stock is above the typical maximum ({recMax}{unit ? ` ${unit}` : ""}).</span>
-                ) : (
-                  <span className="text-success">Stock is within the recommended range.</span>
-                )}
-              </p>
-            )}
+
 
             {/* Cost / supplier / expense category */}
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Unit cost</Label>
+                <Label className="text-sm text-secondary-foreground">Unit cost (per item)</Label>
                 <Input
                   type="number"
                   min="0"
@@ -630,9 +607,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                   className="bg-secondary border-border text-foreground"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Used to auto-log an expense when stock is captured or restocked.
+                  Expense = unit cost × quantity captured (not multiplied by the unit of measurement).
+                  {Number(unitCost) > 0 && Number(quantity) > 0 && (
+                    <> Total: <span className="text-foreground font-mono">${(Number(unitCost) * Number(quantity)).toFixed(2)}</span></>
+                  )}
                 </p>
               </div>
+
               <div className="space-y-2">
                 <Label className="text-sm text-secondary-foreground">Supplier</Label>
                 <Select value={supplierId} onValueChange={setSupplierId}>
