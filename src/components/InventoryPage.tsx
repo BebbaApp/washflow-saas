@@ -41,6 +41,7 @@ import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCurrency } from "@/hooks/useCurrency";
 import { BookOpen } from "lucide-react";
 
 interface Props {
@@ -58,6 +59,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { presets: INVENTORY_PRESETS } = useProductTypes();
   const { services } = useServices();
   const { can } = usePermissions();
+  const { formatPrice } = useCurrency();
   const canEdit = can("inventory.edit");
   const canDelete = can("inventory.delete");
   const canAdjust = can("inventory.adjust");
@@ -625,7 +627,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 <p className="text-[11px] text-muted-foreground">
                   Expense = unit cost × quantity captured (not multiplied by the unit of measurement).
                   {Number(unitCost) > 0 && Number(quantity) > 0 && (
-                    <> Total: <span className="text-foreground font-mono">${(Number(unitCost) * Number(quantity)).toFixed(2)}</span></>
+                    <> Total: <span className="text-foreground font-mono">{formatPrice(Number(unitCost) * Number(quantity))}</span></>
                   )}
                 </p>
               </div>
@@ -669,7 +671,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
 
             {Number(unitCost) > 0 && Number(quantity) > 0 && !editing && (
               <p className="text-[11px] text-info">
-                Capturing this item will auto-log an expense of ${(Number(unitCost) * Number(quantity)).toFixed(2)}.
+                Capturing this item will auto-log an expense of {formatPrice(Number(unitCost) * Number(quantity))}.
               </p>
             )}
 
