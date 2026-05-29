@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-resend-verification";
+const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-send-verification-email";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
@@ -280,21 +280,16 @@ Deno.serve(async (req) => {
       if (!email) return reply({ error: "User has no email" }, 400);
 
       const redirectTo = body?.redirect_to ?? req.headers.get("origin") ?? undefined;
-      // Generate a signup confirmation link — this triggers Supabase to send the
-      // confirmation email via the configured email provider/template.
-      const { error: linkErr } = await admin.auth.admin.generateLink({
+      const publicAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { error: resendErr } = await publicAuthClient.auth.resend({
         type: "signup",
         email,
-        options: redirectTo ? { redirectTo } : undefined,
+        options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
       });
-      if (linkErr) {
-        // Fallback: try invite (sends email; only works if not already invited)
-        const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-          redirectTo,
-        });
-        if (inviteErr) return reply({ error: linkErr.message }, 500);
-      }
-      return reply({ success: true });
+      if (resendErr) return reply({ error: resendErr.message }, 500);
+      return reply({ success: true, email_sent: true });
     }
 
     return reply({ error: "Unknown action" }, 400);
