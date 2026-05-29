@@ -543,10 +543,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Microfiber towels" maxLength={100} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm text-secondary-foreground">Subtype / Description</Label>
-              <Input value={subtype} onChange={(e) => setSubtype(e.target.value)} placeholder="e.g. High-foam, varied colors" maxLength={120} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-            </div>
+
+
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
