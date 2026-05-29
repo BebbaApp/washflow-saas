@@ -132,7 +132,7 @@ function useAuthInternal(): AuthContextValue {
     (async () => {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
-      if (code && window.location.pathname !== "/reset-password") {
+      if (code && window.location.pathname !== "/reset-password" && window.location.pathname !== "/auth/callback") {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error) {
           url.searchParams.delete("code");
@@ -175,7 +175,7 @@ function useAuthInternal(): AuthContextValue {
       email, password, phone: phone || undefined,
       options: {
         data: { name, ...(phone ? { phone } : {}), ...(companyName ? { company_name: companyName } : {}) },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     if (error) return error.message;
