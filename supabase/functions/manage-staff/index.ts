@@ -268,7 +268,35 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
-    return reply({ error: "Unknown action" }, 400);
+    if (action === "resend_verification") {
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      const { data: target, error: getErr } = await admin.auth.admin.getUserById(user_id);
+      if (getErr || !target?.user) return reply({ error: getErr?.message ?? "User not found" }, 404);
+      if (target.user.email_confirmed_at) {
+        return reply({ error: "User is already verified" }, 400);
+      }
+      const email = target.user.email;
+      if (!email) return reply({ error: "User has no email" }, 400);
+
+      const redirectTo = body?.redirect_to ?? req.headers.get("origin") ?? undefined;
+      // Generate a signup confirmation link — this triggers Supabase to send the
+      // confirmation email via the configured email provider/template.
+      const { error: linkErr } = await admin.auth.admin.generateLink({
+        type: "signup",
+        email,
+        options: redirectTo ? { redirectTo } : undefined,
+      });
+      if (linkErr) {
+        // Fallback: try invite (sends email; only works if not already invited)
+        const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
+          redirectTo,
+        });
+        if (inviteErr) return reply({ error: linkErr.message }, 500);
+      }
+      return reply({ success: true });
+    }
+
   } catch (err) {
     return reply({ error: (err as Error).message }, 500);
   }
