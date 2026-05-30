@@ -145,6 +145,10 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
                     <Switch checked={editData.vatExempt || false} onCheckedChange={(vatExempt) => setEditData((p) => ({ ...p, vatExempt }))} />
                   </div>
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Auto-deduct inventory on wash start</Label>
+                  <ServiceRecipeEditor value={editRecipe} onChange={setEditRecipe} />
+                </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={saveEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"><Save className="w-3 h-3" />Save</button>
                   <button onClick={() => setEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium hover:opacity-90 transition-opacity"><X className="w-3 h-3" />Cancel</button>
