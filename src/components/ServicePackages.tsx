@@ -250,7 +250,7 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Auto-deduct inventory on wash start</Label>
+            <Label className="text-xs text-muted-foreground">Inventory deduction (Usage Guide + extras)</Label>
             <ServiceRecipeEditor value={newRecipe} onChange={setNewRecipe} />
           </div>
           <button
