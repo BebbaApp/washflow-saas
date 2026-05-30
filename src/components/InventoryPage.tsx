@@ -406,15 +406,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {
-                          const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
                           const unitLabel = item.unit ? ` ${item.unit}` : "";
-                          const fmtQty = (n: number) =>
-                            ps > 1 && item.unit ? `${n} × ${ps}${item.unit}` : `${n}${unitLabel}`;
+                          const fmtQty = (n: number) => `${n}${unitLabel}`;
                           return (
                             <>
                               {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
                               {item.unitCost > 0 && (
-                                <> · {formatPrice(item.unitCost)}/each · total {formatPrice(item.unitCost * item.quantity)}</>
+                                <> · {formatPrice(item.unitCost)}/{item.unit || "unit"} · total {formatPrice(item.unitCost * item.quantity)}</>
                               )}
                             </>
                           );
@@ -603,20 +601,15 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               <div className="space-y-2">
                 <Label className="text-sm text-secondary-foreground">Each{unit ? ` (${unit})` : ""}</Label>
                 <Input type="number" min="0" step="0.1" value={packSize} onChange={(e) => setPackSize(e.target.value)} placeholder="1" className="bg-secondary border-border text-foreground" />
-                <p className="text-[11px] text-muted-foreground">Size per unit (e.g. 5 = a 5{unit || "L"} bottle).</p>
+                <p className="text-[11px] text-muted-foreground">Container size (informational, e.g. 5{unit || "L"} bottle).</p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Quantity (units)</Label>
-                <Input type="number" min="0" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-secondary border-border text-foreground" />
-                {Number(packSize) > 0 && Number(quantity) > 0 && unit && (
-                  <p className="text-[11px] text-muted-foreground">
-                    = {(Number(packSize) * Number(quantity)).toString()} {unit} total
-                  </p>
-                )}
+                <Label className="text-sm text-secondary-foreground">Quantity{unit ? ` (${unit})` : ""}</Label>
+                <Input type="number" min="0" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-secondary border-border text-foreground" />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Low at (units)</Label>
-                <Input type="number" min="0" step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="bg-secondary border-border text-foreground" />
+                <Label className="text-sm text-secondary-foreground">Low at{unit ? ` (${unit})` : ""}</Label>
+                <Input type="number" min="0" step="0.01" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="bg-secondary border-border text-foreground" />
               </div>
             </div>
 
@@ -1336,9 +1329,7 @@ function AdjustStockDialog({
   const storageUnit = item?.unit ?? "";
   const altUnits = useMemo(() => (storageUnit ? compatibleUnits(storageUnit) : []), [storageUnit]);
   const hasUnitChoice = altUnits.length > 1;
-  const ps = item?.packSize && item.packSize > 0 ? item.packSize : 1;
-  const fmtQty = (n: number) =>
-    ps > 1 && storageUnit ? `${n} × ${ps}${storageUnit}` : `${n}${storageUnit ? ` ${storageUnit}` : ""}`;
+  const fmtQty = (n: number) => `${n}${storageUnit ? ` ${storageUnit}` : ""}`;
 
   const parsedEntry = Number(qty);
   const entryValid = Number.isFinite(parsedEntry) && parsedEntry > 0;
