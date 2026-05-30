@@ -163,6 +163,17 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
           </DialogDescription>
         </DialogHeader>
 
+        {order.vehicle && !waterItemId && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              No <strong>water</strong> inventory item is linked. Water won't be deducted for this wash.
+              Link one in <em>Inventory → Usage guide → Link water item</em> so per-vehicle litres (Sedan 54 L → 8T 260 L) auto-deduct.
+            </span>
+          </div>
+        )}
+
+
         {merged.length > 0 && (() => {
           const worst = merged.reduce((acc, r) => (r.after < acc.after ? r : acc), merged[0]);
           return (
