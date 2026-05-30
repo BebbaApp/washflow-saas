@@ -1446,7 +1446,7 @@ function AdjustStockDialog({
             ) : (
               <p className="text-xs text-muted-foreground">
                 New balance: <span className={`font-mono ${mode === "add" ? "text-success" : "text-warning"}`}>
-                  {newBalance}{storageUnit ? ` ${storageUnit}` : ""}
+                  {fmtQty(newBalance)}
                 </span>
               </p>
             )}
