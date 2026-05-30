@@ -133,22 +133,21 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
   const handleConfirm = async (override: boolean) => {
     if (!noteValid) return;
     const opts = { override, overrideNote: override ? overrideNote.trim() : undefined };
-    const a = await confirmConsumption(order, opts);
-    if (!a.ok) return;
-    const validExtras = extras
-      .map((e) => ({ itemId: e.itemId, qty: parseFloat(e.qty), note: e.note.trim() }))
-      .filter((e) => e.itemId && e.qty > 0);
-    if (order.vehicle || validExtras.length > 0) {
-      await consumeForWash(
-        {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          vehicleInput: order.vehicle ?? "",
-          extras: validExtras,
-        },
-        opts,
-      );
-    }
+    // Use the unified, pre-merged rows from the preview so each item is
+    // deducted exactly ONCE even if it appears in both the service recipe
+    // and the vehicle-type mapping.
+    const rows = merged.map((r) => ({ itemId: r.itemId, qty: r.needed, source: r.source }));
+    const res = await commitWashConsumption(
+      {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        service: order.service,
+        vehicleInput: order.vehicle,
+        rows,
+      },
+      opts,
+    );
+    if (!res.ok) return;
     onConfirmed();
   };
 
