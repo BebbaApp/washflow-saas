@@ -1455,7 +1455,7 @@ function AdjustStockDialog({
               <div className="rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs text-foreground">
                 Confirm {mode === "add" ? "adding" : "removing"}{" "}
                 <span className="font-mono font-semibold">
-                  {mode === "add" ? "+" : "−"}{storedQty}{storageUnit ? ` ${storageUnit}` : ""}
+                  {mode === "add" ? "+" : "−"}{fmtQty(storedQty!)}
                 </span>{" "}
                 {mode === "add" ? "to" : "from"} <span className="font-semibold">{item.name}</span>?
               </div>
