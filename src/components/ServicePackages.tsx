@@ -61,9 +61,11 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
       return;
     }
     const name = editData.name;
+    const recipeSnapshot = editRecipe;
     setEditingId(null);
     try {
       await updateService(editingId, editData);
+      setRecipe(name, recipeSnapshot);
       toast.success(`Updated "${name}"`);
     } catch {
       // rollback handled in hook
