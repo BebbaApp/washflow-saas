@@ -69,12 +69,16 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
     });
     setBusy(false);
     if (res.ok) {
-      toast.success(`Reordered ${q}${item.unit ? ` ${item.unit}` : ""} of ${item.name}` + (c > 0 ? ` · expense $${total}` : ""));
+      toast.success(`Reordered ${q}${item.unit ? ` ${item.unit}` : ""} of ${item.name}` + (c > 0 ? ` · expense ${formatPrice(total)}` : ""));
       onOpenChange(false);
     } else {
       toast.error(res.reason ?? "Reorder failed");
     }
   };
+
+  const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
+  const unitLabel = item.unit ? ` ${item.unit}` : "";
+  const fmtQty = (n: number) => (ps > 1 && item.unit ? `${n} × ${ps}${item.unit}` : `${n}${unitLabel}`);
 
   return (
     <Dialog open={!!item} onOpenChange={onOpenChange}>
