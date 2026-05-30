@@ -131,11 +131,11 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
           <div className="rounded-lg border border-border bg-secondary/40 p-3 text-xs space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">New balance</span>
-              <span className="font-mono text-success">{item.quantity + (Number.isFinite(q) ? q : 0)}{item.unit ? ` ${item.unit}` : ""}</span>
+              <span className="font-mono text-success">{fmtQty(item.quantity + (Number.isFinite(q) ? q : 0))}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Expense to log</span>
-              <span className="font-mono text-foreground">{total > 0 ? `$${total}` : "—"}</span>
+              <span className="font-mono text-foreground">{total > 0 ? formatPrice(total) : "—"}</span>
             </div>
           </div>
 
