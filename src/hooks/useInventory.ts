@@ -309,14 +309,11 @@ export function useInventory() {
     if (patch.packSize !== undefined) update.pack_size = patch.packSize ?? null;
     await supabase.from("inventory_items" as any).update(update).eq("id", id);
 
-    // Log manual qty edit as adjust (no auto-expense; restocks go through adjustStock).
+    // Log a manual adjust transaction for qty edits — but NEVER create an expense here.
+    // Restocks must go through Reorder or Add Stock (adjustStock), which own expense creation.
     if (patch.quantity !== undefined && patch.quantity !== prev.quantity) {
       const delta = patch.quantity - prev.quantity;
       const newItem = { ...prev, ...patch } as InventoryItem;
-      let expenseId: string | null = null;
-      if (delta > 0 && newItem.unitCost > 0) {
-        expenseId = await createRestockExpense(newItem, delta, "Manual edit");
-      }
       await supabase.from("inventory_transactions" as any).insert({
         tenant_id: tenantId,
         item_id: id,
@@ -325,11 +322,11 @@ export function useInventory() {
         balance: patch.quantity,
         type: "adjust",
         source: "Manual edit",
-        notes: null,
+        notes: "Edited via item form — no expense logged",
         flow: "manual",
-        unit_cost: delta > 0 ? newItem.unitCost : null,
-        total_cost: delta > 0 ? +(newItem.unitCost * delta).toFixed(2) : null,
-        expense_id: expenseId,
+        unit_cost: null,
+        total_cost: null,
+        expense_id: null,
       });
     }
   }, [items, tenantId, createRestockExpense]);
