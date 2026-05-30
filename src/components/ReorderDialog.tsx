@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useInventory, type InventoryItem } from "@/hooks/useInventory";
 import { useSuppliers } from "@/hooks/useSuppliers";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Props {
   item: InventoryItem | null;
