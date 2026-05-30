@@ -191,10 +191,7 @@ export function useInventory() {
     if (total <= 0) return null;
     const vendor = await lookupSupplierName(item.supplierId);
     const category = resolveExpenseCategory(item);
-    const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
-    const qtyLabel = ps > 1 && item.unit
-      ? `${qty} × ${ps}${item.unit}`
-      : `${qty}${item.unit ? ` ${item.unit}` : ""}`;
+    const qtyLabel = `${qty}${item.unit ? ` ${item.unit}` : ""}`;
     const description = `Restock: ${item.name} (${qtyLabel})`;
     const { data, error } = await supabase
       .from("expenses" as any)

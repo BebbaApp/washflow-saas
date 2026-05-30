@@ -76,9 +76,8 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
     }
   };
 
-  const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
   const unitLabel = item.unit ? ` ${item.unit}` : "";
-  const fmtQty = (n: number) => (ps > 1 && item.unit ? `${n} × ${ps}${item.unit}` : `${n}${unitLabel}`);
+  const fmtQty = (n: number) => `${n}${unitLabel}`;
 
   return (
     <Dialog open={!!item} onOpenChange={onOpenChange}>
@@ -96,7 +95,7 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm">Quantity{ps > 1 && item.unit ? ` (each = ${ps}${item.unit})` : item.unit ? ` (${item.unit})` : ""}</Label>
+              <Label className="text-sm">Quantity{item.unit ? ` (${item.unit})` : ""}</Label>
               <Input type="number" min="0" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} className="bg-secondary border-border" autoFocus />
             </div>
             <div className="space-y-2">
