@@ -47,7 +47,7 @@ interface Extra {
 }
 
 export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
-  const { items, previewConsumption, confirmConsumption, previewVehicleConsumption, consumeForWash } = useInventory();
+  const { items, previewConsumption, previewVehicleConsumption, commitWashConsumption, waterItemId } = useInventory();
   const [overrideNote, setOverrideNote] = useState("");
   const [extras, setExtras] = useState<Extra[]>([]);
 
