@@ -406,15 +406,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {
-                          const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
                           const unitLabel = item.unit ? ` ${item.unit}` : "";
-                          const fmtQty = (n: number) =>
-                            ps > 1 && item.unit ? `${n} × ${ps}${item.unit}` : `${n}${unitLabel}`;
+                          const fmtQty = (n: number) => `${n}${unitLabel}`;
                           return (
                             <>
                               {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
                               {item.unitCost > 0 && (
-                                <> · {formatPrice(item.unitCost)}/each · total {formatPrice(item.unitCost * item.quantity)}</>
+                                <> · {formatPrice(item.unitCost)}/{item.unit || "unit"} · total {formatPrice(item.unitCost * item.quantity)}</>
                               )}
                             </>
                           );
