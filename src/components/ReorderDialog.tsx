@@ -16,6 +16,7 @@ interface Props {
 export function ReorderDialog({ item, onOpenChange }: Props) {
   const { reorderItem, transactions } = useInventory();
   const { suppliers } = useSuppliers();
+  const { formatPrice } = useCurrency();
 
   // Prefill: last restock tx of this item, falling back to item itself.
   const lastRestock = item
