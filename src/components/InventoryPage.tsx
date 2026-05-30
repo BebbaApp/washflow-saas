@@ -1387,7 +1387,7 @@ function AdjustStockDialog({
         {item && (
           <form onSubmit={handlePrimary} className="space-y-4 mt-2">
             <p className="text-xs text-muted-foreground">
-              Current: <span className="font-mono text-foreground">{item.quantity}{storageUnit ? ` ${storageUnit}` : ""}</span>
+              Current: <span className="font-mono text-foreground">{fmtQty(item.quantity)}</span>
             </p>
             <div className="space-y-2">
               <Label className="text-sm text-secondary-foreground">
