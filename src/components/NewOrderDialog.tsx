@@ -109,9 +109,24 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
               <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Camry" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="plate" className="text-sm text-secondary-foreground">License Plate</Label>
-            <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC 1234" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="plate" className="text-sm text-secondary-foreground">License Plate</Label>
+              <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC 1234" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Vehicle Type</Label>
+              <Select value={vehicleType} onValueChange={(v) => setVehicleType(v as Vehicle)}>
+                <SelectTrigger className="bg-secondary border-border text-foreground">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {VEHICLES.map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-secondary-foreground">Service Package</Label>
