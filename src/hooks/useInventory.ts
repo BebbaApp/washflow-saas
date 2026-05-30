@@ -608,6 +608,77 @@ export function useInventory() {
     }
   }, [items, recipes, previewVehicleConsumption, applyDeltaAndLog]);
 
+  /**
+   * Unified wash deduction. Takes already-merged rows (one entry per item with
+   * summed qty across service recipe + vehicle map + extras) and writes a single
+   * consume transaction per item. Idempotent per orderId; also marks the legacy
+   * processed sets so completion-time fallback won't re-fire.
+   */
+  const commitWashConsumption = useCallback(async (
+    args: {
+      orderId: string;
+      orderNumber: string;
+      service: string;
+      vehicleInput?: string;
+      rows: { itemId: string; qty: number; source: "service" | "vehicle" | "extra"; note?: string }[];
+    },
+    opts: { override?: boolean; overrideNote?: string } = {}
+  ): Promise<{ ok: boolean; negativeItems: string[] }> => {
+    const byItem = new Map<string, { qty: number; sources: Set<string>; notes: string[] }>();
+    for (const r of args.rows) {
+      if (!r.itemId || r.qty <= 0) continue;
+      const cur = byItem.get(r.itemId) ?? { qty: 0, sources: new Set<string>(), notes: [] };
+      cur.qty = +(cur.qty + r.qty).toFixed(3);
+      cur.sources.add(r.source);
+      if (r.note) cur.notes.push(r.note);
+      byItem.set(r.itemId, cur);
+    }
+
+    const alreadyDone =
+      processedRef.current.has(args.orderId) ||
+      vehicleProcessedRef.current.has(`wash:${args.orderId}`);
+    if (alreadyDone) {
+      processedRef.current.add(args.orderId);
+      vehicleProcessedRef.current.add(`wash:${args.orderId}`);
+      lsSave(PROCESSED_KEY, Array.from(processedRef.current));
+      lsSave(VEHICLE_PROCESSED_KEY, Array.from(vehicleProcessedRef.current));
+      return { ok: true, negativeItems: [] };
+    }
+
+    const negativeItems: string[] = [];
+    for (const [itemId, agg] of byItem) {
+      const item = items.find((i) => i.id === itemId);
+      if (item && item.quantity - agg.qty < 0) negativeItems.push(item.name);
+    }
+    if (negativeItems.length > 0 && !opts.override) return { ok: false, negativeItems };
+
+    // Mark BEFORE writes to block concurrent re-fires.
+    processedRef.current.add(args.orderId);
+    vehicleProcessedRef.current.add(`wash:${args.orderId}`);
+    lsSave(PROCESSED_KEY, Array.from(processedRef.current));
+    lsSave(VEHICLE_PROCESSED_KEY, Array.from(vehicleProcessedRef.current));
+
+    const vehicleLabel = args.vehicleInput ? matchVehicle(args.vehicleInput) ?? args.vehicleInput : null;
+    for (const [itemId, agg] of byItem) {
+      const item = items.find((i) => i.id === itemId);
+      if (!item) continue;
+      const parts = [args.service];
+      if (vehicleLabel && agg.sources.has("vehicle")) parts.push(`${vehicleLabel} usage`);
+      if (agg.notes.length > 0) parts.push(agg.notes.join("; "));
+      let note = parts.filter(Boolean).join(" · ");
+      if (opts.override) {
+        note += ` · Override${opts.overrideNote ? `: ${opts.overrideNote}` : " (negative stock)"}`;
+      }
+      await applyDeltaAndLog(item, -agg.qty, {
+        type: "consume",
+        source: `Order ${args.orderNumber}`,
+        notes: note,
+        flow: opts.override ? "override" : "auto",
+      });
+    }
+    return { ok: true, negativeItems: [] };
+  }, [items, applyDeltaAndLog]);
+
   return {
     items,
     transactions,
@@ -630,6 +701,7 @@ export function useInventory() {
     setWaterItem,
     previewVehicleConsumption,
     consumeForWash,
+    commitWashConsumption,
     resolveExpenseCategory,
   };
 }
