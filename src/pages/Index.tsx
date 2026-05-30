@@ -88,11 +88,12 @@ const Index = () => {
     if (tab) setActiveTab(tab);
   }, [searchParams]);
 
-  // Intercept "completed" transitions to show the inventory preview/override.
+  // Intercept the wash START transition to deduct inventory up front
+  // (service recipe + vehicle-type usage). Completion is then a plain status change.
   const handleStatusUpdate = (id: string, status: import("@/hooks/useOrders").WashStatus) => {
-    if (status === "completed") {
+    if (status === "in-progress") {
       const o = orders.find((x) => x.id === id);
-      if (o) {
+      if (o && o.status === "waiting") {
         setPendingComplete({ id: o.id, service: o.service, orderNumber: o.orderNumber, customer: o.customer, vehicle: o.vehicle });
         return;
       }
