@@ -1336,6 +1336,9 @@ function AdjustStockDialog({
   const storageUnit = item?.unit ?? "";
   const altUnits = useMemo(() => (storageUnit ? compatibleUnits(storageUnit) : []), [storageUnit]);
   const hasUnitChoice = altUnits.length > 1;
+  const ps = item?.packSize && item.packSize > 0 ? item.packSize : 1;
+  const fmtQty = (n: number) =>
+    ps > 1 && storageUnit ? `${n} × ${ps}${storageUnit}` : `${n}${storageUnit ? ` ${storageUnit}` : ""}`;
 
   const parsedEntry = Number(qty);
   const entryValid = Number.isFinite(parsedEntry) && parsedEntry > 0;
@@ -1384,7 +1387,7 @@ function AdjustStockDialog({
         {item && (
           <form onSubmit={handlePrimary} className="space-y-4 mt-2">
             <p className="text-xs text-muted-foreground">
-              Current: <span className="font-mono text-foreground">{item.quantity}{storageUnit ? ` ${storageUnit}` : ""}</span>
+              Current: <span className="font-mono text-foreground">{fmtQty(item.quantity)}</span>
             </p>
             <div className="space-y-2">
               <Label className="text-sm text-secondary-foreground">
@@ -1443,7 +1446,7 @@ function AdjustStockDialog({
             ) : (
               <p className="text-xs text-muted-foreground">
                 New balance: <span className={`font-mono ${mode === "add" ? "text-success" : "text-warning"}`}>
-                  {newBalance}{storageUnit ? ` ${storageUnit}` : ""}
+                  {fmtQty(newBalance)}
                 </span>
               </p>
             )}
@@ -1452,7 +1455,7 @@ function AdjustStockDialog({
               <div className="rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs text-foreground">
                 Confirm {mode === "add" ? "adding" : "removing"}{" "}
                 <span className="font-mono font-semibold">
-                  {mode === "add" ? "+" : "−"}{storedQty}{storageUnit ? ` ${storageUnit}` : ""}
+                  {mode === "add" ? "+" : "−"}{fmtQty(storedQty!)}
                 </span>{" "}
                 {mode === "add" ? "to" : "from"} <span className="font-semibold">{item.name}</span>?
               </div>

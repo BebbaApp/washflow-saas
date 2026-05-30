@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useInventory, type InventoryItem } from "@/hooks/useInventory";
 import { useSuppliers } from "@/hooks/useSuppliers";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Props {
   item: InventoryItem | null;
@@ -15,6 +16,7 @@ interface Props {
 export function ReorderDialog({ item, onOpenChange }: Props) {
   const { reorderItem, transactions } = useInventory();
   const { suppliers } = useSuppliers();
+  const { formatPrice } = useCurrency();
 
   // Prefill: last restock tx of this item, falling back to item itself.
   const lastRestock = item
@@ -67,12 +69,16 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
     });
     setBusy(false);
     if (res.ok) {
-      toast.success(`Reordered ${q}${item.unit ? ` ${item.unit}` : ""} of ${item.name}` + (c > 0 ? ` · expense $${total}` : ""));
+      toast.success(`Reordered ${q}${item.unit ? ` ${item.unit}` : ""} of ${item.name}` + (c > 0 ? ` · expense ${formatPrice(total)}` : ""));
       onOpenChange(false);
     } else {
       toast.error(res.reason ?? "Reorder failed");
     }
   };
+
+  const ps = item.packSize && item.packSize > 0 ? item.packSize : 1;
+  const unitLabel = item.unit ? ` ${item.unit}` : "";
+  const fmtQty = (n: number) => (ps > 1 && item.unit ? `${n} × ${ps}${item.unit}` : `${n}${unitLabel}`);
 
   return (
     <Dialog open={!!item} onOpenChange={onOpenChange}>
@@ -82,15 +88,15 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 mt-2">
           <p className="text-xs text-muted-foreground">
-            Current stock: <span className="font-mono text-foreground">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
+            Current stock: <span className="font-mono text-foreground">{fmtQty(item.quantity)}</span>
             {lastRestock && (
-              <> · last restock: <span className="font-mono">{lastRestock.delta}{item.unit ? ` ${item.unit}` : ""}</span> @ <span className="font-mono">${lastRestock.unitCost ?? "?"}</span></>
+              <> · last restock: <span className="font-mono">{fmtQty(lastRestock.delta)}</span> @ <span className="font-mono">{lastRestock.unitCost != null ? formatPrice(lastRestock.unitCost) : "?"}</span></>
             )}
           </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm">Quantity{item.unit ? ` (${item.unit})` : ""}</Label>
+              <Label className="text-sm">Quantity{ps > 1 && item.unit ? ` (each = ${ps}${item.unit})` : item.unit ? ` (${item.unit})` : ""}</Label>
               <Input type="number" min="0" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} className="bg-secondary border-border" autoFocus />
             </div>
             <div className="space-y-2">
@@ -125,11 +131,11 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
           <div className="rounded-lg border border-border bg-secondary/40 p-3 text-xs space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">New balance</span>
-              <span className="font-mono text-success">{item.quantity + (Number.isFinite(q) ? q : 0)}{item.unit ? ` ${item.unit}` : ""}</span>
+              <span className="font-mono text-success">{fmtQty(item.quantity + (Number.isFinite(q) ? q : 0))}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Expense to log</span>
-              <span className="font-mono text-foreground">{total > 0 ? `$${total}` : "—"}</span>
+              <span className="font-mono text-foreground">{total > 0 ? formatPrice(total) : "—"}</span>
             </div>
           </div>
 
