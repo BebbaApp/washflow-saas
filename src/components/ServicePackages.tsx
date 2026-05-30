@@ -3,6 +3,8 @@ import { Clock, Tag, Edit2, Save, X, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useServices, type ServicePackage } from "@/hooks/useServices";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useInventory } from "@/hooks/useInventory";
+import { ServiceRecipeEditor } from "@/components/ServiceRecipeEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -34,14 +36,18 @@ const emptyDraft: Partial<ServicePackage> = {
 export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesProps) => {
   const { services, updateService, addService, removeService } = useServices();
   const { formatPrice, calcVat, calcTotal, currency } = useCurrency();
+  const { recipes, setRecipe } = useInventory();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ServicePackage>>({});
+  const [editRecipe, setEditRecipe] = useState<{ itemId: string; qty: number }[]>([]);
   const [newDraft, setNewDraft] = useState<Partial<ServicePackage>>(emptyDraft);
+  const [newRecipe, setNewRecipe] = useState<{ itemId: string; qty: number }[]>([]);
   const [pendingDelete, setPendingDelete] = useState<ServicePackage | null>(null);
 
   const startEdit = (s: ServicePackage) => {
     setEditingId(s.id);
     setEditData({ name: s.name, price: s.price, duration: s.duration, features: s.features, popular: s.popular, vatExempt: s.vatExempt });
+    setEditRecipe(recipes[s.name] ?? []);
   };
 
   const saveEdit = async () => {
@@ -55,9 +61,11 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
       return;
     }
     const name = editData.name;
+    const recipeSnapshot = editRecipe;
     setEditingId(null);
     try {
       await updateService(editingId, editData);
+      setRecipe(name, recipeSnapshot);
       toast.success(`Updated "${name}"`);
     } catch {
       // rollback handled in hook
@@ -70,7 +78,9 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
       return;
     }
     const draft = newDraft;
+    const recipeSnapshot = newRecipe;
     setNewDraft(emptyDraft);
+    setNewRecipe([]);
     onAddOpenChange?.(false);
     try {
       const created = await addService({
@@ -81,9 +91,11 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
         popular: draft.popular,
         vatExempt: draft.vatExempt,
       });
+      if (recipeSnapshot.length > 0) setRecipe(created.name, recipeSnapshot);
       toast.success(`Added "${created.name}"`);
     } catch {
       setNewDraft(draft);
+      setNewRecipe(recipeSnapshot);
       onAddOpenChange?.(true);
     }
   };
@@ -132,6 +144,10 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
                     <Label className="text-xs text-muted-foreground">VAT Exempt</Label>
                     <Switch checked={editData.vatExempt || false} onCheckedChange={(vatExempt) => setEditData((p) => ({ ...p, vatExempt }))} />
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Auto-deduct inventory on wash start</Label>
+                  <ServiceRecipeEditor value={editRecipe} onChange={setEditRecipe} />
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={saveEdit} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"><Save className="w-3 h-3" />Save</button>
@@ -232,6 +248,10 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
               <Label className="text-xs text-muted-foreground">VAT Exempt</Label>
               <Switch checked={newDraft.vatExempt || false} onCheckedChange={(vatExempt) => setNewDraft((p) => ({ ...p, vatExempt }))} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Auto-deduct inventory on wash start</Label>
+            <ServiceRecipeEditor value={newRecipe} onChange={setNewRecipe} />
           </div>
           <button
             onClick={saveNew}

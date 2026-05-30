@@ -156,11 +156,11 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
     <Dialog open={!!order} onOpenChange={(o) => { if (!o) onCancel(); }}>
       <DialogContent className="bg-card border-border text-foreground sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Complete wash · {order.orderNumber}</DialogTitle>
+          <DialogTitle>Start wash · {order.orderNumber}</DialogTitle>
           <DialogDescription>
             {merged.length === 0
               ? `No inventory mapping configured for "${order.service}"${order.vehicle ? ` or "${order.vehicle}"` : ""}. Add extra products below if needed.`
-              : `Review stock that will be deducted for ${order.customer}'s ${order.service}${order.vehicle ? ` (${order.vehicle})` : ""}.`}
+              : `Stock that will be deducted now to start ${order.customer}'s ${order.service}${order.vehicle ? ` (${order.vehicle})` : ""}.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -320,7 +320,7 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-success text-success-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirm & Complete
+              Start &amp; Deduct
             </button>
           )}
         </div>
