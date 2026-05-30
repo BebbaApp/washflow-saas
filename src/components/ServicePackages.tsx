@@ -78,7 +78,9 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
       return;
     }
     const draft = newDraft;
+    const recipeSnapshot = newRecipe;
     setNewDraft(emptyDraft);
+    setNewRecipe([]);
     onAddOpenChange?.(false);
     try {
       const created = await addService({
@@ -89,9 +91,11 @@ export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesPro
         popular: draft.popular,
         vatExempt: draft.vatExempt,
       });
+      if (recipeSnapshot.length > 0) setRecipe(created.name, recipeSnapshot);
       toast.success(`Added "${created.name}"`);
     } catch {
       setNewDraft(draft);
+      setNewRecipe(recipeSnapshot);
       onAddOpenChange?.(true);
     }
   };
