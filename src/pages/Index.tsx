@@ -453,16 +453,11 @@ const Index = () => {
           const id = pendingComplete.id;
           const customer = pendingComplete.customer;
           setPendingComplete(null);
-          await updateStatus(id, "completed");
-          // Offer to print a thermal receipt for the just-completed job
+          await updateStatus(id, "in-progress");
           const { toast } = await import("sonner");
-          toast.success(`Wash complete for ${customer}`, {
-            description: "Print a Bluetooth receipt?",
-            duration: 8000,
-            action: {
-              label: "Preview & print",
-              onClick: () => setPrintPreviewId(id),
-            },
+          toast.success(`Wash started for ${customer}`, {
+            description: "Inventory deducted automatically.",
+            duration: 4000,
           });
         }}
       />
