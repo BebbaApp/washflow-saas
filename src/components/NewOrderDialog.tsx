@@ -17,6 +17,7 @@ import {
 import { useServices } from "@/hooks/useServices";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatPhone, normalizePhone, validatePhone } from "@/lib/phone";
+import { VEHICLES, type Vehicle } from "@/lib/vehicleUsage";
 import { toast } from "sonner";
 
 interface NewOrderDialogProps {
@@ -33,12 +34,13 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [plate, setPlate] = useState("");
+  const [vehicleType, setVehicleType] = useState<Vehicle | "">("");
   const [serviceId, setServiceId] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customer || !make || !model || !plate || !serviceId) return;
+    if (!customer || !make || !model || !plate || !vehicleType || !serviceId) return;
     const err = validatePhone(customerPhone, { required: false });
     if (err) {
       setPhoneError(err);
@@ -47,7 +49,8 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     }
     const picked = services.find((s) => s.id === serviceId);
     if (!picked) return;
-    const vehicle = `${make} ${model}`.trim();
+    // Append vehicle type so downstream matchVehicle() can auto-deduct.
+    const vehicle = `${make} ${model}`.trim() + ` · ${vehicleType}`;
     const phone = normalizePhone(customerPhone);
     onSubmit({ customer, customerPhone: phone, vehicle, plate, service: picked.name, servicePrice: picked.price });
     setCustomer("");
@@ -55,6 +58,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     setMake("");
     setModel("");
     setPlate("");
+    setVehicleType("");
     setServiceId("");
     setPhoneError(null);
     onOpenChange(false);
