@@ -36,14 +36,18 @@ const emptyDraft: Partial<ServicePackage> = {
 export const ServicePackages = ({ addOpen, onAddOpenChange }: ServicePackagesProps) => {
   const { services, updateService, addService, removeService } = useServices();
   const { formatPrice, calcVat, calcTotal, currency } = useCurrency();
+  const { recipes, setRecipe } = useInventory();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ServicePackage>>({});
+  const [editRecipe, setEditRecipe] = useState<{ itemId: string; qty: number }[]>([]);
   const [newDraft, setNewDraft] = useState<Partial<ServicePackage>>(emptyDraft);
+  const [newRecipe, setNewRecipe] = useState<{ itemId: string; qty: number }[]>([]);
   const [pendingDelete, setPendingDelete] = useState<ServicePackage | null>(null);
 
   const startEdit = (s: ServicePackage) => {
     setEditingId(s.id);
     setEditData({ name: s.name, price: s.price, duration: s.duration, features: s.features, popular: s.popular, vatExempt: s.vatExempt });
+    setEditRecipe(recipes[s.name] ?? []);
   };
 
   const saveEdit = async () => {
