@@ -3,6 +3,8 @@ import { Clock, Tag, Edit2, Save, X, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useServices, type ServicePackage } from "@/hooks/useServices";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useInventory } from "@/hooks/useInventory";
+import { ServiceRecipeEditor } from "@/components/ServiceRecipeEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
