@@ -88,9 +88,9 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 mt-2">
           <p className="text-xs text-muted-foreground">
-            Current stock: <span className="font-mono text-foreground">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
+            Current stock: <span className="font-mono text-foreground">{fmtQty(item.quantity)}</span>
             {lastRestock && (
-              <> · last restock: <span className="font-mono">{lastRestock.delta}{item.unit ? ` ${item.unit}` : ""}</span> @ <span className="font-mono">${lastRestock.unitCost ?? "?"}</span></>
+              <> · last restock: <span className="font-mono">{fmtQty(lastRestock.delta)}</span> @ <span className="font-mono">{lastRestock.unitCost != null ? formatPrice(lastRestock.unitCost) : "?"}</span></>
             )}
           </p>
 
