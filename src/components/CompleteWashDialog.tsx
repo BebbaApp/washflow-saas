@@ -320,7 +320,7 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-success text-success-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirm & Complete
+              Start &amp; Deduct
             </button>
           )}
         </div>
