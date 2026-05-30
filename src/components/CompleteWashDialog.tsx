@@ -47,7 +47,7 @@ interface Extra {
 }
 
 export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
-  const { items, previewConsumption, confirmConsumption, previewVehicleConsumption, consumeForWash } = useInventory();
+  const { items, previewConsumption, previewVehicleConsumption, commitWashConsumption, waterItemId } = useInventory();
   const [overrideNote, setOverrideNote] = useState("");
   const [extras, setExtras] = useState<Extra[]>([]);
 
@@ -133,22 +133,21 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
   const handleConfirm = async (override: boolean) => {
     if (!noteValid) return;
     const opts = { override, overrideNote: override ? overrideNote.trim() : undefined };
-    const a = await confirmConsumption(order, opts);
-    if (!a.ok) return;
-    const validExtras = extras
-      .map((e) => ({ itemId: e.itemId, qty: parseFloat(e.qty), note: e.note.trim() }))
-      .filter((e) => e.itemId && e.qty > 0);
-    if (order.vehicle || validExtras.length > 0) {
-      await consumeForWash(
-        {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          vehicleInput: order.vehicle ?? "",
-          extras: validExtras,
-        },
-        opts,
-      );
-    }
+    // Use the unified, pre-merged rows from the preview so each item is
+    // deducted exactly ONCE even if it appears in both the service recipe
+    // and the vehicle-type mapping.
+    const rows = merged.map((r) => ({ itemId: r.itemId, qty: r.needed, source: r.source }));
+    const res = await commitWashConsumption(
+      {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        service: order.service,
+        vehicleInput: order.vehicle,
+        rows,
+      },
+      opts,
+    );
+    if (!res.ok) return;
     onConfirmed();
   };
 
@@ -163,6 +162,17 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
               : `Stock that will be deducted now to start ${order.customer}'s ${order.service}${order.vehicle ? ` (${order.vehicle})` : ""}.`}
           </DialogDescription>
         </DialogHeader>
+
+        {order.vehicle && !waterItemId && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              No <strong>water</strong> inventory item is linked. Water won't be deducted for this wash.
+              Link one in <em>Inventory → Usage guide → Link water item</em> so per-vehicle litres (Sedan 54 L → 8T 260 L) auto-deduct.
+            </span>
+          </div>
+        )}
+
 
         {merged.length > 0 && (() => {
           const worst = merged.reduce((acc, r) => (r.after < acc.after ? r : acc), merged[0]);
