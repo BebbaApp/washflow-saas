@@ -272,6 +272,9 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
   );
 
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+  const [calMode, setCalMode] = useState<"week" | "month">("week");
+  const [calAnchor, setCalAnchor] = useState<Date>(new Date());
+  useEffect(() => { setCalAnchor(new Date()); setCalMode("week"); }, [selectedEmployee]);
   const selectedEmployeeName = useMemo(
     () => staffMembers.find((s) => s.id === selectedEmployee)?.name || "",
     [selectedEmployee, staffMembers]
@@ -280,6 +283,12 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     () => selectedEmployee ? dayRows.filter((r) => r.user_id === selectedEmployee) : [],
     [dayRows, selectedEmployee]
   );
+  const employeeDayMap = useMemo(() => {
+    const m: Record<string, DayRow> = {};
+    employeeDayRows.forEach((r) => { m[r.date] = r; });
+    return m;
+  }, [employeeDayRows]);
+
 
   // === Exports ===
   const exportCsv = (rows: DayRow[], filename: string) => {
