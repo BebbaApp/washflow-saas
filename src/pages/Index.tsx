@@ -61,6 +61,7 @@ const Index = () => {
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [employeeExpenseOpen, setEmployeeExpenseOpen] = useState(false);
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [printPreviewId, setPrintPreviewId] = useState<string | null>(null);
