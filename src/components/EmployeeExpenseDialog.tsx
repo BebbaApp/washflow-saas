@@ -110,6 +110,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
           id: u.id, name: u.name || "", email: u.email || "",
           role: u.role ?? null,
           active: activeMap.get(u.id) ?? true,
+          phone: u.phone ?? null,
         }))
         .filter((u: StaffOption) => u.active)
         .sort((a: StaffOption, b: StaffOption) =>
