@@ -402,13 +402,22 @@ const Index = () => {
                 </button>
               )}
               {activeTab === "expenses" && can("expenses.create") && (
-                <button
-                  onClick={() => setAddExpenseOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Expense
-                </button>
+                <>
+                  <button
+                    onClick={() => setEmployeeExpenseOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border text-foreground font-medium text-sm hover:bg-muted transition-colors"
+                  >
+                    <Users className="w-4 h-4" />
+                    Employee Expense
+                  </button>
+                  <button
+                    onClick={() => setAddExpenseOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Expense
+                  </button>
+                </>
               )}
             </header>
           )}
