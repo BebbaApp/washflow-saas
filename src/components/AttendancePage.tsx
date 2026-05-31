@@ -288,179 +288,22 @@ export function AttendancePage() {
     if (r) { setOverrideOpen(false); setOverrideForm({ targetUserId: "", kind: "check_in", reason: "" }); }
   };
 
-  // Default tab: only land on "clock" once we've confirmed the user is on
-  // this workspace's staff roster. Otherwise, fall back to the next visible
-  // tab so the "not on roster" message never appears.
-  const defaultTab = isStaffHere === true ? "clock" : (canAssist ? "assist" : "log");
+  // Default tab: "log" for everyone — check-in lives on the Staff page now.
+  const defaultTab = "log";
 
   return (
     <div className="space-y-6">
       <Tabs key={defaultTab} defaultValue={defaultTab}>
         <TabsList className="flex-wrap">
-          {isStaffHere === true && <TabsTrigger value="clock">My Clock</TabsTrigger>}
-          {canAssist && <TabsTrigger value="assist"><UserCheck className="w-3.5 h-3.5 mr-1" />Staff Check-in</TabsTrigger>}
           <TabsTrigger value="log">{canAssist ? "All Records" : "My History"}</TabsTrigger>
           {isAdmin && <TabsTrigger value="report"><BarChart3 className="w-3.5 h-3.5 mr-1" />Report</TabsTrigger>}
           {isAdmin && <TabsTrigger value="enroll">Enroll Faces</TabsTrigger>}
           {isAdmin && <TabsTrigger value="audit"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
         </TabsList>
 
-
-        {/* Self check-in/out — only mounted once roster membership confirms */}
-        {isStaffHere === true && (
-        <TabsContent value="clock" className="mt-4">
-          <div className="glass-card p-5 space-y-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <h3 className="font-semibold text-foreground">{user?.name || user?.email}</h3>
-                <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">Last activity</p>
-                <p className="text-sm font-medium">
-                  {myLast ? (
-                    <>
-                      <Badge variant={myLast.kind === "check_in" ? "default" : "secondary"} className="mr-2">
-                        {myLast.kind === "check_in" ? "Checked In" : "Checked Out"}
-                      </Badge>
-                      {new Date(myLast.created_at).toLocaleString()}
-                    </>
-                  ) : "—"}
-                </p>
-              </div>
-            </div>
-
-            {!myEnrolled ? (
-              <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" />
-                Your face hasn't been enrolled yet. Ask an admin to enroll you under <span className="font-medium text-foreground">Attendance → Enroll Faces</span>.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setCaptureMode({ kind: "check_in" })}
-                  disabled={nextKind !== "check_in"}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-                >
-                  <LogIn className="w-4 h-4" /> Check In
-                </button>
-                <button
-                  onClick={() => setCaptureMode({ kind: "check_out" })}
-                  disabled={nextKind !== "check_out"}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-                >
-                  <LogOut className="w-4 h-4" /> Check Out
-                </button>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-        )}
-
-
-        {/* Assisted check-in (admin/supervisor/manager) */}
-        {canAssist && (
-          <TabsContent value="assist" className="mt-4 space-y-3">
-            <div className="glass-card p-5 space-y-2">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UserCheck className="w-4 h-4" /> Check in / out staff with a live selfie
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Capture each staff member's photo as they report or leave. Their face is verified
-                against the enrolled reference and the record is saved live — no app refresh needed.
-              </p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="relative max-w-xs flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    placeholder="Search staff…"
-                    className="pl-9"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSoundOn((v) => !v)}
-                  title={soundOn ? "Mute live notifications" : "Enable live notifications"}
-                >
-                  {soundOn ? <Volume2 className="w-4 h-4 mr-1" /> : <VolumeX className="w-4 h-4 mr-1" />}
-                  {soundOn ? "Sound on" : "Muted"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="glass-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-xs text-muted-foreground bg-muted/40">
-                    <tr>
-                      <th className="text-left px-4 py-2">Staff</th>
-                      <th className="text-left px-4 py-2">Role</th>
-                      <th className="text-left px-4 py-2">Enrolled</th>
-                      <th className="text-left px-4 py-2">Status</th>
-                      <th className="text-left px-4 py-2">Last activity</th>
-                      <th className="text-right px-4 py-2">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {staff.length === 0 && (
-                      <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No staff found</td></tr>
-                    )}
-                    {staff
-                      .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
-                      .map((s) => {
-                        const enrolled = enrollments.some((e) => e.user_id === s.user_id);
-                        const last = lastForUser(s.user_id);
-                        const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
-                        return (
-                          <tr key={s.user_id} className="border-t border-border">
-                            <td className="px-4 py-2 font-medium">{s.name}</td>
-                            <td className="px-4 py-2 text-muted-foreground capitalize">{s.role}</td>
-                            <td className="px-4 py-2">
-                              {enrolled
-                                ? <Badge variant="default">Enrolled</Badge>
-                                : <Badge variant="outline">Not enrolled</Badge>}
-                            </td>
-                            <td className="px-4 py-2"><StatusPill last={last} /></td>
-                            <td className="px-4 py-2 whitespace-nowrap text-xs text-muted-foreground">
-                              {last ? (
-                                <button
-                                  onClick={() => openDetails(last)}
-                                  className="hover:underline text-foreground/80"
-                                  title="View record details"
-                                >
-                                  {new Date(last.created_at).toLocaleString()}
-                                </button>
-                              ) : "—"}
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              <Button
-                                size="sm"
-                                disabled={!enrolled}
-                                variant={next === "check_in" ? "default" : "secondary"}
-                                onClick={() => setCaptureMode({
-                                  kind: next === "check_in" ? "assist_check_in" : "assist_check_out",
-                                  targetUserId: s.user_id,
-                                })}
-                              >
-                                <Camera className="w-3.5 h-3.5 mr-1" />
-                                {next === "check_in" ? "Check In" : "Check Out"}
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Tip: staff without an enrolled face must be enrolled first under <span className="font-medium text-foreground">Enroll Faces</span>.
-            </p>
-          </TabsContent>
-        )}
+        <p className="text-xs text-muted-foreground -mt-2">
+          Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
+        </p>
 
         <TabsContent value="log" className="mt-4 space-y-3">
           <div className="flex flex-wrap items-end gap-3">
