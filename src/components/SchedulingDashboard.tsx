@@ -24,7 +24,6 @@ type View = "checkin" | "daylog" | "employees" | "performance";
 type Preset = "today" | "7d" | "30d" | "all" | "custom";
 
 const LUNCH_BREAK_HOURS = 1;
-const ALL_TIME_START = "2000-01-01";
 
 function ymd(d: Date) {
   const y = d.getFullYear();
