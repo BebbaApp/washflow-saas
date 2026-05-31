@@ -24,7 +24,6 @@ type View = "checkin" | "daylog" | "employees" | "performance";
 type Preset = "today" | "7d" | "30d" | "all" | "custom";
 
 const LUNCH_BREAK_HOURS = 1;
-const ALL_TIME_START = "2000-01-01";
 
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -78,21 +77,33 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   const [view, setView] = useState<View>("checkin");
   const [preset, setPreset] = useState<Preset>("7d");
+  // Pagination by 7-day windows: 0 = current, 1 = previous week, etc.
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const todayKey = ymd(new Date());
 
-  const presetRange = (p: Preset): { from: string; to: string } => {
-    const today = new Date();
+  // Earliest date any active staff member became active (their account created_at).
+  // Used as "all time" lower bound — no more 2000-01-01.
+  const earliestActiveDate = useMemo(() => {
+    const dates = staffMembers
+      .map((s) => (s.createdAt ? s.createdAt.slice(0, 10) : null))
+      .filter((d): d is string => !!d);
+    if (!dates.length) return todayKey;
+    return dates.sort()[0];
+  }, [staffMembers, todayKey]);
+
+  const presetRange = (p: Preset, offset = 0): { from: string; to: string } => {
     if (p === "today") return { from: todayKey, to: todayKey };
     if (p === "7d") {
-      const d = new Date(); d.setDate(d.getDate() - 6);
-      return { from: ymd(d), to: todayKey };
+      const end = new Date(); end.setDate(end.getDate() - 7 * offset);
+      const start = new Date(end); start.setDate(start.getDate() - 6);
+      return { from: ymd(start), to: ymd(end) };
     }
     if (p === "30d") {
       const d = new Date(); d.setDate(d.getDate() - 29);
       return { from: ymd(d), to: todayKey };
     }
-    if (p === "all") return { from: ALL_TIME_START, to: todayKey };
+    if (p === "all") return { from: earliestActiveDate, to: todayKey };
     return { from: todayKey, to: todayKey };
   };
 
@@ -102,10 +113,13 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   useEffect(() => {
     if (preset === "custom") return;
-    const r = presetRange(preset);
+    const r = presetRange(preset, preset === "7d" ? weekOffset : 0);
     setFrom(r.from); setTo(r.to);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset]);
+  }, [preset, weekOffset, earliestActiveDate]);
+
+  // Reset week offset when leaving 7d preset
+  useEffect(() => { if (preset !== "7d") setWeekOffset(0); }, [preset]);
 
   // Marked-absent audit entries (action='marked_absent', reason contains date)
   const [markedAbsent, setMarkedAbsent] = useState<Set<string>>(new Set());
@@ -125,6 +139,24 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
   };
   useEffect(() => { refreshMarkedAbsent(); }, []);
 
+  // === Active/Inactive status per staff member (Settings → Workers toggle) ===
+  const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
+  const refreshActive = async () => {
+    const { data } = await (supabase as any)
+      .from("staff_active_status")
+      .select("user_id,is_active");
+    const m: Record<string, boolean> = {};
+    (data || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+    setActiveMap(m);
+  };
+  useEffect(() => { refreshActive(); }, []);
+
+  // Filter to only active staff (default to active when no row exists)
+  const activeStaff = useMemo(
+    () => staffMembers.filter((s) => activeMap[s.id] !== false),
+    [staffMembers, activeMap]
+  );
+
   // === Build per-staff per-day rows from attendance records ===
   const dayRows = useMemo<DayRow[]>(() => {
     const dates = daysBetween(from, to);
@@ -136,8 +168,11 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       const k = `${r.user_id}|${d}`;
       (byUserDate[k] ||= []).push(r);
     }
-    for (const s of staffMembers) {
+    for (const s of activeStaff) {
+      // Per-staff active-since date — never count days before this as absent.
+      const activeSince = s.createdAt ? s.createdAt.slice(0, 10) : from;
       for (const date of dates) {
+        if (date < activeSince) continue;
         const recs = (byUserDate[`${s.id}|${date}`] || []).slice().sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
@@ -182,7 +217,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     return rows.sort((a, b) =>
       b.date.localeCompare(a.date) || a.staffName.localeCompare(b.staffName)
     );
-  }, [records, staffMembers, from, to, markedAbsent]);
+  }, [records, activeStaff, from, to, markedAbsent]);
 
   // === 7-day pagination for Day Log + Employee detail ===
   // Build descending list of unique dates in range and chunk into 7-day pages.
@@ -216,7 +251,9 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   // Today's absentees (for in-app notification)
   const todayAbsentees = useMemo(() => {
-    return staffMembers.filter((s) => {
+    return activeStaff.filter((s) => {
+      const activeSince = s.createdAt ? s.createdAt.slice(0, 10) : todayKey;
+      if (todayKey < activeSince) return false;
       const has = records.some(
         (r) => r.user_id === s.id && r.created_at.slice(0, 10) === todayKey
       );
@@ -225,7 +262,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       ...s,
       marked: markedAbsent.has(`${s.id}|${todayKey}`),
     }));
-  }, [staffMembers, records, todayKey, markedAbsent]);
+  }, [activeStaff, records, todayKey, markedAbsent]);
 
   const [notifDismissed, setNotifDismissed] = useState(false);
   const unmarkedAbsentees = todayAbsentees.filter((a) => !a.marked);
@@ -247,7 +284,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   // Aggregate per employee — count PERIODS per day, not hours
   const employeeStats = useMemo(() => {
-    return staffMembers.map((s) => {
+    return activeStaff.map((s) => {
       const mine = dayRows.filter((r) => r.user_id === s.id);
       const present = mine.filter((r) => r.status === "present").length;
       const absent = mine.filter((r) => r.status === "absent" || r.status === "marked_absent").length;
@@ -256,7 +293,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       const totalHours = mine.reduce((a, r) => a + r.hours, 0);
       return { ...s, present, absent, inProgress, totalPeriods, totalHours };
     });
-  }, [staffMembers, dayRows]);
+  }, [activeStaff, dayRows]);
 
   const performance = useMemo(
     () => [...employeeStats].sort((a, b) => b.totalHours - a.totalHours || b.present - a.present),
@@ -524,6 +561,25 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
                 </Button>
                 <Button variant="outline" size="sm" disabled={pageIdx <= 0}
                   onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>
+                  Newer <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* 7-day filter pagination — step through prior weeks */}
+          {preset === "7d" && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                {weekOffset === 0 ? "Current week" : `${weekOffset} week${weekOffset === 1 ? "" : "s"} ago`}
+                <span className="ml-2 text-foreground/70">· {from} → {to}</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setWeekOffset((o) => o + 1)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Older
+                </Button>
+                <Button variant="outline" size="sm" disabled={weekOffset <= 0}
+                  onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}>
                   Newer <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>

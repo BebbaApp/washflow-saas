@@ -179,6 +179,8 @@ function WorkersSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
+  const [togglingActive, setTogglingActive] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
@@ -268,8 +270,36 @@ function WorkersSection() {
       return;
     }
     setUsers(res.data.users ?? []);
+    // Load active/inactive status (defaults to active if no row exists)
+    const { data: statusRows } = await (supabase as any)
+      .from("staff_active_status")
+      .select("user_id,is_active");
+    const m: Record<string, boolean> = {};
+    (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+    setActiveMap(m);
     setLoading(false);
   }, [toast, isAuthenticated, authUser, tenant?.id, tenantLoading]);
+
+  const toggleActive = async (u: StaffUser, next: boolean) => {
+    if (!tenant?.id) return;
+    setTogglingActive(u.id);
+    const prev = activeMap[u.id] !== false;
+    setActiveMap((m) => ({ ...m, [u.id]: next }));
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    const { error } = await (supabase as any)
+      .from("staff_active_status")
+      .upsert(
+        { tenant_id: tenant.id, user_id: u.id, is_active: next, updated_at: new Date().toISOString(), updated_by: caller?.id ?? null },
+        { onConflict: "tenant_id,user_id" }
+      );
+    setTogglingActive(null);
+    if (error) {
+      setActiveMap((m) => ({ ...m, [u.id]: prev }));
+      toast({ title: "Could not update status", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: next ? "Marked active" : "Marked inactive", description: next ? "Will appear in the day log" : "Hidden from the day log" });
+  };
 
   useEffect(() => {
     if (authLoading || tenantLoading) return;
@@ -453,6 +483,23 @@ function WorkersSection() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Active/Inactive toggle — controls visibility in the Day Log */}
+              {(() => {
+                const isActive = activeMap[u.id] !== false;
+                return (
+                  <div className="flex items-center gap-2" title={isActive ? "Active — shown in Day Log" : "Inactive — hidden from Day Log"}>
+                    <span className={`text-[10px] uppercase tracking-wide font-semibold ${isActive ? "text-success" : "text-muted-foreground"}`}>
+                      {isActive ? "Active" : "Inactive"}
+                    </span>
+                    <Switch
+                      checked={isActive}
+                      disabled={togglingActive === u.id}
+                      onCheckedChange={(v) => toggleActive(u, v)}
+                    />
+                  </div>
+                );
+              })()}
 
               {canDeleteWorkers && (
                 <button

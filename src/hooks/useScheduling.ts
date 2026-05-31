@@ -38,7 +38,7 @@ export function useScheduling() {
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
-  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string }[]>([]);
+  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string; createdAt?: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
@@ -61,7 +61,7 @@ export function useScheduling() {
     const profileMap: Record<string, string> = {};
     const tenantStaff = ((staffRes.data as any)?.users ?? [])
       .filter((u: any) => !!u.role)
-      .map((u: any) => ({ id: u.id, name: u.name || u.email || "Staff" }));
+      .map((u: any) => ({ id: u.id, name: u.name || u.email || "Staff", createdAt: u.created_at }));
     if (tenantStaff.length > 0) {
       tenantStaff.forEach((p: any) => {
         profileMap[p.id] = p.name;
