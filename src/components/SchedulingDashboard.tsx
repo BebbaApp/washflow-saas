@@ -481,10 +481,10 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {dayRows.length === 0 && (
+                  {pagedDayRows.length === 0 && (
                     <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No staff or no data in range</td></tr>
                   )}
-                  {dayRows.map((r, i) => (
+                  {pagedDayRows.map((r, i) => (
                     <tr key={i} className="border-t border-border">
                       <td className="px-4 py-2 whitespace-nowrap">
                         {new Date(r.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
@@ -510,8 +510,28 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
               </table>
             </div>
           </div>
+
+          {needsPagination && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                Showing 7-day window {pageIdx + 1} of {datePages.length}
+                {pageLabel && <span className="ml-2 text-foreground/70">· {pageLabel}</span>}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={pageIdx >= datePages.length - 1}
+                  onClick={() => setPageIdx((i) => Math.min(datePages.length - 1, i + 1))}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Older
+                </Button>
+                <Button variant="outline" size="sm" disabled={pageIdx <= 0}
+                  onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>
+                  Newer <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
 
       {/* EMPLOYEES VIEW */}
       {view === "employees" && !selectedEmployee && (
