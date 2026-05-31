@@ -139,6 +139,24 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
   };
   useEffect(() => { refreshMarkedAbsent(); }, []);
 
+  // === Active/Inactive status per staff member (Settings → Workers toggle) ===
+  const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
+  const refreshActive = async () => {
+    const { data } = await (supabase as any)
+      .from("staff_active_status")
+      .select("user_id,is_active");
+    const m: Record<string, boolean> = {};
+    (data || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+    setActiveMap(m);
+  };
+  useEffect(() => { refreshActive(); }, []);
+
+  // Filter to only active staff (default to active when no row exists)
+  const activeStaff = useMemo(
+    () => staffMembers.filter((s) => activeMap[s.id] !== false),
+    [staffMembers, activeMap]
+  );
+
   // === Build per-staff per-day rows from attendance records ===
   const dayRows = useMemo<DayRow[]>(() => {
     const dates = daysBetween(from, to);
