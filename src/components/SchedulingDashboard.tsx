@@ -77,21 +77,33 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   const [view, setView] = useState<View>("checkin");
   const [preset, setPreset] = useState<Preset>("7d");
+  // Pagination by 7-day windows: 0 = current, 1 = previous week, etc.
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const todayKey = ymd(new Date());
 
-  const presetRange = (p: Preset): { from: string; to: string } => {
-    const today = new Date();
+  // Earliest date any active staff member became active (their account created_at).
+  // Used as "all time" lower bound — no more 2000-01-01.
+  const earliestActiveDate = useMemo(() => {
+    const dates = staffMembers
+      .map((s) => (s.createdAt ? s.createdAt.slice(0, 10) : null))
+      .filter((d): d is string => !!d);
+    if (!dates.length) return todayKey;
+    return dates.sort()[0];
+  }, [staffMembers, todayKey]);
+
+  const presetRange = (p: Preset, offset = 0): { from: string; to: string } => {
     if (p === "today") return { from: todayKey, to: todayKey };
     if (p === "7d") {
-      const d = new Date(); d.setDate(d.getDate() - 6);
-      return { from: ymd(d), to: todayKey };
+      const end = new Date(); end.setDate(end.getDate() - 7 * offset);
+      const start = new Date(end); start.setDate(start.getDate() - 6);
+      return { from: ymd(start), to: ymd(end) };
     }
     if (p === "30d") {
       const d = new Date(); d.setDate(d.getDate() - 29);
       return { from: ymd(d), to: todayKey };
     }
-    if (p === "all") return { from: ALL_TIME_START, to: todayKey };
+    if (p === "all") return { from: earliestActiveDate, to: todayKey };
     return { from: todayKey, to: todayKey };
   };
 
@@ -101,10 +113,13 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   useEffect(() => {
     if (preset === "custom") return;
-    const r = presetRange(preset);
+    const r = presetRange(preset, preset === "7d" ? weekOffset : 0);
     setFrom(r.from); setTo(r.to);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset]);
+  }, [preset, weekOffset, earliestActiveDate]);
+
+  // Reset week offset when leaving 7d preset
+  useEffect(() => { if (preset !== "7d") setWeekOffset(0); }, [preset]);
 
   // Marked-absent audit entries (action='marked_absent', reason contains date)
   const [markedAbsent, setMarkedAbsent] = useState<Set<string>>(new Set());
