@@ -290,7 +290,27 @@ export function AttendancePage() {
   };
 
   // Default tab: "log" for everyone — check-in lives on the Staff page now.
-  const defaultTab = "log";
+  // A `?sub=` URL param can preselect a specific sub-tab (e.g. ?sub=enroll
+  // from quick-access links on the Staff page).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const allowedSubs = ["log", "report", "enroll", "audit"] as const;
+  const subParam = searchParams.get("sub");
+  const initialTab = (allowedSubs as readonly string[]).includes(subParam ?? "")
+    ? (subParam as string)
+    : "log";
+  const [activeSub, setActiveSub] = useState<string>(initialTab);
+  useEffect(() => {
+    const s = searchParams.get("sub");
+    if (s && (allowedSubs as readonly string[]).includes(s) && s !== activeSub) {
+      setActiveSub(s);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  const handleSubChange = (v: string) => {
+    setActiveSub(v);
+    const next = new URLSearchParams(searchParams);
+    if (v === "log") next.delete("sub"); else next.set("sub", v);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <div className="space-y-6">
@@ -298,7 +318,7 @@ export function AttendancePage() {
         Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
       </p>
 
-      <Tabs key={defaultTab} defaultValue={defaultTab}>
+      <Tabs value={activeSub} onValueChange={handleSubChange}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="log">{canAssist ? "All Records" : "My History"}</TabsTrigger>
           {isAdmin && <TabsTrigger value="report"><BarChart3 className="w-3.5 h-3.5 mr-1" />Report</TabsTrigger>}
