@@ -17,6 +17,7 @@ export const INVENTORY_PRESETS: InventoryPreset[] = [
   { id: "glass-cleaner", name: "Window / Glass Cleaner", category: "Chemicals", unit: "L", recommendedMin: 5, recommendedMax: 10 },
   { id: "engine-degreaser", name: "Engine Cleaner / Degreaser", category: "Chemicals", unit: "L", recommendedMin: 5, recommendedMax: 20 },
   { id: "carpet-cleaner", name: "Carpet / Upholstery Cleaner", category: "Chemicals", unit: "L", recommendedMin: 5, recommendedMax: 10 },
+  { id: "car-perfume", name: "Car Perfume / Fragrance", category: "Chemicals", unit: "L", recommendedMin: 1, recommendedMax: 5, description: "Interior fragrance / scent" },
   { id: "wax", name: "Car Wax / Sealant", category: "Wax", unit: "L", recommendedMin: 5, recommendedMax: 20 },
   { id: "microfiber", name: "Microfiber Towels / Drying Cloths", category: "Towels", unit: "pcs", recommendedMin: 50, recommendedMax: 100, description: "High-quality, varied colors for different jobs" },
   { id: "wash-mitts", name: "Wash Mitts / Sponges", category: "Tools", unit: "pcs", recommendedMin: 10, recommendedMax: 15 },
