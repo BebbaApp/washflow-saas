@@ -90,6 +90,7 @@ export const CONCENTRATE_KEYWORDS: Record<string, RegExp> = {
   glass:      /glass|window/i,
   engine_deg: /engine|degreas/i,
   carpet:     /carpet|upholster/i,
+  perfume:    /perfume|fragrance|air ?freshener|scent/i,
 };
 
 export const WATER_KEYWORD = /\bwater\b/i;
