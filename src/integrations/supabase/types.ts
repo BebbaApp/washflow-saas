@@ -1129,6 +1129,33 @@ export type Database = {
           },
         ]
       }
+      staff_active_status: {
+        Row: {
+          id: string
+          is_active: boolean
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       staff_face_enrollments: {
         Row: {
           created_at: string

@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   LogIn, LogOut, UserCheck, Camera, Search, ShieldCheck,
-  Volume2, VolumeX,
+  Volume2, VolumeX, ExternalLink,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface StaffOption { user_id: string; name: string; role: string; }
 
@@ -83,6 +84,7 @@ export function StaffCheckInPanel() {
   const [captureMode, setCaptureMode] = useState<null | { kind: "check_in" | "check_out" | "assist_check_in" | "assist_check_out"; targetUserId?: string }>(null);
   const [busy, setBusy] = useState(false);
   const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState("");
   const [soundOn, setSoundOn] = useState(true);
   const seenIdsRef = useRef<Set<string> | null>(null);
@@ -94,6 +96,12 @@ export function StaffCheckInPanel() {
       setStaff(((data as any)?.users ?? [])
         .filter((u: any) => !!u.role)
         .map((u: any) => ({ user_id: u.id, name: u.name || u.email || "Staff", role: u.role })));
+      const { data: statusRows } = await (supabase as any)
+        .from("staff_active_status")
+        .select("user_id,is_active");
+      const m: Record<string, boolean> = {};
+      (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+      setActiveMap(m);
     })();
   }, [canAssist, tenant?.id]);
 
@@ -156,9 +164,13 @@ export function StaffCheckInPanel() {
           </div>
 
           {!myEnrolled ? (
-            <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2">
+            <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
               <ShieldCheck className="w-4 h-4" />
-              Your face hasn't been enrolled yet. Ask an admin to enroll you under <span className="font-medium text-foreground">Attendance → Enroll Faces</span>.
+              Your face hasn't been enrolled yet. Ask an admin to enroll you under{" "}
+              <Link to="/?tab=attendance&sub=enroll" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
+              </Link>
+              .
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -227,6 +239,7 @@ export function StaffCheckInPanel() {
                     <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No staff found</td></tr>
                   )}
                   {staff
+                    .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
                       const enrolled = enrollments.some((e) => e.user_id === s.user_id);
@@ -267,7 +280,14 @@ export function StaffCheckInPanel() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Tip: staff without an enrolled face must be enrolled first under <span className="font-medium text-foreground">Attendance → Enroll Faces</span>.
+            Tip: staff without an enrolled face must be enrolled first under{" "}
+            <Link
+              to="/?tab=attendance&sub=enroll"
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            >
+              Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
+            </Link>
+            .
           </p>
         </>
       )}
