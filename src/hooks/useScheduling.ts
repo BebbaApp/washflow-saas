@@ -38,7 +38,7 @@ export function useScheduling() {
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
-  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string }[]>([]);
+  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string; createdAt?: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
