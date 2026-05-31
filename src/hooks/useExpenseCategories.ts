@@ -87,7 +87,7 @@ export function useExpenseCategories() {
 
   useEffect(() => {
     const ch = supabase
-      .channel(`expense_categories_${tenant?.id ?? "global"}`)
+      .channel(`expense_categories_${tenant?.id ?? "global"}_${crypto.randomUUID()}`)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "expense_categories" },
         () => fetchAll())
