@@ -84,6 +84,7 @@ export function StaffCheckInPanel() {
   const [captureMode, setCaptureMode] = useState<null | { kind: "check_in" | "check_out" | "assist_check_in" | "assist_check_out"; targetUserId?: string }>(null);
   const [busy, setBusy] = useState(false);
   const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState("");
   const [soundOn, setSoundOn] = useState(true);
   const seenIdsRef = useRef<Set<string> | null>(null);
@@ -95,6 +96,12 @@ export function StaffCheckInPanel() {
       setStaff(((data as any)?.users ?? [])
         .filter((u: any) => !!u.role)
         .map((u: any) => ({ user_id: u.id, name: u.name || u.email || "Staff", role: u.role })));
+      const { data: statusRows } = await (supabase as any)
+        .from("staff_active_status")
+        .select("user_id,is_active");
+      const m: Record<string, boolean> = {};
+      (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+      setActiveMap(m);
     })();
   }, [canAssist, tenant?.id]);
 
