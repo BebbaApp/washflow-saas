@@ -237,7 +237,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 <option value="">— Select —</option>
                 {staff.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name || s.email.split("@")[0] || "Staff"}{s.role ? ` · ${s.role}` : ""}
+                    {s.name || s.email.split("@")[0] || "Staff"}{s.role ? ` · ${s.role}` : ""}{s.phone ? ` · ${s.phone}` : ""}
                   </option>
                 ))}
               </select>
