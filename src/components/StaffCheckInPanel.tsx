@@ -276,7 +276,14 @@ export function StaffCheckInPanel() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Tip: staff without an enrolled face must be enrolled first under <span className="font-medium text-foreground">Attendance → Enroll Faces</span>.
+            Tip: staff without an enrolled face must be enrolled first under{" "}
+            <Link
+              to="/?tab=attendance&sub=enroll"
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            >
+              Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
+            </Link>
+            .
           </p>
         </>
       )}
