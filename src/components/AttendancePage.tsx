@@ -293,6 +293,10 @@ export function AttendancePage() {
 
   return (
     <div className="space-y-6">
+      <p className="text-xs text-muted-foreground">
+        Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
+      </p>
+
       <Tabs key={defaultTab} defaultValue={defaultTab}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="log">{canAssist ? "All Records" : "My History"}</TabsTrigger>
@@ -301,9 +305,6 @@ export function AttendancePage() {
           {isAdmin && <TabsTrigger value="audit"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
         </TabsList>
 
-        <p className="text-xs text-muted-foreground -mt-2">
-          Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
-        </p>
 
         <TabsContent value="log" className="mt-4 space-y-3">
           <div className="flex flex-wrap items-end gap-3">

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee,
-  Bell, X, FileDown, FileText, ChevronLeft, AlertCircle,
+  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle,
 } from "lucide-react";
+
 import { useScheduling } from "@/hooks/useScheduling";
 import { useAttendance, type AttendanceRecord } from "@/hooks/useAttendance";
 import { Input } from "@/components/ui/input";
@@ -183,6 +184,36 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     );
   }, [records, staffMembers, from, to, markedAbsent]);
 
+  // === 7-day pagination for Day Log + Employee detail ===
+  // Build descending list of unique dates in range and chunk into 7-day pages.
+  const datePages = useMemo<string[][]>(() => {
+    const set = new Set<string>();
+    dayRows.forEach((r) => set.add(r.date));
+    const sorted = Array.from(set).sort((a, b) => b.localeCompare(a)); // newest first
+    const out: string[][] = [];
+    for (let i = 0; i < sorted.length; i += 7) out.push(sorted.slice(i, i + 7));
+    return out.length ? out : [[]];
+  }, [dayRows]);
+  const needsPagination = datePages.length > 1;
+  const [pageIdx, setPageIdx] = useState(0);
+  useEffect(() => { setPageIdx(0); }, [from, to, preset]);
+  const currentPageDates = useMemo(
+    () => new Set(datePages[Math.min(pageIdx, datePages.length - 1)] || []),
+    [datePages, pageIdx]
+  );
+  const pagedDayRows = useMemo(
+    () => needsPagination ? dayRows.filter((r) => currentPageDates.has(r.date)) : dayRows,
+    [dayRows, needsPagination, currentPageDates]
+  );
+  const pageLabel = useMemo(() => {
+    const page = datePages[Math.min(pageIdx, datePages.length - 1)] || [];
+    if (!page.length) return "";
+    const last = page[page.length - 1];
+    const first = page[0];
+    return first === last ? first : `${last} → ${first}`;
+  }, [datePages, pageIdx]);
+
+
   // Today's absentees (for in-app notification)
   const todayAbsentees = useMemo(() => {
     return staffMembers.filter((s) => {
@@ -241,6 +272,9 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
   );
 
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+  const [calMode, setCalMode] = useState<"week" | "month">("week");
+  const [calAnchor, setCalAnchor] = useState<Date>(new Date());
+  useEffect(() => { setCalAnchor(new Date()); setCalMode("week"); }, [selectedEmployee]);
   const selectedEmployeeName = useMemo(
     () => staffMembers.find((s) => s.id === selectedEmployee)?.name || "",
     [selectedEmployee, staffMembers]
@@ -249,6 +283,12 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     () => selectedEmployee ? dayRows.filter((r) => r.user_id === selectedEmployee) : [],
     [dayRows, selectedEmployee]
   );
+  const employeeDayMap = useMemo(() => {
+    const m: Record<string, DayRow> = {};
+    employeeDayRows.forEach((r) => { m[r.date] = r; });
+    return m;
+  }, [employeeDayRows]);
+
 
   // === Exports ===
   const exportCsv = (rows: DayRow[], filename: string) => {
@@ -441,10 +481,10 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {dayRows.length === 0 && (
+                  {pagedDayRows.length === 0 && (
                     <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No staff or no data in range</td></tr>
                   )}
-                  {dayRows.map((r, i) => (
+                  {pagedDayRows.map((r, i) => (
                     <tr key={i} className="border-t border-border">
                       <td className="px-4 py-2 whitespace-nowrap">
                         {new Date(r.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
@@ -470,8 +510,28 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
               </table>
             </div>
           </div>
+
+          {needsPagination && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                Showing 7-day window {pageIdx + 1} of {datePages.length}
+                {pageLabel && <span className="ml-2 text-foreground/70">· {pageLabel}</span>}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={pageIdx >= datePages.length - 1}
+                  onClick={() => setPageIdx((i) => Math.min(datePages.length - 1, i + 1))}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Older
+                </Button>
+                <Button variant="outline" size="sm" disabled={pageIdx <= 0}
+                  onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>
+                  Newer <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
 
       {/* EMPLOYEES VIEW */}
       {view === "employees" && !selectedEmployee && (
@@ -532,67 +592,35 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
             </div>
           </div>
 
-          <div className="glass-card p-4">
-            <h3 className="text-lg font-semibold mb-1">{selectedEmployeeName}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{from} → {to}</p>
-            <DateRangeBar />
-          </div>
-
-          <div className="glass-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground bg-muted/40">
-                  <tr>
-                    <th className="text-left px-4 py-2">Date</th>
-                    <th className="text-left px-4 py-2">Periods</th>
-                    <th className="text-left px-4 py-2">First in</th>
-                    <th className="text-left px-4 py-2">Last out</th>
-                    <th className="text-left px-4 py-2">Hours</th>
-                    <th className="text-left px-4 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employeeDayRows.map((r, i) => (
-                    <tr key={i} className="border-t border-border">
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        {new Date(r.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                      </td>
-                      <td className="px-4 py-2">
-                        {r.periodCount === 0 ? "—" : (
-                          <div className="space-y-0.5">
-                            <div className="font-medium">{r.periodCount}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {r.periods.map((p, j) => (
-                                <div key={j}>
-                                  {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                  {" → "}
-                                  {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "open"}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-2">{r.start ? r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                      <td className="px-4 py-2">{r.end ? r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                      <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
-                      <td className="px-4 py-2">
-                        {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20">Present</Badge>}
-                        {r.status === "absent" && <Badge variant="destructive">Absent</Badge>}
-                        {r.status === "marked_absent" && <Badge variant="destructive">Marked absent</Badge>}
-                        {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
-                      </td>
-                    </tr>
-                  ))}
-                  {employeeDayRows.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data in range</td></tr>
-                  )}
-                </tbody>
-              </table>
+          <div className="glass-card p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">{selectedEmployeeName}</h3>
+                <p className="text-xs text-muted-foreground">Work log calendar</p>
+              </div>
+              <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-secondary border border-border">
+                {(["week","month"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setCalMode(m)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                      calMode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >{m}</button>
+                ))}
+              </div>
             </div>
+
+            <EmployeeCalendar
+              mode={calMode}
+              anchor={calAnchor}
+              setAnchor={setCalAnchor}
+              dayMap={employeeDayMap}
+            />
           </div>
         </div>
       )}
+
 
       {/* PERFORMANCE VIEW */}
       {view === "performance" && (
@@ -661,3 +689,140 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     </div>
   );
 };
+
+// ============================================================
+// EmployeeCalendar — weekly (default) and monthly work-log view
+// ============================================================
+interface EmployeeCalendarProps {
+  mode: "week" | "month";
+  anchor: Date;
+  setAnchor: (d: Date) => void;
+  dayMap: Record<string, DayRow>;
+}
+
+function startOfWeekMon(d: Date) {
+  const x = new Date(d); x.setHours(0,0,0,0);
+  const dow = (x.getDay() + 6) % 7; // Mon=0
+  x.setDate(x.getDate() - dow);
+  return x;
+}
+function addDays(d: Date, n: number) {
+  const x = new Date(d); x.setDate(x.getDate() + n); return x;
+}
+function startOfMonth(d: Date) { const x = new Date(d.getFullYear(), d.getMonth(), 1); x.setHours(0,0,0,0); return x; }
+function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+
+const WEEK_LABELS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+function statusTone(row?: DayRow): string {
+  if (!row) return "bg-muted/30 text-muted-foreground";
+  if (row.status === "present") return "bg-success/15 border-success/40 text-foreground";
+  if (row.status === "in_progress") return "bg-warning/15 border-warning/40 text-foreground";
+  if (row.status === "absent" || row.status === "marked_absent") return "bg-destructive/15 border-destructive/40 text-foreground";
+  return "bg-muted/30 text-muted-foreground";
+}
+
+const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarProps) => {
+  if (mode === "week") {
+    const start = startOfWeekMon(anchor);
+    const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    const rangeLabel = `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${addDays(start,6).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => setAnchor(addDays(start, -7))}>
+            <ChevronLeft className="w-4 h-4 mr-1" /> Prev week
+          </Button>
+          <p className="text-sm font-medium">{rangeLabel}</p>
+          <Button variant="ghost" size="sm" onClick={() => setAnchor(addDays(start, 7))}>
+            Next week <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+          {days.map((d, i) => {
+            const key = ymd(d);
+            const row = dayMap[key];
+            return (
+              <div key={i} className={`rounded-lg border p-3 min-h-[120px] ${statusTone(row)}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide">{WEEK_LABELS[i]}</p>
+                  <p className="text-xs text-muted-foreground">{d.getDate()}</p>
+                </div>
+                {!row ? (
+                  <p className="text-xs text-muted-foreground">—</p>
+                ) : row.status === "absent" || row.status === "marked_absent" ? (
+                  <p className="text-xs font-medium">Absent</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs"><span className="text-muted-foreground">Periods:</span> <span className="font-semibold">{row.periodCount}</span></p>
+                    <p className="text-xs"><span className="text-muted-foreground">Hours:</span> <span className="font-semibold">{row.hours > 0 ? row.hours.toFixed(2) : "—"}</span></p>
+                    <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
+                      {row.periods.map((p, j) => (
+                        <div key={j}>
+                          {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {" → "}
+                          {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "open"}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // MONTH
+  const monthStart = startOfMonth(anchor);
+  const monthEnd = endOfMonth(anchor);
+  const gridStart = startOfWeekMon(monthStart);
+  const totalCells = Math.ceil(((monthEnd.getTime() - gridStart.getTime()) / 86400000 + 1) / 7) * 7;
+  const cells = Array.from({ length: totalCells }, (_, i) => addDays(gridStart, i));
+  const monthLabel = anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}>
+          <ChevronLeft className="w-4 h-4 mr-1" /> Prev month
+        </Button>
+        <p className="text-sm font-medium">{monthLabel}</p>
+        <Button variant="ghost" size="sm" onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}>
+          Next month <ChevronRight className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-xs font-medium text-muted-foreground">
+        {WEEK_LABELS.map((l) => <div key={l} className="px-2 py-1 text-center">{l}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          const inMonth = d.getMonth() === anchor.getMonth();
+          const key = ymd(d);
+          const row = dayMap[key];
+          return (
+            <div
+              key={i}
+              className={`rounded-md border p-2 min-h-[72px] text-xs ${inMonth ? statusTone(row) : "bg-muted/10 border-border/40 text-muted-foreground/50"}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium">{d.getDate()}</span>
+                {inMonth && row && row.status === "present" && <CheckCircle2 className="w-3 h-3 text-success" />}
+                {inMonth && row && (row.status === "absent" || row.status === "marked_absent") && <XCircle className="w-3 h-3 text-destructive" />}
+                {inMonth && row && row.status === "in_progress" && <Clock className="w-3 h-3 text-warning" />}
+              </div>
+              {inMonth && row && (row.status === "present" || row.status === "in_progress") && (
+                <div className="text-[10px] leading-tight">
+                  <div>{row.periodCount}p · {row.hours > 0 ? row.hours.toFixed(1) + "h" : "—"}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
