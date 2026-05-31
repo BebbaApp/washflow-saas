@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Users, Calculator } from "lucide-react";
+import { X, Users, Calculator, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { useWorkers } from "@/hooks/useWorkers";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
@@ -21,31 +20,34 @@ interface Compensation {
   base_rate: number;
   category_rates: Record<string, number>;
 }
-
+interface StaffOption {
+  id: string;
+  name: string;
+  email: string;
+  role: string | null;
+  active: boolean;
+}
 interface AttRow {
   user_id: string;
   kind: "check_in" | "check_out";
   created_at: string;
 }
 
-const RANGE_PRESETS = [
-  { id: "today", label: "Today", days: 1 },
-  { id: "week", label: "Last 7d", days: 7 },
-  { id: "month", label: "Last 30d", days: 30 },
-  { id: "custom", label: "Custom", days: 0 },
-] as const;
+const PAY_LABEL: Record<PayType, string> = {
+  salary: "Monthly Salary",
+  wage: "Daily Wage",
+  hourly: "Hourly Rate",
+};
 
 function pairAttendance(rows: AttRow[]) {
-  // group by local date, pair check_in / check_out
   const byDate = new Map<string, { in?: Date; out?: Date }[]>();
   const sorted = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
   for (const r of sorted) {
     const d = new Date(r.created_at);
     const key = d.toDateString();
     const list = byDate.get(key) ?? [];
-    if (r.kind === "check_in") {
-      list.push({ in: d });
-    } else {
+    if (r.kind === "check_in") list.push({ in: d });
+    else {
       const last = list[list.length - 1];
       if (last && !last.out) last.out = d;
       else list.push({ out: d });
@@ -53,69 +55,67 @@ function pairAttendance(rows: AttRow[]) {
     byDate.set(key, list);
   }
   let totalMs = 0;
-  const daysWorked = new Set<string>();
+  const workedDays = new Set<string>();
   for (const [key, pairs] of byDate) {
-    let dayMs = 0;
-    let hasPair = false;
-    for (const p of pairs) {
-      if (p.in && p.out) {
-        dayMs += p.out.getTime() - p.in.getTime();
-        hasPair = true;
-      }
-    }
+    let dayMs = 0; let hasPair = false;
+    for (const p of pairs) if (p.in && p.out) { dayMs += p.out.getTime() - p.in.getTime(); hasPair = true; }
     if (hasPair) {
-      // subtract 1h lunch if day > 5h
       const lunch = dayMs > 5 * 3600_000 ? 3600_000 : 0;
       totalMs += Math.max(0, dayMs - lunch);
-      daysWorked.add(key);
+      workedDays.add(key);
     }
   }
-  return { hours: totalMs / 3600_000, days: daysWorked.size };
+  return { hours: totalMs / 3600_000, workedDays };
 }
 
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const { tenant } = useTenant();
-  const { workers } = useWorkers();
   const { formatPrice, currency } = useCurrency();
   const { addExpense } = useExpenses();
   const { categories } = useExpenseCategories();
 
+  const [staff, setStaff] = useState<StaffOption[]>([]);
   const [comps, setComps] = useState<Compensation[]>([]);
   const [attendance, setAttendance] = useState<AttRow[]>([]);
   const [staffId, setStaffId] = useState("");
-  const [rangeId, setRangeId] = useState<typeof RANGE_PRESETS[number]["id"]>("month");
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 29);
-    return d.toISOString().slice(0, 10);
+  const [monthAnchor, setMonthAnchor] = useState(() => {
+    const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [vehicleCounts, setVehicleCounts] = useState<Record<string, number>>({});
   const [category, setCategory] = useState("Salaries");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // resolve range
-  const { from, to } = useMemo(() => {
-    const preset = RANGE_PRESETS.find((p) => p.id === rangeId);
-    if (preset && preset.days > 0) {
-      const t = new Date(); t.setHours(23, 59, 59, 999);
-      const f = new Date(); f.setDate(f.getDate() - (preset.days - 1)); f.setHours(0, 0, 0, 0);
-      return { from: f, to: t };
-    }
-    const f = new Date(startDate); f.setHours(0, 0, 0, 0);
-    const t = new Date(endDate); t.setHours(23, 59, 59, 999);
-    return { from: f, to: t };
-  }, [rangeId, startDate, endDate]);
+  const { from, to, daysInMonth } = useMemo(() => {
+    const f = new Date(monthAnchor);
+    const t = new Date(f.getFullYear(), f.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { from: f, to: t, daysInMonth: t.getDate() };
+  }, [monthAnchor]);
 
-  // load compensation
+  // load staff list (names + emails) via edge function, and active status
   useEffect(() => {
     if (!open || !tenant?.id) return;
     (async () => {
-      const { data } = await supabase
-        .from("staff_compensation" as any)
-        .select("user_id, pay_type, base_rate, category_rates")
-        .eq("tenant_id", tenant.id);
-      setComps(((data as any[]) || []).map((r) => ({
+      const [staffRes, activeRes, compRes] = await Promise.all([
+        supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } }),
+        supabase.from("staff_active_status" as any).select("user_id, is_active").eq("tenant_id", tenant.id),
+        supabase.from("staff_compensation" as any).select("user_id, pay_type, base_rate, category_rates").eq("tenant_id", tenant.id),
+      ]);
+      const activeMap = new Map<string, boolean>(
+        ((activeRes.data as any[]) || []).map((r) => [r.user_id, r.is_active !== false])
+      );
+      const list: StaffOption[] = (staffRes.data?.users ?? [])
+        .map((u: any) => ({
+          id: u.id, name: u.name || "", email: u.email || "",
+          role: u.role ?? null,
+          active: activeMap.get(u.id) ?? true,
+        }))
+        .filter((u: StaffOption) => u.active)
+        .sort((a: StaffOption, b: StaffOption) =>
+          (a.name || a.email).localeCompare(b.name || b.email)
+        );
+      setStaff(list);
+      setComps(((compRes.data as any[]) || []).map((r) => ({
         user_id: r.user_id,
         pay_type: r.pay_type as PayType,
         base_rate: Number(r.base_rate) || 0,
@@ -124,7 +124,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     })();
   }, [open, tenant?.id]);
 
-  // load attendance for selected staff & range
+  // load attendance
   useEffect(() => {
     if (!open || !staffId) { setAttendance([]); return; }
     (async () => {
@@ -140,15 +140,27 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   }, [open, staffId, from, to]);
 
   const comp = comps.find((c) => c.user_id === staffId);
-  const worker = workers.find((w) => w.id === staffId);
-  const { hours, days } = useMemo(() => pairAttendance(attendance), [attendance]);
+  const selected = staff.find((s) => s.id === staffId);
+  const displayName = selected ? (selected.name || selected.email.split("@")[0] || "Employee") : "";
+  const { hours, workedDays } = useMemo(() => pairAttendance(attendance), [attendance]);
+  const days = workedDays.size;
 
-  // count absent days within range (range days minus days worked)
-  const rangeDays = Math.max(
-    1,
-    Math.round((to.getTime() - from.getTime()) / 86400000) + 1
-  );
-  const absentDays = Math.max(0, rangeDays - days);
+  // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dayCells = useMemo(() => {
+    const cells: { date: Date; status: "worked" | "absent" | "future" }[] = [];
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(from.getFullYear(), from.getMonth(), i);
+      let status: "worked" | "absent" | "future";
+      if (d > today) status = "future";
+      else if (workedDays.has(d.toDateString())) status = "worked";
+      else status = "absent";
+      cells.push({ date: d, status });
+    }
+    return cells;
+  }, [from, daysInMonth, workedDays, today]);
+
+  const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
@@ -167,25 +179,24 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   }, [comp, vehicleCounts]);
 
   const total = baseAmount + categoryBonus;
+  const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
   const handleSubmit = async () => {
-    if (!worker) { toast.error("Select an employee"); return; }
-    if (!comp) { toast.error("No compensation set for this employee in Settings → Workers"); return; }
+    if (!selected) { toast.error("Select an employee"); return; }
+    if (!comp) { toast.error("No pay settings — set them in Settings → Workers"); return; }
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
     setSaving(true);
-    const label = RANGE_PRESETS.find((p) => p.id === rangeId)?.label
-      ?? `${from.toLocaleDateString()} → ${to.toLocaleDateString()}`;
-    const parts: string[] = [`${comp.pay_type}`];
+    const parts: string[] = [PAY_LABEL[comp.pay_type]];
     if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
     else if (comp.pay_type === "hourly") parts.push(`${hours.toFixed(2)}h`);
     if (categoryBonus > 0) parts.push(`+ vehicle bonuses`);
-    const desc = `Remuneration — ${worker.name || "Employee"} (${label})`;
+    const desc = `Remuneration — ${displayName} (${monthLabel})`;
     const summary = `${parts.join(", ")} · ${days} worked / ${absentDays} absent`;
     await addExpense({
       description: desc,
       amount: Number(total.toFixed(2)),
       category,
-      vendor: worker.name,
+      vendor: displayName,
       notes: notes ? `${summary}\n${notes}` : summary,
       date: new Date().toISOString(),
     });
@@ -222,8 +233,10 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 className="mt-1.5 w-full px-3 py-2 rounded-lg bg-background border border-border text-sm"
               >
                 <option value="">— Select —</option>
-                {workers.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name || "Unnamed"} · {w.role}</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name || s.email.split("@")[0] || "Staff"}{s.role ? ` · ${s.role}` : ""}
+                  </option>
                 ))}
               </select>
             </label>
@@ -239,29 +252,6 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
             </label>
           </div>
 
-          <div>
-            <span className="text-xs font-medium text-muted-foreground">Attendance Period</span>
-            <div className="mt-1.5 inline-flex flex-wrap gap-1 p-1 rounded-full bg-muted">
-              {RANGE_PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setRangeId(p.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                    rangeId === p.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >{p.label}</button>
-              ))}
-            </div>
-            {rangeId === "custom" && (
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-background border border-border text-sm" />
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-background border border-border text-sm" />
-              </div>
-            )}
-          </div>
-
           {staffId && !comp && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-sm p-3">
               No pay settings for this employee. Set their pay type and rate under Settings → Workers.
@@ -270,18 +260,75 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
           {comp && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Stat label="Pay type" value={comp.pay_type} />
-                <Stat label="Base rate" value={formatPrice(comp.base_rate)} />
-                <Stat label="Days worked" value={String(days)} />
-                <Stat label="Absent days" value={String(absentDays)} />
+              {/* Pay settings summary */}
+              <div className="rounded-xl border border-border bg-muted/30 p-3 flex flex-wrap items-center gap-3 justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Pay setting</p>
+                  <p className="text-sm font-semibold text-foreground">{PAY_LABEL[comp.pay_type]}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rate</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {formatPrice(comp.base_rate)}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      {comp.pay_type === "salary" ? "/month" : comp.pay_type === "wage" ? "/day" : "/hour"}
+                    </span>
+                  </p>
+                </div>
+                {comp.pay_type === "hourly" && (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Hours (−1h lunch /day)</p>
+                    <p className="text-sm font-semibold text-foreground">{hours.toFixed(2)}h</p>
+                  </div>
+                )}
               </div>
 
-              {comp.pay_type === "hourly" && (
-                <div className="text-xs text-muted-foreground">
-                  Worked hours (after 1h lunch deduction per full day): <span className="font-semibold text-foreground">{hours.toFixed(2)}h</span>
+              {/* Month attendance chart */}
+              <div className="rounded-xl border border-border p-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setMonthAnchor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                      className="p-1.5 rounded-md hover:bg-muted"
+                      aria-label="Previous month"
+                    ><ChevronLeft className="w-4 h-4" /></button>
+                    <p className="text-sm font-semibold text-foreground min-w-[140px] text-center">{monthLabel}</p>
+                    <button
+                      onClick={() => setMonthAnchor((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                      className="p-1.5 rounded-md hover:bg-muted"
+                      aria-label="Next month"
+                    ><ChevronRight className="w-4 h-4" /></button>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {days}</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500" />Absent {absentDays}</span>
+                  </div>
                 </div>
-              )}
+                <div className="grid grid-cols-7 gap-1">
+                  {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                    <div key={i} className="text-[10px] text-center text-muted-foreground py-1">{d}</div>
+                  ))}
+                  {Array.from({ length: from.getDay() }).map((_, i) => (
+                    <div key={`pad-${i}`} />
+                  ))}
+                  {dayCells.map((c) => {
+                    const cls = c.status === "worked"
+                      ? "bg-emerald-500 text-white"
+                      : c.status === "absent"
+                      ? "bg-red-500/80 text-white"
+                      : "bg-muted text-muted-foreground";
+                    return (
+                      <div
+                        key={c.date.toISOString()}
+                        className={`aspect-square rounded-md flex items-center justify-center text-[11px] font-medium ${cls}`}
+                        title={`${c.date.toDateString()} — ${c.status}`}
+                      >
+                        {c.date.getDate()}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               {VEHICLES.some((v) => Number(comp.category_rates[v] || 0) > 0) && (
                 <div>
@@ -346,15 +393,6 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-muted/40 border border-border p-2.5">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold text-foreground capitalize mt-0.5">{value}</p>
     </div>
   );
 }
