@@ -251,7 +251,9 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   // Today's absentees (for in-app notification)
   const todayAbsentees = useMemo(() => {
-    return staffMembers.filter((s) => {
+    return activeStaff.filter((s) => {
+      const activeSince = s.createdAt ? s.createdAt.slice(0, 10) : todayKey;
+      if (todayKey < activeSince) return false;
       const has = records.some(
         (r) => r.user_id === s.id && r.created_at.slice(0, 10) === todayKey
       );
@@ -260,7 +262,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       ...s,
       marked: markedAbsent.has(`${s.id}|${todayKey}`),
     }));
-  }, [staffMembers, records, todayKey, markedAbsent]);
+  }, [activeStaff, records, todayKey, markedAbsent]);
 
   const [notifDismissed, setNotifDismissed] = useState(false);
   const unmarkedAbsentees = todayAbsentees.filter((a) => !a.marked);
@@ -282,7 +284,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
 
   // Aggregate per employee — count PERIODS per day, not hours
   const employeeStats = useMemo(() => {
-    return staffMembers.map((s) => {
+    return activeStaff.map((s) => {
       const mine = dayRows.filter((r) => r.user_id === s.id);
       const present = mine.filter((r) => r.status === "present").length;
       const absent = mine.filter((r) => r.status === "absent" || r.status === "marked_absent").length;
@@ -291,7 +293,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       const totalHours = mine.reduce((a, r) => a + r.hours, 0);
       return { ...s, present, absent, inProgress, totalPeriods, totalHours };
     });
-  }, [staffMembers, dayRows]);
+  }, [activeStaff, dayRows]);
 
   const performance = useMemo(
     () => [...employeeStats].sort((a, b) => b.totalHours - a.totalHours || b.present - a.present),
