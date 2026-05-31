@@ -179,6 +179,8 @@ function WorkersSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
+  const [togglingActive, setTogglingActive] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
