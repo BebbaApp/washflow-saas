@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { useExpenseCategories, categoryTone } from "@/hooks/useExpenseCategories";
 import type { WashOrder } from "@/hooks/useOrders";
+import { EmployeeExpenseDialog } from "@/components/EmployeeExpenseDialog";
 
 type ExpenseCategory = string;
 
