@@ -284,8 +284,60 @@ function WorkersSection() {
     const m: Record<string, boolean> = {};
     (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
     setActiveMap(m);
+    // Load compensation settings
+    const { data: compRows } = await (supabase as any)
+      .from("staff_compensation")
+      .select("user_id,pay_type,base_rate,category_rates");
+    const cm: Record<string, Compensation> = {};
+    (compRows || []).forEach((r: any) => {
+      cm[r.user_id] = {
+        pay_type: (r.pay_type ?? "salary") as Compensation["pay_type"],
+        base_rate: Number(r.base_rate ?? 0),
+        category_rates: (r.category_rates && typeof r.category_rates === "object") ? r.category_rates : {},
+      };
+    });
+    setCompMap(cm);
     setLoading(false);
   }, [toast, isAuthenticated, authUser, tenant?.id, tenantLoading]);
+
+  const updateCompLocal = (userId: string, patch: Partial<Compensation>) => {
+    setCompMap((m) => ({ ...m, [userId]: { ...(m[userId] ?? emptyComp()), ...patch } }));
+  };
+  const updateCategoryRate = (userId: string, category: string, value: number) => {
+    setCompMap((m) => {
+      const cur = m[userId] ?? emptyComp();
+      const rates = { ...cur.category_rates };
+      if (!Number.isFinite(value) || value === 0) delete rates[category];
+      else rates[category] = value;
+      return { ...m, [userId]: { ...cur, category_rates: rates } };
+    });
+  };
+  const saveCompensation = async (u: StaffUser) => {
+    if (!tenant?.id) return;
+    setSavingComp(u.id);
+    const cur = compMap[u.id] ?? emptyComp();
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    const { error } = await (supabase as any)
+      .from("staff_compensation")
+      .upsert(
+        {
+          tenant_id: tenant.id,
+          user_id: u.id,
+          pay_type: cur.pay_type,
+          base_rate: cur.base_rate,
+          category_rates: cur.category_rates,
+          updated_at: new Date().toISOString(),
+          updated_by: caller?.id ?? null,
+        },
+        { onConflict: "tenant_id,user_id" }
+      );
+    setSavingComp(null);
+    if (error) {
+      toast({ title: "Could not save", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Compensation saved" });
+  };
 
   const toggleActive = async (u: StaffUser, next: boolean) => {
     if (!tenant?.id) return;
