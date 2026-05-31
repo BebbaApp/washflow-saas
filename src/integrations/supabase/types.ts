@@ -1156,6 +1156,39 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_compensation: {
+        Row: {
+          base_rate: number
+          category_rates: Json
+          id: string
+          pay_type: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          base_rate?: number
+          category_rates?: Json
+          id?: string
+          pay_type?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          base_rate?: number
+          category_rates?: Json
+          id?: string
+          pay_type?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       staff_face_enrollments: {
         Row: {
           created_at: string
