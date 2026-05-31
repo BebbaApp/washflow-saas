@@ -102,6 +102,7 @@ export const CONCENTRATE_PRESET_IDS: Record<string, string> = {
   glass:      "glass-cleaner",
   engine_deg: "engine-degreaser",
   carpet:     "carpet-cleaner",
+  perfume:    "car-perfume",
 };
 
 export interface ProductBundle {
