@@ -26,6 +26,7 @@ interface StaffOption {
   email: string;
   role: string | null;
   active: boolean;
+  phone: string | null;
 }
 interface AttRow {
   user_id: string;
