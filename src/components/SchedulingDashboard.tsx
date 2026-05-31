@@ -184,6 +184,36 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     );
   }, [records, staffMembers, from, to, markedAbsent]);
 
+  // === 7-day pagination for Day Log + Employee detail ===
+  // Build descending list of unique dates in range and chunk into 7-day pages.
+  const datePages = useMemo<string[][]>(() => {
+    const set = new Set<string>();
+    dayRows.forEach((r) => set.add(r.date));
+    const sorted = Array.from(set).sort((a, b) => b.localeCompare(a)); // newest first
+    const out: string[][] = [];
+    for (let i = 0; i < sorted.length; i += 7) out.push(sorted.slice(i, i + 7));
+    return out.length ? out : [[]];
+  }, [dayRows]);
+  const needsPagination = datePages.length > 1;
+  const [pageIdx, setPageIdx] = useState(0);
+  useEffect(() => { setPageIdx(0); }, [from, to, preset]);
+  const currentPageDates = useMemo(
+    () => new Set(datePages[Math.min(pageIdx, datePages.length - 1)] || []),
+    [datePages, pageIdx]
+  );
+  const pagedDayRows = useMemo(
+    () => needsPagination ? dayRows.filter((r) => currentPageDates.has(r.date)) : dayRows,
+    [dayRows, needsPagination, currentPageDates]
+  );
+  const pageLabel = useMemo(() => {
+    const page = datePages[Math.min(pageIdx, datePages.length - 1)] || [];
+    if (!page.length) return "";
+    const last = page[page.length - 1];
+    const first = page[0];
+    return first === last ? first : `${last} → ${first}`;
+  }, [datePages, pageIdx]);
+
+
   // Today's absentees (for in-app notification)
   const todayAbsentees = useMemo(() => {
     return staffMembers.filter((s) => {
