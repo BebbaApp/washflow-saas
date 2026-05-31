@@ -479,98 +479,192 @@ function WorkersSection() {
           const isSelf = u.id === currentUserId;
           const isGlobalAdmin = !!u.is_global_admin;
           return (
-            <div key={u.id} className="glass-card p-4 flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground truncate">{u.name || "Unnamed"}</p>
-                  {isAdminUser && (
-                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                      <Shield className="w-3 h-3" /> {isGlobalAdmin ? "Super Admin" : "Admin"}
-                    </span>
-                  )}
-                  {!u.email_confirmed && (
-                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-warning/10 text-warning font-medium">Unverified</span>
+            <Collapsible
+              key={u.id}
+              open={openRow === u.id}
+              onOpenChange={(o) => setOpenRow(o ? u.id : null)}
+              className="glass-card"
+            >
+              <div className="p-4 flex items-center gap-4 flex-wrap">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    title={openRow === u.id ? "Collapse" : "Expand pay settings"}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0"
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform ${openRow === u.id ? "rotate-180" : ""}`} />
+                  </button>
+                </CollapsibleTrigger>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground truncate">{u.name || "Unnamed"}</p>
+                    {isAdminUser && (
+                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                        <Shield className="w-3 h-3" /> {isGlobalAdmin ? "Super Admin" : "Admin"}
+                      </span>
+                    )}
+                    {!u.email_confirmed && (
+                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-warning/10 text-warning font-medium">Unverified</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                    <Mail className="w-3 h-3" /> {u.email}
+                  </p>
+                  {u.has_pin && u.phone && (
+                    <p className="text-[11px] text-primary flex items-center gap-1 truncate mt-0.5">
+                      <Smartphone className="w-3 h-3" /> PIN login: {u.phone}
+                    </p>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-                  <Mail className="w-3 h-3" /> {u.email}
-                </p>
-                {u.has_pin && u.phone && (
-                  <p className="text-[11px] text-primary flex items-center gap-1 truncate mt-0.5">
-                    <Smartphone className="w-3 h-3" /> PIN login: {u.phone}
-                  </p>
+
+                {!u.email_confirmed && (
+                  <button
+                    onClick={() => handleResendVerification(u)}
+                    disabled={resendingId === u.id}
+                    title="Send verification email"
+                    className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium bg-warning/10 text-warning hover:bg-warning/20 transition-colors disabled:opacity-60"
+                  >
+                    {resendingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MailCheck className="w-3.5 h-3.5" />}
+                    {resendingId === u.id ? "Sending…" : "Send verification"}
+                  </button>
+                )}
+
+                <button
+                  onClick={() => openPinDialog(u)}
+                  title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
+                  className={`h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                    u.has_pin
+                      ? "bg-primary/10 text-primary hover:bg-primary/20"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  {u.has_pin ? "PIN set" : "Set PIN"}
+                </button>
+
+
+                <Select
+                  value={u.role ?? ""}
+                  onValueChange={(v: WorkerRole) => handleRoleChange(u.id, v)}
+                  disabled={savingId === u.id || isGlobalAdmin}
+                >
+                  <SelectTrigger className="w-32 h-9 bg-secondary border-border text-foreground">
+                    {savingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <SelectValue placeholder="No role" />}
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Active/Inactive toggle — controls visibility in the Day Log & Staff Check-in */}
+                {(() => {
+                  const isActive = activeMap[u.id] !== false;
+                  return (
+                    <div className="flex items-center gap-2" title={isActive ? "Active — shown in Day Log & Check-in" : "Inactive — hidden from Day Log & Check-in"}>
+                      <span className={`text-[10px] uppercase tracking-wide font-semibold ${isActive ? "text-success" : "text-muted-foreground"}`}>
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                      <Switch
+                        checked={isActive}
+                        disabled={togglingActive === u.id}
+                        onCheckedChange={(v) => toggleActive(u, v)}
+                      />
+                    </div>
+                  );
+                })()}
+
+                {canDeleteWorkers && (
+                  <button
+                    onClick={() => handleDelete(u)}
+                    disabled={isAdminUser || isSelf || deletingId === u.id}
+                    title={isAdminUser ? "Admin users cannot be deleted" : isSelf ? "You cannot delete your own account" : "Delete user"}
+                    className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
+                  >
+                    {deletingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  </button>
                 )}
               </div>
 
-              {!u.email_confirmed && (
-                <button
-                  onClick={() => handleResendVerification(u)}
-                  disabled={resendingId === u.id}
-                  title="Send verification email"
-                  className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium bg-warning/10 text-warning hover:bg-warning/20 transition-colors disabled:opacity-60"
-                >
-                  {resendingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MailCheck className="w-3.5 h-3.5" />}
-                  {resendingId === u.id ? "Sending…" : "Send verification"}
-                </button>
-              )}
+              <CollapsibleContent>
+                {(() => {
+                  const comp = compMap[u.id] ?? emptyComp();
+                  const payTypeLabel = comp.pay_type === "salary" ? "Monthly salary" : comp.pay_type === "wage" ? "Daily wage" : "Hourly rate";
+                  return (
+                    <div className="px-4 pb-4 pt-2 border-t border-border space-y-4">
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                        <Wallet className="w-3.5 h-3.5" /> Remuneration
+                      </div>
 
-              <button
-                onClick={() => openPinDialog(u)}
-                title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
-                className={`h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
-                  u.has_pin
-                    ? "bg-primary/10 text-primary hover:bg-primary/20"
-                    : "bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                {u.has_pin ? "PIN set" : "Set PIN"}
-              </button>
+                      {/* Pay type toggles */}
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        {(["salary","wage","hourly"] as const).map((pt) => {
+                          const labels: Record<typeof pt, string> = { salary: "Salary", wage: "Wage", hourly: "Hourly rate" } as any;
+                          const checked = comp.pay_type === pt;
+                          return (
+                            <label
+                              key={pt}
+                              className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                                checked ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/40"
+                              }`}
+                            >
+                              <span className="text-sm font-medium text-foreground">{labels[pt]}</span>
+                              <Switch checked={checked} onCheckedChange={(v) => v && updateCompLocal(u.id, { pay_type: pt })} />
+                            </label>
+                          );
+                        })}
+                      </div>
 
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">{payTypeLabel}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={comp.base_rate}
+                            onChange={(e) => updateCompLocal(u.id, { base_rate: parseFloat(e.target.value) || 0 })}
+                            className="bg-secondary border-border"
+                          />
+                        </div>
+                      </div>
 
-              <Select
-                value={u.role ?? ""}
-                onValueChange={(v: WorkerRole) => handleRoleChange(u.id, v)}
-                disabled={savingId === u.id || isGlobalAdmin}
-              >
-                <SelectTrigger className="w-32 h-9 bg-secondary border-border text-foreground">
-                  {savingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <SelectValue placeholder="No role" />}
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {ROLE_OPTIONS.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Rate per vehicle category (for remuneration calculation)</Label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {VEHICLES.map((v) => (
+                            <div key={v} className="space-y-1">
+                              <Label className="text-[11px] text-muted-foreground">{v}</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={comp.category_rates[v] ?? ""}
+                                placeholder="0"
+                                onChange={(e) => updateCategoryRate(u.id, v, parseFloat(e.target.value))}
+                                className="bg-secondary border-border h-9"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-              {/* Active/Inactive toggle — controls visibility in the Day Log */}
-              {(() => {
-                const isActive = activeMap[u.id] !== false;
-                return (
-                  <div className="flex items-center gap-2" title={isActive ? "Active — shown in Day Log" : "Inactive — hidden from Day Log"}>
-                    <span className={`text-[10px] uppercase tracking-wide font-semibold ${isActive ? "text-success" : "text-muted-foreground"}`}>
-                      {isActive ? "Active" : "Inactive"}
-                    </span>
-                    <Switch
-                      checked={isActive}
-                      disabled={togglingActive === u.id}
-                      onCheckedChange={(v) => toggleActive(u, v)}
-                    />
-                  </div>
-                );
-              })()}
-
-              {canDeleteWorkers && (
-                <button
-                  onClick={() => handleDelete(u)}
-                  disabled={isAdminUser || isSelf || deletingId === u.id}
-                  title={isAdminUser ? "Admin users cannot be deleted" : isSelf ? "You cannot delete your own account" : "Delete user"}
-                  className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
-                >
-                  {deletingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                </button>
-              )}
-            </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => saveCompensation(u)}
+                          disabled={savingComp === u.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                        >
+                          {savingComp === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          Save pay settings
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CollapsibleContent>
+            </Collapsible>
           );
         })}
       </div>
