@@ -33,6 +33,7 @@ export const CONCENTRATES: ConcentrateRow[] = [
   { key: "glass",        name: "Glass cleaner",        dilution: "1:10", unit: "mL", values: { Sedan: 8,   "SUV S/Cab": 10,  "SUV D/Cab": 12,  Quantum: 18,  Sprinter: 16,  "4T Truck": 20,  "8T Truck": 25 } },
   { key: "engine_deg",   name: "Engine degreaser*",    dilution: "1:10", unit: "mL", values: { Sedan: 30,  "SUV S/Cab": 40,  "SUV D/Cab": 50,  Quantum: 60,  Sprinter: 70,  "4T Truck": 120, "8T Truck": 200 } },
   { key: "carpet",       name: "Carpet/upholstery*",   dilution: "1:20", unit: "mL", values: { Sedan: 8,   "SUV S/Cab": 10,  "SUV D/Cab": 13,  Quantum: 20,  Sprinter: 18,  "4T Truck": 15,  "8T Truck": 20 } },
+  { key: "perfume",      name: "Car perfume",          dilution: "RTU",  unit: "mL", values: { Sedan: 2,   "SUV S/Cab": 2.5, "SUV D/Cab": 3,   Quantum: 4,   Sprinter: 4,   "4T Truck": 5,   "8T Truck": 6 } },
 ];
 
 export const WATER: WaterRow[] = [
@@ -89,6 +90,7 @@ export const CONCENTRATE_KEYWORDS: Record<string, RegExp> = {
   glass:      /glass|window/i,
   engine_deg: /engine|degreas/i,
   carpet:     /carpet|upholster/i,
+  perfume:    /perfume|fragrance|air ?freshener|scent/i,
 };
 
 export const WATER_KEYWORD = /\bwater\b/i;
@@ -100,6 +102,7 @@ export const CONCENTRATE_PRESET_IDS: Record<string, string> = {
   glass:      "glass-cleaner",
   engine_deg: "engine-degreaser",
   carpet:     "carpet-cleaner",
+  perfume:    "car-perfume",
 };
 
 export interface ProductBundle {
