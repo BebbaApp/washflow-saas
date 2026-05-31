@@ -484,6 +484,23 @@ function WorkersSection() {
                 </SelectContent>
               </Select>
 
+              {/* Active/Inactive toggle — controls visibility in the Day Log */}
+              {(() => {
+                const isActive = activeMap[u.id] !== false;
+                return (
+                  <div className="flex items-center gap-2" title={isActive ? "Active — shown in Day Log" : "Inactive — hidden from Day Log"}>
+                    <span className={`text-[10px] uppercase tracking-wide font-semibold ${isActive ? "text-success" : "text-muted-foreground"}`}>
+                      {isActive ? "Active" : "Inactive"}
+                    </span>
+                    <Switch
+                      checked={isActive}
+                      disabled={togglingActive === u.id}
+                      onCheckedChange={(v) => toggleActive(u, v)}
+                    />
+                  </div>
+                );
+              })()}
+
               {canDeleteWorkers && (
                 <button
                   onClick={() => handleDelete(u)}
