@@ -402,7 +402,7 @@ const Index = () => {
                 </button>
               )}
               {activeTab === "expenses" && can("expenses.create") && (
-                <>
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => setEmployeeExpenseOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border text-foreground font-medium text-sm hover:bg-muted transition-colors"
@@ -417,7 +417,7 @@ const Index = () => {
                     <Plus className="w-4 h-4" />
                     Add Expense
                   </button>
-                </>
+                </div>
               )}
             </header>
           )}
