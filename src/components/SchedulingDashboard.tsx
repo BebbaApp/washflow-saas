@@ -592,67 +592,35 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
             </div>
           </div>
 
-          <div className="glass-card p-4">
-            <h3 className="text-lg font-semibold mb-1">{selectedEmployeeName}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{from} → {to}</p>
-            <DateRangeBar />
-          </div>
-
-          <div className="glass-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground bg-muted/40">
-                  <tr>
-                    <th className="text-left px-4 py-2">Date</th>
-                    <th className="text-left px-4 py-2">Periods</th>
-                    <th className="text-left px-4 py-2">First in</th>
-                    <th className="text-left px-4 py-2">Last out</th>
-                    <th className="text-left px-4 py-2">Hours</th>
-                    <th className="text-left px-4 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employeeDayRows.map((r, i) => (
-                    <tr key={i} className="border-t border-border">
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        {new Date(r.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                      </td>
-                      <td className="px-4 py-2">
-                        {r.periodCount === 0 ? "—" : (
-                          <div className="space-y-0.5">
-                            <div className="font-medium">{r.periodCount}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {r.periods.map((p, j) => (
-                                <div key={j}>
-                                  {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                  {" → "}
-                                  {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "open"}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-2">{r.start ? r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                      <td className="px-4 py-2">{r.end ? r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                      <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
-                      <td className="px-4 py-2">
-                        {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20">Present</Badge>}
-                        {r.status === "absent" && <Badge variant="destructive">Absent</Badge>}
-                        {r.status === "marked_absent" && <Badge variant="destructive">Marked absent</Badge>}
-                        {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
-                      </td>
-                    </tr>
-                  ))}
-                  {employeeDayRows.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data in range</td></tr>
-                  )}
-                </tbody>
-              </table>
+          <div className="glass-card p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">{selectedEmployeeName}</h3>
+                <p className="text-xs text-muted-foreground">Work log calendar</p>
+              </div>
+              <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-secondary border border-border">
+                {(["week","month"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setCalMode(m)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                      calMode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >{m}</button>
+                ))}
+              </div>
             </div>
+
+            <EmployeeCalendar
+              mode={calMode}
+              anchor={calAnchor}
+              setAnchor={setCalAnchor}
+              dayMap={employeeDayMap}
+            />
           </div>
         </div>
       )}
+
 
       {/* PERFORMANCE VIEW */}
       {view === "performance" && (
