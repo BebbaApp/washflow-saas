@@ -1,5 +1,8 @@
-import { useMemo, useState } from "react";
-import { Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee,
+  Bell, X, FileDown, FileText, ChevronLeft, AlertCircle,
+} from "lucide-react";
 import { useScheduling } from "@/hooks/useScheduling";
 import { useAttendance, type AttendanceRecord } from "@/hooks/useAttendance";
 import { Input } from "@/components/ui/input";
@@ -7,15 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface SchedulingDashboardProps {
   isAdmin: boolean;
 }
 
 type View = "checkin" | "daylog" | "employees" | "performance";
+type Preset = "today" | "7d" | "30d" | "all" | "custom";
 
-// 1 hour lunch break deducted from each present day
 const LUNCH_BREAK_HOURS = 1;
+const ALL_TIME_START = "2000-01-01";
 
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -34,6 +42,11 @@ function daysBetween(from: string, to: string): string[] {
   return out;
 }
 
+interface Period {
+  start: Date;
+  end: Date | null;
+  hours: number;
+}
 interface DayRow {
   user_id: string;
   staffName: string;
@@ -41,7 +54,21 @@ interface DayRow {
   start: Date | null;
   end: Date | null;
   hours: number;
-  status: "present" | "absent" | "in_progress";
+  periods: Period[];
+  periodCount: number;
+  status: "present" | "absent" | "in_progress" | "marked_absent";
+}
+
+function csvEscape(v: any): string {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadBlob(name: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
@@ -49,21 +76,58 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
   const { records } = useAttendance();
 
   const [view, setView] = useState<View>("checkin");
+  const [preset, setPreset] = useState<Preset>("7d");
 
   const todayKey = ymd(new Date());
-  const weekStart = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 6);
-    return ymd(d);
-  }, []);
-  const [from, setFrom] = useState(weekStart);
-  const [to, setTo] = useState(todayKey);
+
+  const presetRange = (p: Preset): { from: string; to: string } => {
+    const today = new Date();
+    if (p === "today") return { from: todayKey, to: todayKey };
+    if (p === "7d") {
+      const d = new Date(); d.setDate(d.getDate() - 6);
+      return { from: ymd(d), to: todayKey };
+    }
+    if (p === "30d") {
+      const d = new Date(); d.setDate(d.getDate() - 29);
+      return { from: ymd(d), to: todayKey };
+    }
+    if (p === "all") return { from: ALL_TIME_START, to: todayKey };
+    return { from: todayKey, to: todayKey };
+  };
+
+  const initial = presetRange("7d");
+  const [from, setFrom] = useState(initial.from);
+  const [to, setTo] = useState(initial.to);
+
+  useEffect(() => {
+    if (preset === "custom") return;
+    const r = presetRange(preset);
+    setFrom(r.from); setTo(r.to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset]);
+
+  // Marked-absent audit entries (action='marked_absent', reason contains date)
+  const [markedAbsent, setMarkedAbsent] = useState<Set<string>>(new Set());
+  const refreshMarkedAbsent = async () => {
+    const { data } = await supabase
+      .from("attendance_audit_log")
+      .select("target_user_id,reason,created_at,action")
+      .eq("action", "marked_absent")
+      .limit(2000);
+    const s = new Set<string>();
+    (data || []).forEach((r: any) => {
+      const m = /(\d{4}-\d{2}-\d{2})/.exec(r.reason || "");
+      const d = m ? m[1] : r.created_at.slice(0, 10);
+      s.add(`${r.target_user_id}|${d}`);
+    });
+    setMarkedAbsent(s);
+  };
+  useEffect(() => { refreshMarkedAbsent(); }, []);
 
   // === Build per-staff per-day rows from attendance records ===
   const dayRows = useMemo<DayRow[]>(() => {
     const dates = daysBetween(from, to);
     const rows: DayRow[] = [];
-    // index records by user/date
     const byUserDate: Record<string, AttendanceRecord[]> = {};
     for (const r of records) {
       const d = r.created_at.slice(0, 10);
@@ -76,41 +140,90 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
         const recs = (byUserDate[`${s.id}|${date}`] || []).slice().sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
+        // Build periods: pair consecutive check_in -> check_out
+        const periods: Period[] = [];
+        let openStart: Date | null = null;
+        for (const r of recs) {
+          if (r.kind === "check_in") {
+            openStart = new Date(r.created_at);
+          } else if (r.kind === "check_out" && openStart) {
+            const end = new Date(r.created_at);
+            const hrs = Math.max(0, (end.getTime() - openStart.getTime()) / 3600000);
+            periods.push({ start: openStart, end, hours: hrs });
+            openStart = null;
+          }
+        }
+        if (openStart) periods.push({ start: openStart, end: null, hours: 0 });
+
         const firstIn = recs.find((r) => r.kind === "check_in");
         const lastOut = [...recs].reverse().find((r) => r.kind === "check_out");
         if (!firstIn) {
+          const wasMarked = markedAbsent.has(`${s.id}|${date}`);
           rows.push({
             user_id: s.id, staffName: s.name, date,
-            start: null, end: null, hours: 0, status: "absent",
+            start: null, end: null, hours: 0,
+            periods: [], periodCount: 0,
+            status: wasMarked ? "marked_absent" : "absent",
           });
         } else {
           const start = new Date(firstIn.created_at);
           const end = lastOut ? new Date(lastOut.created_at) : null;
-          let hours = 0;
-          let status: DayRow["status"] = "in_progress";
-          if (end) {
-            const raw = (end.getTime() - start.getTime()) / 3600000;
-            hours = Math.max(0, raw - LUNCH_BREAK_HOURS);
-            status = "present";
-          }
-          rows.push({ user_id: s.id, staffName: s.name, date, start, end, hours, status });
+          const rawHours = periods.reduce((a, p) => a + p.hours, 0);
+          const hours = end ? Math.max(0, rawHours - LUNCH_BREAK_HOURS) : 0;
+          const status: DayRow["status"] = end ? "present" : "in_progress";
+          rows.push({
+            user_id: s.id, staffName: s.name, date, start, end, hours,
+            periods, periodCount: periods.length, status,
+          });
         }
       }
     }
     return rows.sort((a, b) =>
       b.date.localeCompare(a.date) || a.staffName.localeCompare(b.staffName)
     );
-  }, [records, staffMembers, from, to]);
+  }, [records, staffMembers, from, to, markedAbsent]);
 
-  // Aggregate per employee
+  // Today's absentees (for in-app notification)
+  const todayAbsentees = useMemo(() => {
+    return staffMembers.filter((s) => {
+      const has = records.some(
+        (r) => r.user_id === s.id && r.created_at.slice(0, 10) === todayKey
+      );
+      return !has;
+    }).map((s) => ({
+      ...s,
+      marked: markedAbsent.has(`${s.id}|${todayKey}`),
+    }));
+  }, [staffMembers, records, todayKey, markedAbsent]);
+
+  const [notifDismissed, setNotifDismissed] = useState(false);
+  const unmarkedAbsentees = todayAbsentees.filter((a) => !a.marked);
+  const showNotif = !notifDismissed && unmarkedAbsentees.length > 0;
+
+  const markAbsent = async (userId: string, date: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error("Not signed in"); return; }
+    const { error } = await supabase.from("attendance_audit_log").insert({
+      target_user_id: userId,
+      acted_by: user.id,
+      action: "marked_absent",
+      reason: `Marked absent for ${date}`,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Marked absent");
+    setMarkedAbsent((prev) => new Set(prev).add(`${userId}|${date}`));
+  };
+
+  // Aggregate per employee — count PERIODS per day, not hours
   const employeeStats = useMemo(() => {
     return staffMembers.map((s) => {
       const mine = dayRows.filter((r) => r.user_id === s.id);
       const present = mine.filter((r) => r.status === "present").length;
-      const absent = mine.filter((r) => r.status === "absent").length;
+      const absent = mine.filter((r) => r.status === "absent" || r.status === "marked_absent").length;
       const inProgress = mine.filter((r) => r.status === "in_progress").length;
+      const totalPeriods = mine.reduce((a, r) => a + r.periodCount, 0);
       const totalHours = mine.reduce((a, r) => a + r.hours, 0);
-      return { ...s, present, absent, inProgress, totalHours };
+      return { ...s, present, absent, inProgress, totalPeriods, totalHours };
     });
   }, [staffMembers, dayRows]);
 
@@ -127,6 +240,53 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     [performance]
   );
 
+  const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+  const selectedEmployeeName = useMemo(
+    () => staffMembers.find((s) => s.id === selectedEmployee)?.name || "",
+    [selectedEmployee, staffMembers]
+  );
+  const employeeDayRows = useMemo(
+    () => selectedEmployee ? dayRows.filter((r) => r.user_id === selectedEmployee) : [],
+    [dayRows, selectedEmployee]
+  );
+
+  // === Exports ===
+  const exportCsv = (rows: DayRow[], filename: string) => {
+    const head = ["Date","Staff","Day start","Day end","Periods","Hours worked","Status"];
+    const body = rows.map((r) => [
+      r.date, r.staffName,
+      r.start ? r.start.toLocaleTimeString() : "",
+      r.end ? r.end.toLocaleTimeString() : "",
+      r.periodCount,
+      r.hours.toFixed(2),
+      r.status,
+    ]);
+    const csv = [head, ...body].map((row) => row.map(csvEscape).join(",")).join("\n");
+    downloadBlob(`${filename}.csv`, new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    toast.success("CSV exported");
+  };
+  const exportPdf = (rows: DayRow[], title: string, filename: string) => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(14); doc.text(title, 14, 14);
+    doc.setFontSize(9); doc.text(`Range: ${from} → ${to}  ·  Generated: ${new Date().toLocaleString()}`, 14, 20);
+    autoTable(doc, {
+      startY: 26,
+      head: [["Date","Staff","Day start","Day end","Periods","Hours","Status"]],
+      body: rows.map((r) => [
+        r.date, r.staffName,
+        r.start ? r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
+        r.end ? r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
+        String(r.periodCount),
+        r.hours > 0 ? r.hours.toFixed(2) : "—",
+        r.status.replace("_", " "),
+      ]),
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [30, 41, 59] },
+    });
+    doc.save(`${filename}.pdf`);
+    toast.success("PDF exported");
+  };
+
   const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = [
     { id: "checkin", label: "Staff Check-in", icon: UserCheck },
     { id: "daylog", label: "Day Log", icon: Calendar },
@@ -137,6 +297,36 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
+
+  const DateRangeBar = () => (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-secondary border border-border">
+        {([
+          ["today","Today"],["7d","7 Days"],["30d","30 Days"],["all","All Time"],["custom","Custom"],
+        ] as [Preset,string][]).map(([id,label]) => (
+          <button
+            key={id}
+            onClick={() => setPreset(id)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              preset === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >{label}</button>
+        ))}
+      </div>
+      {preset === "custom" && (
+        <>
+          <div>
+            <label className="text-xs text-muted-foreground block">From</label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block">To</label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -162,24 +352,59 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
         </div>
       </div>
 
+      {/* IN-APP NOTIFICATION: absentees today */}
+      {showNotif && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 p-4">
+          <div className="flex items-start gap-3">
+            <Bell className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-sm font-semibold text-foreground">
+                  {unmarkedAbsentees.length} {unmarkedAbsentees.length === 1 ? "employee has" : "employees have"} not checked in today
+                </p>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setNotifDismissed(true)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {unmarkedAbsentees.map((a) => (
+                  <div key={a.id} className="inline-flex items-center gap-2 bg-card border border-border rounded-lg pl-3 pr-1 py-1">
+                    <span className="text-xs font-medium">{a.name}</span>
+                    <Button
+                      size="sm" variant="ghost"
+                      className="h-7 text-xs text-destructive hover:text-destructive"
+                      onClick={() => markAbsent(a.id, todayKey)}
+                    >
+                      <XCircle className="w-3 h-3 mr-1" /> Mark absent
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CHECK-IN VIEW */}
       {view === "checkin" && <StaffCheckInPanel />}
 
       {/* DAY LOG VIEW */}
       {view === "daylog" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground block">From</label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <DateRangeBar />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportCsv(dayRows, `day-log_${from}_to_${to}`)}>
+                <FileDown className="w-4 h-4 mr-1" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportPdf(dayRows, "Day Work Log", `day-log_${from}_to_${to}`)}>
+                <FileText className="w-4 h-4 mr-1" /> PDF
+              </Button>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block">To</label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
-            </div>
-            <div className="ml-auto text-xs text-muted-foreground flex items-center gap-1">
-              <Coffee className="w-3 h-3" /> {LUNCH_BREAK_HOURS}h lunch break deducted per present day
-            </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <Coffee className="w-3 h-3" /> {LUNCH_BREAK_HOURS}h lunch break deducted per completed day
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -189,15 +414,15 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
             </div>
             <div className="glass-card p-4">
               <p className="text-xs text-muted-foreground">Absent days</p>
-              <p className="text-2xl font-bold text-destructive">{dayRows.filter((r) => r.status === "absent").length}</p>
+              <p className="text-2xl font-bold text-destructive">{dayRows.filter((r) => r.status === "absent" || r.status === "marked_absent").length}</p>
             </div>
             <div className="glass-card p-4">
               <p className="text-xs text-muted-foreground">In progress</p>
               <p className="text-2xl font-bold text-warning">{dayRows.filter((r) => r.status === "in_progress").length}</p>
             </div>
             <div className="glass-card p-4">
-              <p className="text-xs text-muted-foreground">Total hours</p>
-              <p className="text-2xl font-bold">{dayRows.reduce((a, r) => a + r.hours, 0).toFixed(1)}</p>
+              <p className="text-xs text-muted-foreground">Total periods</p>
+              <p className="text-2xl font-bold">{dayRows.reduce((a, r) => a + r.periodCount, 0)}</p>
             </div>
           </div>
 
@@ -210,13 +435,14 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
                     <th className="text-left px-4 py-2">Staff</th>
                     <th className="text-left px-4 py-2">Day start</th>
                     <th className="text-left px-4 py-2">Day end</th>
+                    <th className="text-left px-4 py-2">Periods</th>
                     <th className="text-left px-4 py-2">Hours worked</th>
                     <th className="text-left px-4 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {dayRows.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No staff or no data in range</td></tr>
+                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No staff or no data in range</td></tr>
                   )}
                   {dayRows.map((r, i) => (
                     <tr key={i} className="border-t border-border">
@@ -230,10 +456,12 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
                       <td className="px-4 py-2 whitespace-nowrap">
                         {r.end ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "—"}
                       </td>
+                      <td className="px-4 py-2">{r.periodCount}</td>
                       <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
                       <td className="px-4 py-2">
                         {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20"><CheckCircle2 className="w-3 h-3 mr-1" />Present</Badge>}
                         {r.status === "absent" && <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Absent</Badge>}
+                        {r.status === "marked_absent" && <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Marked absent</Badge>}
                         {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
                       </td>
                     </tr>
@@ -246,18 +474,9 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       )}
 
       {/* EMPLOYEES VIEW */}
-      {view === "employees" && (
+      {view === "employees" && !selectedEmployee && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground block">From</label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block">To</label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
-            </div>
-          </div>
+          <DateRangeBar />
           <div className="glass-card p-4">
             {employeeStats.length === 0 ? (
               <div className="py-12 text-center">
@@ -268,22 +487,27 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
             ) : (
               <div className="divide-y divide-border">
                 {employeeStats.map((emp) => (
-                  <div key={emp.id} className="flex items-center gap-4 py-3 flex-wrap">
+                  <button
+                    key={emp.id}
+                    onClick={() => setSelectedEmployee(emp.id)}
+                    className="w-full text-left flex items-center gap-4 py-3 flex-wrap hover:bg-secondary/40 rounded-lg px-2 transition-colors"
+                  >
                     <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">
                       {emp.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{emp.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {emp.present} present · {emp.absent} absent · {emp.totalHours.toFixed(1)}h worked
+                        {emp.totalPeriods} work {emp.totalPeriods === 1 ? "period" : "periods"} · {emp.present} present · {emp.absent} absent
                       </p>
                     </div>
                     <div className="flex gap-2 text-xs">
+                      <Badge variant="secondary">{emp.totalPeriods} periods</Badge>
                       <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20">{emp.present}P</Badge>
                       <Badge variant="destructive">{emp.absent}A</Badge>
                       {emp.inProgress > 0 && <Badge variant="outline">{emp.inProgress} active</Badge>}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -291,19 +515,91 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
         </div>
       )}
 
+      {/* EMPLOYEE DETAIL */}
+      {view === "employees" && selectedEmployee && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedEmployee(null)}>
+              <ChevronLeft className="w-4 h-4 mr-1" /> Back to employees
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportCsv(employeeDayRows, `${selectedEmployeeName}_${from}_to_${to}`)}>
+                <FileDown className="w-4 h-4 mr-1" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportPdf(employeeDayRows, `Work record — ${selectedEmployeeName}`, `${selectedEmployeeName}_${from}_to_${to}`)}>
+                <FileText className="w-4 h-4 mr-1" /> PDF
+              </Button>
+            </div>
+          </div>
+
+          <div className="glass-card p-4">
+            <h3 className="text-lg font-semibold mb-1">{selectedEmployeeName}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{from} → {to}</p>
+            <DateRangeBar />
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground bg-muted/40">
+                  <tr>
+                    <th className="text-left px-4 py-2">Date</th>
+                    <th className="text-left px-4 py-2">Periods</th>
+                    <th className="text-left px-4 py-2">First in</th>
+                    <th className="text-left px-4 py-2">Last out</th>
+                    <th className="text-left px-4 py-2">Hours</th>
+                    <th className="text-left px-4 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employeeDayRows.map((r, i) => (
+                    <tr key={i} className="border-t border-border">
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        {new Date(r.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                      </td>
+                      <td className="px-4 py-2">
+                        {r.periodCount === 0 ? "—" : (
+                          <div className="space-y-0.5">
+                            <div className="font-medium">{r.periodCount}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {r.periods.map((p, j) => (
+                                <div key={j}>
+                                  {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  {" → "}
+                                  {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "open"}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">{r.start ? r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                      <td className="px-4 py-2">{r.end ? r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                      <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
+                      <td className="px-4 py-2">
+                        {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20">Present</Badge>}
+                        {r.status === "absent" && <Badge variant="destructive">Absent</Badge>}
+                        {r.status === "marked_absent" && <Badge variant="destructive">Marked absent</Badge>}
+                        {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
+                      </td>
+                    </tr>
+                  ))}
+                  {employeeDayRows.length === 0 && (
+                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data in range</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PERFORMANCE VIEW */}
       {view === "performance" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground block">From</label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block">To</label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
-            </div>
-            <p className="text-xs text-muted-foreground ml-auto">Hours worked (less {LUNCH_BREAK_HOURS}h lunch)</p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <DateRangeBar />
+            <p className="text-xs text-muted-foreground">Hours worked (less {LUNCH_BREAK_HOURS}h lunch)</p>
           </div>
 
           <div className="glass-card p-4">
@@ -350,7 +646,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{emp.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {emp.totalHours.toFixed(1)}h · {emp.present} present · {emp.absent} absent
+                          {emp.totalHours.toFixed(1)}h · {emp.totalPeriods} periods · {emp.present} present · {emp.absent} absent
                         </p>
                       </div>
                       <Trophy className={`w-4 h-4 ${idx === 0 ? "text-warning" : "text-muted-foreground/40"}`} />
