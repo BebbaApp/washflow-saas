@@ -436,6 +436,8 @@ const Index = () => {
               orders={orders}
               addOpen={addExpenseOpen}
               onAddOpenChange={setAddExpenseOpen}
+              employeeExpenseOpen={employeeExpenseOpen}
+              onEmployeeExpenseOpenChange={setEmployeeExpenseOpen}
             />
           )}
           {activeTab === "attendance" && <AttendancePage />}
