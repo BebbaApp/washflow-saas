@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   LogIn, LogOut, UserCheck, Camera, Search, ShieldCheck,
-  Volume2, VolumeX,
+  Volume2, VolumeX, ExternalLink,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface StaffOption { user_id: string; name: string; role: string; }
 
