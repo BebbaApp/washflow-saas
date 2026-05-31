@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { useExpenseCategories, categoryTone } from "@/hooks/useExpenseCategories";
 import type { WashOrder } from "@/hooks/useOrders";
+import { EmployeeExpenseDialog } from "@/components/EmployeeExpenseDialog";
 
 type ExpenseCategory = string;
 
@@ -36,9 +37,11 @@ interface Props {
   orders: WashOrder[];
   addOpen: boolean;
   onAddOpenChange: (open: boolean) => void;
+  employeeExpenseOpen?: boolean;
+  onEmployeeExpenseOpenChange?: (open: boolean) => void;
 }
 
-export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
+export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpenseOpen = false, onEmployeeExpenseOpenChange }: Props) {
   const { formatPrice, currency } = useCurrency();
   const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses();
   const { categories, subcategoriesFor } = useExpenseCategories();
@@ -355,6 +358,11 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
           }}
         />
       )}
+
+      <EmployeeExpenseDialog
+        open={employeeExpenseOpen}
+        onClose={() => onEmployeeExpenseOpenChange?.(false)}
+      />
     </div>
   );
 }

@@ -61,6 +61,7 @@ const Index = () => {
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [addInventoryOpen, setAddInventoryOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [employeeExpenseOpen, setEmployeeExpenseOpen] = useState(false);
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [printPreviewId, setPrintPreviewId] = useState<string | null>(null);
@@ -401,13 +402,22 @@ const Index = () => {
                 </button>
               )}
               {activeTab === "expenses" && can("expenses.create") && (
-                <button
-                  onClick={() => setAddExpenseOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Expense
-                </button>
+                <>
+                  <button
+                    onClick={() => setEmployeeExpenseOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border text-foreground font-medium text-sm hover:bg-muted transition-colors"
+                  >
+                    <Users className="w-4 h-4" />
+                    Employee Expense
+                  </button>
+                  <button
+                    onClick={() => setAddExpenseOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Expense
+                  </button>
+                </>
               )}
             </header>
           )}
@@ -426,6 +436,8 @@ const Index = () => {
               orders={orders}
               addOpen={addExpenseOpen}
               onAddOpenChange={setAddExpenseOpen}
+              employeeExpenseOpen={employeeExpenseOpen}
+              onEmployeeExpenseOpenChange={setEmployeeExpenseOpen}
             />
           )}
           {activeTab === "attendance" && <AttendancePage />}
