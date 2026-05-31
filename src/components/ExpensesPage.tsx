@@ -358,6 +358,11 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           }}
         />
       )}
+
+      <EmployeeExpenseDialog
+        open={employeeExpenseOpen}
+        onClose={() => onEmployeeExpenseOpenChange?.(false)}
+      />
     </div>
   );
 }
