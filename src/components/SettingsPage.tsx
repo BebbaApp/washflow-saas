@@ -270,8 +270,36 @@ function WorkersSection() {
       return;
     }
     setUsers(res.data.users ?? []);
+    // Load active/inactive status (defaults to active if no row exists)
+    const { data: statusRows } = await (supabase as any)
+      .from("staff_active_status")
+      .select("user_id,is_active");
+    const m: Record<string, boolean> = {};
+    (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+    setActiveMap(m);
     setLoading(false);
   }, [toast, isAuthenticated, authUser, tenant?.id, tenantLoading]);
+
+  const toggleActive = async (u: StaffUser, next: boolean) => {
+    if (!tenant?.id) return;
+    setTogglingActive(u.id);
+    const prev = activeMap[u.id] !== false;
+    setActiveMap((m) => ({ ...m, [u.id]: next }));
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    const { error } = await (supabase as any)
+      .from("staff_active_status")
+      .upsert(
+        { tenant_id: tenant.id, user_id: u.id, is_active: next, updated_at: new Date().toISOString(), updated_by: caller?.id ?? null },
+        { onConflict: "tenant_id,user_id" }
+      );
+    setTogglingActive(null);
+    if (error) {
+      setActiveMap((m) => ({ ...m, [u.id]: prev }));
+      toast({ title: "Could not update status", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: next ? "Marked active" : "Marked inactive", description: next ? "Will appear in the day log" : "Hidden from the day log" });
+  };
 
   useEffect(() => {
     if (authLoading || tenantLoading) return;
