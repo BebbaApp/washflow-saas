@@ -566,6 +566,25 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
               </div>
             </div>
           )}
+
+          {/* 7-day filter pagination — step through prior weeks */}
+          {preset === "7d" && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                {weekOffset === 0 ? "Current week" : `${weekOffset} week${weekOffset === 1 ? "" : "s"} ago`}
+                <span className="ml-2 text-foreground/70">· {from} → {to}</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setWeekOffset((o) => o + 1)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Older
+                </Button>
+                <Button variant="outline" size="sm" disabled={weekOffset <= 0}
+                  onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}>
+                  Newer <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
