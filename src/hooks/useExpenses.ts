@@ -113,7 +113,7 @@ export function useExpenses() {
   useEffect(() => {
     if (!tenant?.id) return;
     const ch = supabase
-      .channel(`expenses_${tenant.id}`)
+      .channel(`expenses_${tenant.id}_${crypto.randomUUID()}`)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "expenses", filter: `tenant_id=eq.${tenant.id}` },
         () => fetchAll())
