@@ -183,6 +183,11 @@ function WorkersSection() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
   const [togglingActive, setTogglingActive] = useState<string | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  type Compensation = { pay_type: "salary" | "wage" | "hourly"; base_rate: number; category_rates: Record<string, number> };
+  const emptyComp = (): Compensation => ({ pay_type: "salary", base_rate: 0, category_rates: {} });
+  const [compMap, setCompMap] = useState<Record<string, Compensation>>({});
+  const [savingComp, setSavingComp] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
