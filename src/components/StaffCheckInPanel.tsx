@@ -235,6 +235,7 @@ export function StaffCheckInPanel() {
                     <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No staff found</td></tr>
                   )}
                   {staff
+                    .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
                       const enrolled = enrollments.some((e) => e.user_id === s.user_id);
