@@ -36,9 +36,11 @@ interface Props {
   orders: WashOrder[];
   addOpen: boolean;
   onAddOpenChange: (open: boolean) => void;
+  employeeExpenseOpen?: boolean;
+  onEmployeeExpenseOpenChange?: (open: boolean) => void;
 }
 
-export function ExpensesPage({ orders, addOpen, onAddOpenChange }: Props) {
+export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpenseOpen = false, onEmployeeExpenseOpenChange }: Props) {
   const { formatPrice, currency } = useCurrency();
   const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses();
   const { categories, subcategoriesFor } = useExpenseCategories();
