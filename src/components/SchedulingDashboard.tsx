@@ -168,8 +168,11 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       const k = `${r.user_id}|${d}`;
       (byUserDate[k] ||= []).push(r);
     }
-    for (const s of staffMembers) {
+    for (const s of activeStaff) {
+      // Per-staff active-since date — never count days before this as absent.
+      const activeSince = s.createdAt ? s.createdAt.slice(0, 10) : from;
       for (const date of dates) {
+        if (date < activeSince) continue;
         const recs = (byUserDate[`${s.id}|${date}`] || []).slice().sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
@@ -214,7 +217,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     return rows.sort((a, b) =>
       b.date.localeCompare(a.date) || a.staffName.localeCompare(b.staffName)
     );
-  }, [records, staffMembers, from, to, markedAbsent]);
+  }, [records, activeStaff, from, to, markedAbsent]);
 
   // === 7-day pagination for Day Log + Employee detail ===
   // Build descending list of unique dates in range and chunk into 7-day pages.
