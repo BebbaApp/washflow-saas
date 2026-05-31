@@ -689,3 +689,140 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
     </div>
   );
 };
+
+// ============================================================
+// EmployeeCalendar — weekly (default) and monthly work-log view
+// ============================================================
+interface EmployeeCalendarProps {
+  mode: "week" | "month";
+  anchor: Date;
+  setAnchor: (d: Date) => void;
+  dayMap: Record<string, DayRow>;
+}
+
+function startOfWeekMon(d: Date) {
+  const x = new Date(d); x.setHours(0,0,0,0);
+  const dow = (x.getDay() + 6) % 7; // Mon=0
+  x.setDate(x.getDate() - dow);
+  return x;
+}
+function addDays(d: Date, n: number) {
+  const x = new Date(d); x.setDate(x.getDate() + n); return x;
+}
+function startOfMonth(d: Date) { const x = new Date(d.getFullYear(), d.getMonth(), 1); x.setHours(0,0,0,0); return x; }
+function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+
+const WEEK_LABELS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+function statusTone(row?: DayRow): string {
+  if (!row) return "bg-muted/30 text-muted-foreground";
+  if (row.status === "present") return "bg-success/15 border-success/40 text-foreground";
+  if (row.status === "in_progress") return "bg-warning/15 border-warning/40 text-foreground";
+  if (row.status === "absent" || row.status === "marked_absent") return "bg-destructive/15 border-destructive/40 text-foreground";
+  return "bg-muted/30 text-muted-foreground";
+}
+
+const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarProps) => {
+  if (mode === "week") {
+    const start = startOfWeekMon(anchor);
+    const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    const rangeLabel = `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${addDays(start,6).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => setAnchor(addDays(start, -7))}>
+            <ChevronLeft className="w-4 h-4 mr-1" /> Prev week
+          </Button>
+          <p className="text-sm font-medium">{rangeLabel}</p>
+          <Button variant="ghost" size="sm" onClick={() => setAnchor(addDays(start, 7))}>
+            Next week <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+          {days.map((d, i) => {
+            const key = ymd(d);
+            const row = dayMap[key];
+            return (
+              <div key={i} className={`rounded-lg border p-3 min-h-[120px] ${statusTone(row)}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide">{WEEK_LABELS[i]}</p>
+                  <p className="text-xs text-muted-foreground">{d.getDate()}</p>
+                </div>
+                {!row ? (
+                  <p className="text-xs text-muted-foreground">—</p>
+                ) : row.status === "absent" || row.status === "marked_absent" ? (
+                  <p className="text-xs font-medium">Absent</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs"><span className="text-muted-foreground">Periods:</span> <span className="font-semibold">{row.periodCount}</span></p>
+                    <p className="text-xs"><span className="text-muted-foreground">Hours:</span> <span className="font-semibold">{row.hours > 0 ? row.hours.toFixed(2) : "—"}</span></p>
+                    <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
+                      {row.periods.map((p, j) => (
+                        <div key={j}>
+                          {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {" → "}
+                          {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "open"}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // MONTH
+  const monthStart = startOfMonth(anchor);
+  const monthEnd = endOfMonth(anchor);
+  const gridStart = startOfWeekMon(monthStart);
+  const totalCells = Math.ceil(((monthEnd.getTime() - gridStart.getTime()) / 86400000 + 1) / 7) * 7;
+  const cells = Array.from({ length: totalCells }, (_, i) => addDays(gridStart, i));
+  const monthLabel = anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}>
+          <ChevronLeft className="w-4 h-4 mr-1" /> Prev month
+        </Button>
+        <p className="text-sm font-medium">{monthLabel}</p>
+        <Button variant="ghost" size="sm" onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}>
+          Next month <ChevronRight className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-xs font-medium text-muted-foreground">
+        {WEEK_LABELS.map((l) => <div key={l} className="px-2 py-1 text-center">{l}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          const inMonth = d.getMonth() === anchor.getMonth();
+          const key = ymd(d);
+          const row = dayMap[key];
+          return (
+            <div
+              key={i}
+              className={`rounded-md border p-2 min-h-[72px] text-xs ${inMonth ? statusTone(row) : "bg-muted/10 border-border/40 text-muted-foreground/50"}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium">{d.getDate()}</span>
+                {inMonth && row && row.status === "present" && <CheckCircle2 className="w-3 h-3 text-success" />}
+                {inMonth && row && (row.status === "absent" || row.status === "marked_absent") && <XCircle className="w-3 h-3 text-destructive" />}
+                {inMonth && row && row.status === "in_progress" && <Clock className="w-3 h-3 text-warning" />}
+              </div>
+              {inMonth && row && (row.status === "present" || row.status === "in_progress") && (
+                <div className="text-[10px] leading-tight">
+                  <div>{row.periodCount}p · {row.hours > 0 ? row.hours.toFixed(1) + "h" : "—"}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
