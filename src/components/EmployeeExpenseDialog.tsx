@@ -26,6 +26,7 @@ interface StaffOption {
   email: string;
   role: string | null;
   active: boolean;
+  phone: string | null;
 }
 interface AttRow {
   user_id: string;
@@ -109,6 +110,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
           id: u.id, name: u.name || "", email: u.email || "",
           role: u.role ?? null,
           active: activeMap.get(u.id) ?? true,
+          phone: u.phone ?? null,
         }))
         .filter((u: StaffOption) => u.active)
         .sort((a: StaffOption, b: StaffOption) =>
@@ -235,7 +237,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 <option value="">— Select —</option>
                 {staff.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name || s.email.split("@")[0] || "Staff"}{s.role ? ` · ${s.role}` : ""}
+                    {s.name || s.email.split("@")[0] || "Staff"}{s.role ? ` · ${s.role}` : ""}{s.phone ? ` · ${s.phone}` : ""}
                   </option>
                 ))}
               </select>
