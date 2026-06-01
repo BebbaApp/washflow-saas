@@ -137,19 +137,32 @@ export function useInventory() {
   // ---- Defaults: inventory category -> expense category ----
   const [categoryDefaults, setCategoryDefaults] = useState<Record<string, string>>({});
 
+  const WATER_KEY = "__water__";
+
   const fetchAll = useCallback(async () => {
     if (!tenantId) { setItems([]); setTransactions([]); setLoading(false); return; }
     setLoading(true);
-    const [itemsRes, txRes, defRes] = await Promise.all([
+    const [itemsRes, txRes, defRes, mapRes] = await Promise.all([
       supabase.from("inventory_items" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
       supabase.from("inventory_transactions" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(1000),
       supabase.from("inventory_category_defaults" as any).select("category, expense_category").eq("tenant_id", tenantId),
+      supabase.from("inventory_vehicle_map" as any).select("key, item_id").eq("tenant_id", tenantId),
     ]);
     setItems(((itemsRes.data as any[]) ?? []).map(rowToItem));
     setTransactions(((txRes.data as any[]) ?? []).map(rowToTx));
     const defs: Record<string, string> = {};
     for (const d of (defRes.data as any[]) ?? []) defs[d.category] = d.expense_category;
     setCategoryDefaults(defs);
+    const map: Record<string, string> = {};
+    let water: string | null = null;
+    for (const row of (mapRes.data as any[]) ?? []) {
+      if (row.key === WATER_KEY) water = row.item_id;
+      else map[row.key] = row.item_id;
+    }
+    setVehicleMap(map);
+    setWaterItemIdState(water);
+    lsSave(VEHICLE_MAP_KEY, map);
+    lsSave(WATER_ITEM_KEY, water);
     setLoading(false);
   }, [tenantId]);
 
@@ -162,6 +175,7 @@ export function useInventory() {
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_items", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_transactions", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_category_defaults", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_vehicle_map", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tenantId, fetchAll]);
@@ -460,8 +474,8 @@ export function useInventory() {
     return { ok: true };
   }, [transactions, items, applyDeltaAndLog]);
 
-  // ----- Vehicle map (localStorage) -----
-  const setVehicleMapping = useCallback((concentrateKey: string, itemId: string | null) => {
+  // ----- Vehicle map (Supabase, tenant-wide; localStorage mirror for fast paint) -----
+  const setVehicleMapping = useCallback(async (concentrateKey: string, itemId: string | null) => {
     setVehicleMap((prev) => {
       const next = { ...prev };
       if (itemId) next[concentrateKey] = itemId;
@@ -469,12 +483,32 @@ export function useInventory() {
       lsSave(VEHICLE_MAP_KEY, next);
       return next;
     });
-  }, []);
+    if (!tenantId) return;
+    if (itemId) {
+      await supabase.from("inventory_vehicle_map" as any).upsert(
+        { tenant_id: tenantId, key: concentrateKey, item_id: itemId },
+        { onConflict: "tenant_id,key" },
+      );
+    } else {
+      await supabase.from("inventory_vehicle_map" as any)
+        .delete().eq("tenant_id", tenantId).eq("key", concentrateKey);
+    }
+  }, [tenantId]);
 
-  const setWaterItem = useCallback((itemId: string | null) => {
+  const setWaterItem = useCallback(async (itemId: string | null) => {
     setWaterItemIdState(itemId);
     lsSave(WATER_ITEM_KEY, itemId);
-  }, []);
+    if (!tenantId) return;
+    if (itemId) {
+      await supabase.from("inventory_vehicle_map" as any).upsert(
+        { tenant_id: tenantId, key: WATER_KEY, item_id: itemId },
+        { onConflict: "tenant_id,key" },
+      );
+    } else {
+      await supabase.from("inventory_vehicle_map" as any)
+        .delete().eq("tenant_id", tenantId).eq("key", WATER_KEY);
+    }
+  }, [tenantId]);
 
   const previewVehicleConsumption = useCallback((vehicleInput: string) => {
     const vehicle = matchVehicle(vehicleInput);
