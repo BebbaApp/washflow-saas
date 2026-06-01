@@ -35,6 +35,7 @@ import Login from "@/pages/Login";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { HeaderClock } from "@/components/HeaderClock";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
