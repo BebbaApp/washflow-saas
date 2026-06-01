@@ -46,22 +46,27 @@ const GatedRoutes = () => {
   return isAuthenticated && !isPlatformRoute ? <LicenseGate>{routes}</LicenseGate> : routes;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TenantProvider>
-        <CurrencyProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <GatedRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
-        </CurrencyProvider>
-      </TenantProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  // Drain the offline outbox on mount + whenever connectivity returns.
+  useEffect(() => startSyncRunner(), []);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TenantProvider>
+          <CurrencyProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <GatedRoutes />
+                <OfflineBanner />
+              </BrowserRouter>
+            </TooltipProvider>
+          </CurrencyProvider>
+        </TenantProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
