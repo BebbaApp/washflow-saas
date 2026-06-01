@@ -135,11 +135,18 @@ export const PERMISSION_GROUPS: PermGroup[] = [
       { key: "settings.view", label: "View Settings" },
       { key: "settings.workers", label: "Manage Workers" },
       { key: "settings.workers.delete", label: "Delete Workers" },
+      { key: "settings.workers.compensation", label: "Manage Staff Pay & Compensation" },
+      { key: "settings.workers.pin", label: "Manage Staff PIN Login" },
       { key: "settings.appearance", label: "Manage Appearance" },
       { key: "settings.currency", label: "Manage Currency & VAT" },
+      { key: "settings.receipt", label: "Manage Receipt Settings" },
+      { key: "settings.printer", label: "Manage Printer Settings" },
+      { key: "settings.billing", label: "Manage Billing & Subscription" },
+      { key: "settings.workspace", label: "Manage Workspace Details" },
       { key: "settings.permissions", label: "Manage Role Permissions" },
     ],
   },
+
 ];
 
 export type PermissionMatrix = Record<string, Record<Role, boolean>>;
