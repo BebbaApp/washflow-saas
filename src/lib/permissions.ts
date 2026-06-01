@@ -135,11 +135,18 @@ export const PERMISSION_GROUPS: PermGroup[] = [
       { key: "settings.view", label: "View Settings" },
       { key: "settings.workers", label: "Manage Workers" },
       { key: "settings.workers.delete", label: "Delete Workers" },
+      { key: "settings.workers.compensation", label: "Manage Staff Pay & Compensation" },
+      { key: "settings.workers.pin", label: "Manage Staff PIN Login" },
       { key: "settings.appearance", label: "Manage Appearance" },
       { key: "settings.currency", label: "Manage Currency & VAT" },
+      { key: "settings.receipt", label: "Manage Receipt Settings" },
+      { key: "settings.printer", label: "Manage Printer Settings" },
+      { key: "settings.billing", label: "Manage Billing & Subscription" },
+      { key: "settings.workspace", label: "Manage Workspace Details" },
       { key: "settings.permissions", label: "Manage Role Permissions" },
     ],
   },
+
 ];
 
 export type PermissionMatrix = Record<string, Record<Role, boolean>>;
@@ -183,7 +190,9 @@ export function getDefaultMatrix(): PermissionMatrix {
     "services.delete", "inventory.delete", "expenses.delete",
     "staff.deleteShift", "staff.timeOff.approve",
     "settings.view", "settings.workers", "settings.workers.delete",
+    "settings.workers.compensation", "settings.workers.pin",
     "settings.appearance", "settings.currency", "settings.permissions",
+    "settings.receipt", "settings.printer", "settings.billing", "settings.workspace",
     "reports.export",
     "attendance.viewAll", "attendance.enroll",
     "attendance.manualOverride", "attendance.audit",
@@ -191,7 +200,8 @@ export function getDefaultMatrix(): PermissionMatrix {
   ]);
 
   deny("manager", [
-    "settings.workers.delete", "settings.permissions",
+    "settings.workers.delete", "settings.workers.compensation",
+    "settings.permissions", "settings.billing", "settings.workspace",
     "queue.delete",
     "attendance.enroll", "attendance.manualOverride",
   ]);

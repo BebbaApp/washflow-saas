@@ -70,10 +70,10 @@ export function SettingsPage() {
     { id: "currency", label: "Currency", icon: DollarSign, perm: "settings.currency", group: "administration" },
     // Operations
     { id: "theme", label: "Appearance", icon: Palette, perm: "settings.appearance", group: "operations" },
-    { id: "receipt", label: "Receipt", icon: FileText, perm: "settings.currency", group: "operations" },
-    { id: "printer", label: "Printer", icon: Printer, perm: "settings.currency", group: "operations" },
-    { id: "billing", label: "Billing", icon: CreditCard, perm: "settings.workers", group: "operations" },
-    { id: "workspace", label: "Workspace", icon: Building2, perm: "settings.workers", group: "operations" },
+    { id: "receipt", label: "Receipt", icon: FileText, perm: "settings.receipt", group: "operations" },
+    { id: "printer", label: "Printer", icon: Printer, perm: "settings.printer", group: "operations" },
+    { id: "billing", label: "Billing", icon: CreditCard, perm: "settings.billing", group: "operations" },
+    { id: "workspace", label: "Workspace", icon: Building2, perm: "settings.workspace", group: "operations" },
   ];
 
   const tabs = allTabs.filter((t) => can(t.perm));
