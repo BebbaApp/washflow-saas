@@ -320,13 +320,13 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       ? "bg-red-500/80 text-white"
                       : "bg-muted text-muted-foreground";
                     return (
-                      <div
-                        key={c.date.toISOString()}
-                        className={`aspect-square rounded-md flex items-center justify-center text-[11px] font-medium ${cls}`}
-                        title={`${c.date.toDateString()} — ${c.status}`}
-                      >
-                        {c.date.getDate()}
-                      </div>
+                  <div
+                    key={c.date.toISOString()}
+                    className={`w-[45px] h-[45px] rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
+                    title={`${c.date.toDateString()} — ${c.status}`}
+                  >
+                    {c.date.getDate()}
+                  </div>
                     );
                   })}
                 </div>
