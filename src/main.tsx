@@ -19,8 +19,7 @@ const isPreviewHost =
   host.includes("id-preview--") ||
   host.includes("preview--") ||
   host.endsWith("lovableproject.com") ||
-  host.endsWith("lovableproject-dev.com") ||
-  host.endsWith("lovable.app") === false && host.includes("lovable.app");
+  host.endsWith("lovableproject-dev.com");
 
 if ("serviceWorker" in navigator) {
   if (isInIframe || isPreviewHost) {
