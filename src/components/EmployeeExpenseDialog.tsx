@@ -322,7 +322,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                     return (
                   <div
                     key={c.date.toISOString()}
-                    className={`w-[45px] h-[45px] rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
+                    className={`h-[45px] w-full rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
                     title={`${c.date.toDateString()} — ${c.status}`}
                   >
                     {c.date.getDate()}
