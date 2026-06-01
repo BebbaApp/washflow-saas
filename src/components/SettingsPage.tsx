@@ -479,6 +479,7 @@ function WorkersSection() {
           const isAdminUser = u.role === "admin";
           const isSelf = u.id === currentUserId;
           const isGlobalAdmin = !!u.is_global_admin;
+          const isSuperAdminUser = !!u.is_super_admin;
           return (
             <Collapsible
               key={u.id}
@@ -501,7 +502,7 @@ function WorkersSection() {
                     <p className="text-sm font-semibold text-foreground truncate">{u.name || "Unnamed"}</p>
                     {isAdminUser && (
                       <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                        <Shield className="w-3 h-3" /> {isGlobalAdmin ? "Super Admin" : "Admin"}
+                        <Shield className="w-3 h-3" /> {isSuperAdminUser ? "Super Admin" : "Admin"}
                       </span>
                     )}
                     {!u.email_confirmed && (
