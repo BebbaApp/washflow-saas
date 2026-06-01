@@ -190,7 +190,9 @@ export function getDefaultMatrix(): PermissionMatrix {
     "services.delete", "inventory.delete", "expenses.delete",
     "staff.deleteShift", "staff.timeOff.approve",
     "settings.view", "settings.workers", "settings.workers.delete",
+    "settings.workers.compensation", "settings.workers.pin",
     "settings.appearance", "settings.currency", "settings.permissions",
+    "settings.receipt", "settings.printer", "settings.billing", "settings.workspace",
     "reports.export",
     "attendance.viewAll", "attendance.enroll",
     "attendance.manualOverride", "attendance.audit",
@@ -198,7 +200,8 @@ export function getDefaultMatrix(): PermissionMatrix {
   ]);
 
   deny("manager", [
-    "settings.workers.delete", "settings.permissions",
+    "settings.workers.delete", "settings.workers.compensation",
+    "settings.permissions", "settings.billing", "settings.workspace",
     "queue.delete",
     "attendance.enroll", "attendance.manualOverride",
   ]);
