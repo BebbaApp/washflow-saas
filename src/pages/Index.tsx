@@ -341,6 +341,7 @@ const Index = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <HeaderClock />
           </div>
         </div>
 
