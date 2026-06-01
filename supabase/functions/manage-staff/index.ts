@@ -226,6 +226,7 @@ Deno.serve(async (req) => {
             : ROLE_PRIORITY.find((p) => userRoles.includes(p)) ?? null,
           roles: userRoles,
           is_global_admin: globalAdminIds.has(u.id) || u.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL,
+          is_super_admin: superAdminIds.has(u.id),
           phone: pinMap.get(u.id) ?? null,
           has_pin: pinMap.has(u.id),
           email_confirmed: !!(u.email_confirmed_at || u.confirmed_at || u.last_sign_in_at),
