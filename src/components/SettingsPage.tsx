@@ -166,6 +166,7 @@ interface StaffUser {
   phone?: string | null;
   has_pin?: boolean;
   is_global_admin?: boolean;
+  is_super_admin?: boolean;
 }
 
 function WorkersSection() {
