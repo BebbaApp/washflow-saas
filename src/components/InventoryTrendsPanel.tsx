@@ -209,6 +209,8 @@ export function InventoryTrendsPanel() {
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
               <Tooltip
                 contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: "hsl(var(--foreground))" }}
+                itemStyle={{ color: "hsl(var(--foreground))" }}
                 cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
               />
               <Bar
@@ -266,6 +268,8 @@ export function InventoryTrendsPanel() {
                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} width={120} />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: "hsl(var(--foreground))" }}
+                  itemStyle={{ color: "hsl(var(--foreground))" }}
                   cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
                   formatter={(v: number) => [`${v}/wk`, "Usage"]}
                 />
