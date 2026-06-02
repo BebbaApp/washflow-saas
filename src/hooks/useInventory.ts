@@ -732,10 +732,27 @@ export function useInventory() {
 
     // ---------- OFFLINE PATH ----------
     if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const validLines = lines
+        .filter((l) => l.item)
+        .map((l) => ({
+          itemId: l.itemId,
+          itemName: l.item!.name,
+          qty: l.qty,
+          source: `Order ${args.orderNumber}`,
+          notes: l.note,
+          flow: opts.override ? "override" : "auto",
+        }));
+
+      // Nothing to deduct (e.g. all line items deleted) — don't queue
+      // a no-op consume entry that would just sit in the outbox.
+      if (validLines.length === 0) {
+        return { ok: true, negativeItems: [] };
+      }
+
       // Optimistically decrement local items so the UI reflects the deduction.
       setItems((prev) =>
         prev.map((it) => {
-          const ln = lines.find((l) => l.itemId === it.id);
+          const ln = validLines.find((l) => l.itemId === it.id);
           if (!ln) return it;
           return { ...it, quantity: Math.max(0, it.quantity - ln.qty) };
         }),
@@ -747,16 +764,7 @@ export function useInventory() {
         payload: {
           orderId: args.orderId,
           orderNumber: args.orderNumber,
-          lines: lines
-            .filter((l) => l.item)
-            .map((l) => ({
-              itemId: l.itemId,
-              itemName: l.item!.name,
-              qty: l.qty,
-              source: `Order ${args.orderNumber}`,
-              notes: l.note,
-              flow: opts.override ? "override" : "auto",
-            })),
+          lines: validLines,
         },
         createdAt: Date.now(),
         attempts: 0,
