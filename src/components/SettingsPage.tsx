@@ -1036,7 +1036,7 @@ function LogoUploader() {
                     {previewUrl && <img src={previewUrl} alt="Sidebar preview" className="w-full h-full object-cover" />}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-foreground leading-tight">AquaWash</p>
+                    <p className="text-sm font-bold text-foreground leading-tight">Washflow</p>
                     <p className="text-xs text-muted-foreground leading-tight">Sidebar look</p>
                   </div>
                 </div>
@@ -1390,7 +1390,7 @@ function ReceiptSection() {
           <Input
             value={settings.businessName}
             onChange={(e) => update({ businessName: e.target.value })}
-            placeholder="AquaWash"
+            placeholder="Washflow"
             maxLength={32}
             className="bg-secondary border-border text-foreground"
           />

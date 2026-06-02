@@ -124,7 +124,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
             <Droplets className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">AquaWash</h1>
+          <h1 className="text-2xl font-bold text-foreground">Washflow</h1>
           <p className="text-sm text-muted-foreground mt-1">Staff Portal</p>
         </div>
 
@@ -155,7 +155,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
               )}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm text-secondary-foreground">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@aquawash.com" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="email" />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@washflow.com" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete="email" />
               </div>
               {!forgotMode && (
                 <div className="space-y-2">
