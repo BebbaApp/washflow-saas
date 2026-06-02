@@ -86,7 +86,9 @@ export function UserMenu({ onOpenSettings, hideSettings }: UserMenuProps) {
         <ProfileDialog
           open={profileOpen}
           onOpenChange={setProfileOpen}
-          user={user}
+          initialName={user.name}
+          initialPhone={user.phone ?? ""}
+          email={user.email}
           onSave={updateProfile}
         />
       )}
