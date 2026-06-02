@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift } from "lucide-react";
+import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift, CloudOff, RefreshCw } from "lucide-react";
 import { useRewardEligibility } from "@/hooks/useRewardEligibility";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -393,9 +393,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                       {tab === "completed" ? (
                         typeof o.waitMinutes === "number" ? `${o.waitMinutes} min` : "—"
                       ) : (
-                        <span className={`status-badge border ${statusBadge[o.status]}`}>
-                          {statusLabel[o.status]}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`status-badge border ${statusBadge[o.status]}`}>
+                            {statusLabel[o.status]}
+                          </span>
+                          {(o._pendingSync || o._syncing) && <SyncChip pending={!!o._pendingSync} />}
+                        </div>
                       )}
                     </TableCell>
                     {tab === "cancelled" && (
@@ -477,9 +480,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                     </p>
                   </div>
                 </div>
-                <span className={`status-badge border ${statusBadge[o.status]} shrink-0`}>
-                  {statusLabel[o.status]}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`status-badge border ${statusBadge[o.status]}`}>
+                    {statusLabel[o.status]}
+                  </span>
+                  {(o._pendingSync || o._syncing) && <SyncChip pending={!!o._pendingSync} />}
+                </div>
               </div>
 
               {eligibleOrderIds.has(o.id) && (
