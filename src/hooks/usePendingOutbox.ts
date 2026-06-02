@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { outboxList } from "@/lib/offlineDb";
-import { subscribeSyncStatus } from "@/lib/syncRunner";
+import { subscribeSyncStatus, drainOutbox } from "@/lib/syncRunner";
+import { toast } from "sonner";
 
 /**
  * Returns a Set of inventory item ids that currently have a queued
- * `inventory.consume` entry in the offline outbox. Used to render a
- * "Queued" badge on the inventory page while a deduction is waiting
- * to be written through to Supabase.
+ * `inventory.consume` entry in the offline outbox.
  */
 export function usePendingInventoryItemIds(): Set<string> {
   const [ids, setIds] = useState<Set<string>>(new Set());
@@ -27,10 +26,7 @@ export function usePendingInventoryItemIds(): Set<string> {
     };
 
     refresh();
-    // syncRunner notifies on every drain — re-derive then.
     const unsub = subscribeSyncStatus(() => refresh());
-    // Belt-and-braces: queue items added by other tabs/hooks don't always
-    // notify; refresh every few seconds while mounted.
     const interval = window.setInterval(refresh, 4000);
     return () => {
       cancelled = true;
@@ -40,4 +36,66 @@ export function usePendingInventoryItemIds(): Set<string> {
   }, []);
 
   return ids;
+}
+
+/**
+ * Returns a Set of order ids that currently have a queued
+ * `inventory.consume` entry pending — used to render a per-order
+ * "Inventory queued" chip on the Orders page.
+ */
+export function usePendingInventoryOrderIds(): Set<string> {
+  const [ids, setIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refresh = async () => {
+      const items = await outboxList();
+      if (cancelled) return;
+      const next = new Set<string>();
+      for (const it of items) {
+        if (it.kind !== "inventory.consume") continue;
+        const orderId = it.payload?.orderId;
+        if (orderId) next.add(orderId);
+      }
+      setIds(next);
+    };
+
+    refresh();
+    const unsub = subscribeSyncStatus(() => refresh());
+    const interval = window.setInterval(refresh, 4000);
+    return () => {
+      cancelled = true;
+      unsub();
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  return ids;
+}
+
+/**
+ * Manually trigger a drain of the outbox. Shows a toast describing the
+ * outcome so the user gets feedback whether anything moved.
+ */
+export async function retryPendingSync(): Promise<void> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    toast.error("You're offline — reconnect to sync queued changes.");
+    return;
+  }
+  const before = (await outboxList()).length;
+  if (before === 0) {
+    toast.info("Nothing queued to sync.");
+    return;
+  }
+  toast.message("Retrying sync…");
+  await drainOutbox();
+  const after = (await outboxList()).length;
+  if (after === 0) {
+    toast.success("All queued changes synced.");
+  } else if (after < before) {
+    toast.warning(`${before - after} synced, ${after} still pending. Will retry.`);
+  } else {
+    toast.error("Sync still failing. Check connection and try again.");
+  }
 }
