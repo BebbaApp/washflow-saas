@@ -152,6 +152,58 @@ async function processItem(item: OutboxItem): Promise<void> {
       return;
     }
 
+    case "loyalty.earn": {
+      const { customerId, orderId, points } = item.payload as {
+        customerId: string;
+        orderId?: string;
+        points: number;
+      };
+
+      // Read current totals so we can detect milestone crossings & avoid
+      // clobbering concurrent online activity.
+      const { data: customer, error: readErr } = await supabase
+        .from("customers")
+        .select("id, name, phone, loyalty_points, total_washes")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (readErr) throw readErr;
+      if (!customer) return; // customer deleted while offline
+
+      const { error: txErr } = await supabase.from("loyalty_transactions").insert({
+        customer_id: customerId,
+        order_id: orderId ?? null,
+        points,
+        type: "earned",
+        description: `Earned ${points} points for wash`,
+      });
+      if (txErr) throw txErr;
+
+      const newPoints = Number(customer.loyalty_points ?? 0) + points;
+      const newWashes = Number(customer.total_washes ?? 0) + 1;
+      const { error: updErr } = await supabase
+        .from("customers")
+        .update({ loyalty_points: newPoints, total_washes: newWashes })
+        .eq("id", customerId);
+      if (updErr) throw updErr;
+
+      // Fire-and-forget milestone SMS (best effort).
+      const FREE = 100;
+      if (customer.phone) {
+        const prev = Number(customer.loyalty_points ?? 0);
+        let milestone: string | null = null;
+        if (newPoints >= FREE && prev < FREE) milestone = "free_wash";
+        else if (newPoints >= FREE / 2 && prev < FREE / 2) milestone = "halfway";
+        if (milestone) {
+          supabase.functions
+            .invoke("send-loyalty-sms", {
+              body: { phone: customer.phone, customerName: customer.name, points: newPoints, milestone },
+            })
+            .catch((e) => console.warn("[syncRunner] loyalty SMS failed", e));
+        }
+      }
+      return;
+    }
+
     default:
       throw new Error(`Unknown outbox kind: ${(item as any).kind}`);
   }
