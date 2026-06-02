@@ -14,13 +14,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserPlus, UserCheck } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { UserPlus, UserCheck, ChevronsUpDown, Check, Search } from "lucide-react";
 import { useServices } from "@/hooks/useServices";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLoyalty } from "@/hooks/useLoyalty";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPhone, normalizePhone, validatePhone } from "@/lib/phone";
+import { formatPhone, normalizePhone, phoneDigits, validatePhone } from "@/lib/phone";
 import { VEHICLES, type Vehicle } from "@/lib/vehicleUsage";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface NewOrderDialogProps {
@@ -37,13 +47,11 @@ interface NewOrderDialogProps {
   }) => void;
 }
 
-const NEW_CUSTOMER = "__new__";
-
 export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogProps) => {
   const { services } = useServices();
   const { formatPrice } = useCurrency();
   const { customers, refetch: refetchCustomers } = useLoyalty();
-  const [customerId, setCustomerId] = useState<string>(NEW_CUSTOMER);
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [make, setMake] = useState("");
@@ -52,24 +60,66 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
   const [vehicleType, setVehicleType] = useState<Vehicle | "">("");
   const [serviceId, setServiceId] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
 
   const sortedCustomers = useMemo(
     () => [...customers].sort((a, b) => a.name.localeCompare(b.name)),
     [customers],
   );
 
-  // When picking an existing customer, prefill name & phone.
-  useEffect(() => {
-    if (customerId === NEW_CUSTOMER) return;
-    const c = customers.find((x) => x.id === customerId);
+  // Filtered customer list — match by name (case-insensitive) or by phone digits.
+  const filteredCustomers = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase();
+    if (!q) return sortedCustomers.slice(0, 50);
+    const qDigits = phoneDigits(pickerQuery);
+    return sortedCustomers
+      .filter((c) => {
+        if (c.name.toLowerCase().includes(q)) return true;
+        if (qDigits.length >= 3 && phoneDigits(c.phone).includes(qDigits)) return true;
+        return false;
+      })
+      .slice(0, 50);
+  }, [pickerQuery, sortedCustomers]);
+
+  const linkedCustomer = customerId
+    ? customers.find((c) => c.id === customerId) ?? null
+    : null;
+
+  const hasExactMatch = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase();
+    if (!q) return false;
+    return sortedCustomers.some((c) => c.name.toLowerCase() === q);
+  }, [pickerQuery, sortedCustomers]);
+
+  // Sync picker into form fields when user picks an existing customer.
+  const pickExisting = (id: string) => {
+    const c = customers.find((x) => x.id === id);
     if (!c) return;
+    setCustomerId(id);
     setCustomer(c.name);
     setCustomerPhone(c.phone ? formatPhone(c.phone) : "");
     setPhoneError(null);
-  }, [customerId, customers]);
+    setPickerOpen(false);
+    setPickerQuery("");
+  };
+
+  // Fallback: caller typed a name that doesn't match any existing customer.
+  // We seed the form fields and leave customerId blank — submit-time logic
+  // will create a customer row (online) or carry the free-text through.
+  const pickNew = (name: string) => {
+    setCustomerId(null);
+    setCustomer(name);
+    setPickerOpen(false);
+    setPickerQuery("");
+  };
+
+  const clearLink = () => {
+    setCustomerId(null);
+  };
 
   const reset = () => {
-    setCustomerId(NEW_CUSTOMER);
+    setCustomerId(null);
     setCustomer("");
     setCustomerPhone("");
     setMake("");
@@ -78,6 +128,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     setVehicleType("");
     setServiceId("");
     setPhoneError(null);
+    setPickerQuery("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,12 +144,10 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     if (!picked) return;
 
     const phone = normalizePhone(customerPhone);
-    let resolvedId: string | undefined =
-      customerId !== NEW_CUSTOMER ? customerId : undefined;
+    let resolvedId: string | undefined = customerId ?? undefined;
 
-    // No explicit pick → try to match an existing customer by phone or name
-    // so loyalty earn can attribute the wash. Best-effort; offline OK.
     if (!resolvedId) {
+      // Best-effort auto-match: phone first (more reliable), then exact name.
       const byPhone = phone
         ? customers.find((c) => c.phone && normalizePhone(c.phone) === phone)
         : null;
@@ -109,8 +158,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
       if (matched) {
         resolvedId = matched.id;
       } else if (typeof navigator !== "undefined" && navigator.onLine) {
-        // Create a new customer row so the order can carry customer_id and
-        // loyalty earn fires on completion.
+        // Create a new customer row so loyalty earn can fire on completion.
         const { data, error } = await supabase
           .from("customers")
           .insert({ name: customer, phone: phone || null })
@@ -119,10 +167,18 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
         if (!error && data) {
           resolvedId = data.id;
           refetchCustomers();
+          toast.success(`Created new customer: ${customer}`);
         } else if (error) {
-          // Non-fatal: order still goes through without a customerId
           console.warn("[NewOrderDialog] customer auto-create failed", error);
+          toast.warning("Could not create customer record", {
+            description: "Order will go through, but loyalty points won't be tracked.",
+          });
         }
+      } else {
+        // Offline + no match — order will still go through, but no loyalty.
+        toast.warning("Customer not linked (offline)", {
+          description: "Loyalty points won't be earned. Link customer later from the order.",
+        });
       }
     }
 
@@ -140,10 +196,6 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     onOpenChange(false);
   };
 
-  const linkedCustomer = customerId !== NEW_CUSTOMER
-    ? customers.find((c) => c.id === customerId)
-    : null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
@@ -153,34 +205,130 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-2">
             <Label className="text-sm text-secondary-foreground">Customer</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger className="bg-secondary border-border text-foreground">
-                <SelectValue placeholder="New customer" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border max-h-72">
-                <SelectItem value={NEW_CUSTOMER}>
-                  <span className="inline-flex items-center gap-2">
-                    <UserPlus className="w-3.5 h-3.5" />
-                    New customer
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  role="combobox"
+                  aria-expanded={pickerOpen}
+                  className="w-full inline-flex items-center justify-between gap-2 rounded-md bg-secondary border border-border px-3 py-2 text-sm text-left text-foreground hover:bg-secondary/80 transition-colors"
+                >
+                  <span className="inline-flex items-center gap-2 truncate">
+                    {linkedCustomer ? (
+                      <>
+                        <UserCheck className="w-4 h-4 text-success shrink-0" />
+                        <span className="truncate">
+                          {linkedCustomer.name}
+                          {linkedCustomer.phone ? ` · ${formatPhone(linkedCustomer.phone)}` : ""}
+                        </span>
+                      </>
+                    ) : customer ? (
+                      <>
+                        <UserPlus className="w-4 h-4 text-primary shrink-0" />
+                        <span className="truncate">New: {customer}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground">Search or add a customer…</span>
+                      </>
+                    )}
                   </span>
-                </SelectItem>
-                {sortedCustomers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}{c.phone ? ` · ${formatPhone(c.phone)}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {linkedCustomer && (
-              <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
-                <UserCheck className="w-3 h-3 text-success" />
+                  <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[--radix-popover-trigger-width] bg-card border-border" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Type a name or phone…"
+                    value={pickerQuery}
+                    onValueChange={setPickerQuery}
+                  />
+                  <CommandList>
+                    {filteredCustomers.length === 0 && (
+                      <CommandEmpty>
+                        {pickerQuery.trim()
+                          ? "No matching customers."
+                          : "No customers yet."}
+                      </CommandEmpty>
+                    )}
+                    {filteredCustomers.length > 0 && (
+                      <CommandGroup heading="Existing customers">
+                        {filteredCustomers.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={c.id}
+                            onSelect={() => pickExisting(c.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <Check
+                              className={cn(
+                                "w-3.5 h-3.5",
+                                customerId === c.id ? "opacity-100 text-success" : "opacity-0",
+                              )}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm truncate">{c.name}</p>
+                              {c.phone && (
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  {formatPhone(c.phone)} · {c.loyaltyPoints} pts
+                                </p>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    {pickerQuery.trim() && !hasExactMatch && (
+                      <CommandGroup heading="Add new">
+                        <CommandItem
+                          value={`__new__:${pickerQuery}`}
+                          onSelect={() => pickNew(pickerQuery.trim())}
+                          className="flex items-center gap-2"
+                        >
+                          <UserPlus className="w-3.5 h-3.5 text-primary" />
+                          <span className="text-sm">
+                            Create new customer “{pickerQuery.trim()}”
+                          </span>
+                        </CommandItem>
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {linkedCustomer ? (
+              <p className="text-[11px] text-success inline-flex items-center gap-1">
+                <UserCheck className="w-3 h-3" />
                 Loyalty linked · {linkedCustomer.loyaltyPoints} pts
+                <button
+                  type="button"
+                  onClick={clearLink}
+                  className="ml-2 text-muted-foreground hover:text-foreground underline"
+                >
+                  unlink
+                </button>
+              </p>
+            ) : customer ? (
+              <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                <UserPlus className="w-3 h-3" />
+                Will be created on submit so loyalty points are tracked.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Tip: linking a customer lets them earn loyalty points on this wash.
               </p>
             )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="customer" className="text-sm text-secondary-foreground">Customer Name</Label>
-            <Input id="customer" value={customer} onChange={(e) => { setCustomer(e.target.value); if (customerId !== NEW_CUSTOMER) setCustomerId(NEW_CUSTOMER); }} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+            <Input
+              id="customer"
+              value={customer}
+              onChange={(e) => { setCustomer(e.target.value); if (customerId) setCustomerId(null); }}
+              placeholder="John Smith"
+              className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="customerPhone" className="text-sm text-secondary-foreground">Cell Phone Number</Label>
@@ -192,7 +340,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
               value={customerPhone}
               onChange={(e) => {
                 setCustomerPhone(e.target.value);
-                if (customerId !== NEW_CUSTOMER) setCustomerId(NEW_CUSTOMER);
+                if (customerId) setCustomerId(null);
                 if (phoneError) setPhoneError(null);
               }}
               onBlur={() => {
