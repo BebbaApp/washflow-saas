@@ -125,6 +125,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
   const { formatPrice } = useCurrency();
   const { eligibleOrderIds } = useRewardEligibility(orders);
   const { can } = usePermissions();
+  const pendingInventoryOrderIds = usePendingInventoryOrderIds();
   const canCancel = can("queue.cancel");
   const canStart = can("queue.start");
   const canComplete = can("queue.complete");
