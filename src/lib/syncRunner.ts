@@ -94,6 +94,60 @@ async function processItem(item: OutboxItem): Promise<void> {
       if (error) throw error;
       return;
     }
+
+    case "order.updateStatus": {
+      const updates: Record<string, any> = { status: item.payload.status };
+      if (item.payload.completedAt) updates.completed_at = item.payload.completedAt;
+      if (item.payload.waitMinutes != null) updates.wait_minutes = item.payload.waitMinutes;
+      const { error } = await supabase
+        .from("orders")
+        .update(updates)
+        .eq("id", item.payload.orderId);
+      if (error) throw error;
+      return;
+    }
+
+    case "inventory.consume": {
+      // Apply each line as a fresh balance read + decrement + transaction insert.
+      // Doing it at sync time (not snapshotting balance offline) keeps us
+      // resilient to concurrent online activity on the same item.
+      const lines: Array<{
+        itemId: string;
+        qty: number;
+        itemName: string;
+        source: string;
+        notes?: string;
+        flow?: string;
+      }> = item.payload.lines ?? [];
+      for (const line of lines) {
+        const { data: row, error: readErr } = await supabase
+          .from("inventory_items")
+          .select("quantity")
+          .eq("id", line.itemId)
+          .maybeSingle();
+        if (readErr) throw readErr;
+        if (!row) continue; // item was deleted while offline — skip silently
+        const newBalance = Math.max(0, Number(row.quantity) - line.qty);
+        const { error: updErr } = await supabase
+          .from("inventory_items")
+          .update({ quantity: newBalance })
+          .eq("id", line.itemId);
+        if (updErr) throw updErr;
+        const { error: txErr } = await supabase.from("inventory_transactions").insert({
+          item_id: line.itemId,
+          item_name: line.itemName,
+          delta: -line.qty,
+          balance: newBalance,
+          type: "consume",
+          source: line.source,
+          notes: line.notes ?? null,
+          flow: line.flow ?? "auto",
+        });
+        if (txErr) throw txErr;
+      }
+      return;
+    }
+
     default:
       throw new Error(`Unknown outbox kind: ${(item as any).kind}`);
   }
