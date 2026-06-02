@@ -106,7 +106,9 @@ export default function Platform() {
           <header className="sticky top-0 z-30 h-14 bg-card/80 backdrop-blur border-b border-border flex items-center gap-3 px-4">
             <SidebarTrigger />
             <h1 className="text-sm font-semibold text-foreground">{activeLabel}</h1>
-
+            <div className="ml-auto flex items-center gap-2">
+              <UserMenu hideSettings />
+            </div>
           </header>
           <main className="flex-1 p-6 overflow-x-hidden">
             {tab === "dashboard" && <ConsoleDashboard />}
