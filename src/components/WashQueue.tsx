@@ -67,6 +67,50 @@ function SyncChip({ pending }: { pending: boolean }) {
   );
 }
 
+/**
+ * Shown on a completed wash whose inventory deduction has not yet been
+ * committed to Supabase (queued in the offline outbox). Includes a Retry
+ * action so operators can force a drain without refreshing.
+ */
+function InventoryQueuedChip() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full text-[10px] font-semibold border bg-warning/10 text-warning border-warning/30 overflow-hidden">
+      <span
+        title="Inventory deduction queued offline — will write to Supabase when reconnected"
+        className="inline-flex items-center gap-1 pl-1.5 py-0.5"
+      >
+        <Package className="w-2.5 h-2.5" />
+        Inv queued
+      </span>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); retryPendingSync(); }}
+        className="inline-flex items-center gap-0.5 pr-1.5 pl-1 py-0.5 border-l border-warning/30 hover:bg-warning/15 transition-colors"
+        title="Retry inventory sync now"
+        aria-label="Retry inventory sync"
+      >
+        <RefreshCw className="w-2.5 h-2.5" />
+        Retry
+      </button>
+    </span>
+  );
+}
+
+/**
+ * Shown on a completed wash whose inventory deduction is fully committed.
+ */
+function InventoryCommittedChip() {
+  return (
+    <span
+      title="Inventory deduction committed"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border bg-success/10 text-success border-success/30"
+    >
+      <CheckCircle2 className="w-2.5 h-2.5" />
+      Inv synced
+    </span>
+  );
+}
+
 interface WashQueueProps {
   orders: WashOrder[];
   onUpdateStatus?: (id: string, status: WashStatus) => Promise<void> | void;
