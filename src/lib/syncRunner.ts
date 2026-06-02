@@ -96,12 +96,16 @@ async function processItem(item: OutboxItem): Promise<void> {
     }
 
     case "order.updateStatus": {
-      const updates: Record<string, any> = { status: item.payload.status };
+      const updates: {
+        status: string;
+        completed_at?: string;
+        wait_minutes?: number;
+      } = { status: item.payload.status };
       if (item.payload.completedAt) updates.completed_at = item.payload.completedAt;
       if (item.payload.waitMinutes != null) updates.wait_minutes = item.payload.waitMinutes;
       const { error } = await supabase
         .from("orders")
-        .update(updates)
+        .update(updates as any)
         .eq("id", item.payload.orderId);
       if (error) throw error;
       return;
