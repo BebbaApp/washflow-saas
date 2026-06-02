@@ -49,6 +49,23 @@ const statusLabel: Record<WashStatus, string> = {
   "cancelled": "Cancelled",
 };
 
+/**
+ * Small chip next to the status badge that signals whether the row's most
+ * recent change has reached Supabase. "Queued" = offline insert pending,
+ * "Syncing" = offline mutation against an existing row pending.
+ */
+function SyncChip({ pending }: { pending: boolean }) {
+  return (
+    <span
+      title={pending ? "Created offline — waiting to upload" : "Change saved offline — waiting to sync"}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border bg-warning/10 text-warning border-warning/30"
+    >
+      {pending ? <CloudOff className="w-2.5 h-2.5" /> : <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
+      {pending ? "Queued" : "Syncing"}
+    </span>
+  );
+}
+
 interface WashQueueProps {
   orders: WashOrder[];
   onUpdateStatus?: (id: string, status: WashStatus) => Promise<void> | void;
