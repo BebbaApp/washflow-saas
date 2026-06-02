@@ -14,6 +14,7 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
+import { UserMenu } from "@/components/UserMenu";
 
 type Tab = "dashboard" | "tenants" | "plans" | "users" | "expenses" | "events" | "settings";
 
