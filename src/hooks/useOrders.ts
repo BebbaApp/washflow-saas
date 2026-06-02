@@ -301,6 +301,15 @@ export function useOrders() {
       waitMinutes = Math.round((Date.now() - new Date(prevOrder.createdAt).getTime()) / 60000);
       optimistic.completedAt = completedAt;
       optimistic.waitMinutes = waitMinutes;
+      // Validation: a completed wash without a linked customer means
+      // loyalty points cannot be attributed. Warn loudly so the operator
+      // can link a customer before completing if they want credit.
+      if (!prevOrder.customerId) {
+        toast.warning(`${prevOrder.customer}: no customer linked`, {
+          description: "Loyalty points won't be earned for this wash. Link a customer in the order to attribute future washes.",
+          duration: 6000,
+        });
+      }
     }
 
     const offline = typeof navigator !== "undefined" && !navigator.onLine;
