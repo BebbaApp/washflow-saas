@@ -11,6 +11,7 @@ export interface WashOrder {
   id: string;
   orderNumber: string;
   customer: string;
+  customerId?: string;
   customerPhone?: string;
   vehicle: string;
   plate: string;
@@ -21,8 +22,10 @@ export interface WashOrder {
   completedAt?: string;
   waitMinutes?: number;
   notes?: string;
-  /** True for rows queued offline and not yet acknowledged by Supabase. */
+  /** True for rows queued offline and not yet acknowledged by Supabase (insert pending). */
   _pendingSync?: boolean;
+  /** True when a mutation against an already-server row is queued offline (status/notes). */
+  _syncing?: boolean;
 }
 
 // Legacy fallbacks for old "basic|premium|detail" service ids. Real prices now
@@ -35,6 +38,7 @@ function mapRow(row: any): WashOrder {
     id: row.id,
     orderNumber: row.order_number,
     customer: row.customer,
+    customerId: row.customer_id ?? undefined,
     customerPhone: row.customer_phone ?? undefined,
     vehicle: row.vehicle,
     plate: row.plate,
@@ -46,6 +50,7 @@ function mapRow(row: any): WashOrder {
     waitMinutes: row.wait_minutes ?? undefined,
     notes: row.notes ?? undefined,
     _pendingSync: row._pendingSync ?? false,
+    _syncing: row._syncing ?? false,
   };
 }
 
@@ -56,6 +61,7 @@ function toCacheRow(o: WashOrder) {
     id: o.id,
     order_number: o.orderNumber,
     customer: o.customer,
+    customer_id: o.customerId ?? null,
     customer_phone: o.customerPhone ?? null,
     vehicle: o.vehicle,
     plate: o.plate,
@@ -67,6 +73,7 @@ function toCacheRow(o: WashOrder) {
     wait_minutes: o.waitMinutes ?? null,
     notes: o.notes ?? null,
     _pendingSync: o._pendingSync ?? false,
+    _syncing: o._syncing ?? false,
   };
 }
 
@@ -293,10 +300,13 @@ export function useOrders() {
       optimistic.waitMinutes = waitMinutes;
     }
 
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...optimistic } : o)));
+    const offline = typeof navigator !== "undefined" && !navigator.onLine;
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, ...optimistic, _syncing: offline ? true : o._syncing } : o)),
+    );
 
     // ---------- OFFLINE PATH ----------
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (offline) {
       await outboxAdd({
         id: `order.updateStatus:${orderId}:${Date.now()}`,
         kind: "order.updateStatus",
@@ -304,7 +314,20 @@ export function useOrders() {
         createdAt: Date.now(),
         attempts: 0,
       });
-      const updatedRow: WashOrder = { ...prevOrder, ...optimistic };
+
+      // Loyalty earn — queued for sync when the order is being completed and
+      // is linked to a known customer.
+      if (newStatus === "completed" && prevOrder.customerId) {
+        await outboxAdd({
+          id: `loyalty.earn:${orderId}`,
+          kind: "loyalty.earn",
+          payload: { customerId: prevOrder.customerId, orderId, points: 10 },
+          createdAt: Date.now(),
+          attempts: 0,
+        });
+      }
+
+      const updatedRow: WashOrder = { ...prevOrder, ...optimistic, _syncing: true };
       await cachePut("orders", toCacheRow(updatedRow));
       toast.success(
         `${prevOrder.customer}: status saved offline (${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : newStatus})`,
@@ -324,6 +347,19 @@ export function useOrders() {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? prevOrder : o)));
       toast.error("Failed to update status: " + error.message);
       return;
+    }
+
+    // Online loyalty earn — write directly through the outbox handler to avoid
+    // duplicating logic; drainOutbox runs it immediately.
+    if (newStatus === "completed" && prevOrder.customerId) {
+      await outboxAdd({
+        id: `loyalty.earn:${orderId}`,
+        kind: "loyalty.earn",
+        payload: { customerId: prevOrder.customerId, orderId, points: 10 },
+        createdAt: Date.now(),
+        attempts: 0,
+      });
+      drainOutbox();
     }
 
     toast.info(

@@ -26,7 +26,8 @@ export type CacheStoreName =
 export type OutboxKind =
   | "order.create"
   | "order.updateStatus"
-  | "inventory.consume";
+  | "inventory.consume"
+  | "loyalty.earn";
 
 export interface OutboxItem {
   id: string;            // client-generated; also used as the order id for order.create
