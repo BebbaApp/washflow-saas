@@ -23,7 +23,10 @@ export type CacheStoreName =
   | "inventory_items";
 
 // Outbox kinds — discriminator for syncRunner.
-export type OutboxKind = "order.create";
+export type OutboxKind =
+  | "order.create"
+  | "order.updateStatus"
+  | "inventory.consume";
 
 export interface OutboxItem {
   id: string;            // client-generated; also used as the order id for order.create

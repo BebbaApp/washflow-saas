@@ -693,9 +693,10 @@ export function useInventory() {
     lsSave(VEHICLE_PROCESSED_KEY, Array.from(vehicleProcessedRef.current));
 
     const vehicleLabel = args.vehicleInput ? matchVehicle(args.vehicleInput) ?? args.vehicleInput : null;
-    for (const [itemId, agg] of byItem) {
+
+    // Build per-item notes/payloads once so we can reuse between online + offline.
+    const lines = Array.from(byItem.entries()).map(([itemId, agg]) => {
       const item = items.find((i) => i.id === itemId);
-      if (!item) continue;
       const parts = [args.service];
       if (vehicleLabel && agg.sources.has("vehicle")) parts.push(`${vehicleLabel} usage`);
       if (agg.notes.length > 0) parts.push(agg.notes.join("; "));
@@ -703,10 +704,50 @@ export function useInventory() {
       if (opts.override) {
         note += ` · Override${opts.overrideNote ? `: ${opts.overrideNote}` : " (negative stock)"}`;
       }
-      await applyDeltaAndLog(item, -agg.qty, {
+      return { itemId, item, qty: agg.qty, note };
+    });
+
+    // ---------- OFFLINE PATH ----------
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      // Optimistically decrement local items so the UI reflects the deduction.
+      setItems((prev) =>
+        prev.map((it) => {
+          const ln = lines.find((l) => l.itemId === it.id);
+          if (!ln) return it;
+          return { ...it, quantity: Math.max(0, it.quantity - ln.qty) };
+        }),
+      );
+      const { outboxAdd } = await import("@/lib/offlineDb");
+      await outboxAdd({
+        id: `inventory.consume:${args.orderId}`,
+        kind: "inventory.consume",
+        payload: {
+          orderId: args.orderId,
+          orderNumber: args.orderNumber,
+          lines: lines
+            .filter((l) => l.item)
+            .map((l) => ({
+              itemId: l.itemId,
+              itemName: l.item!.name,
+              qty: l.qty,
+              source: `Order ${args.orderNumber}`,
+              notes: l.note,
+              flow: opts.override ? "override" : "auto",
+            })),
+        },
+        createdAt: Date.now(),
+        attempts: 0,
+      });
+      return { ok: true, negativeItems: [] };
+    }
+
+    // ---------- ONLINE PATH ----------
+    for (const ln of lines) {
+      if (!ln.item) continue;
+      await applyDeltaAndLog(ln.item, -ln.qty, {
         type: "consume",
         source: `Order ${args.orderNumber}`,
-        notes: note,
+        notes: ln.note,
         flow: opts.override ? "override" : "auto",
       });
     }
