@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift, CloudOff, RefreshCw } from "lucide-react";
+import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift, CloudOff, RefreshCw, Package } from "lucide-react";
 import { useRewardEligibility } from "@/hooks/useRewardEligibility";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { usePendingInventoryOrderIds, retryPendingSync } from "@/hooks/usePendingOutbox";
 
 type TabKey = "active" | "waiting" | "in-progress" | "completed" | "cancelled";
 
