@@ -4,6 +4,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { CONCENTRATES, WATER, matchVehicle } from "@/lib/vehicleUsage";
 import { convertUnits, canConvert } from "@/lib/unitConversions";
+import { cacheGetAll, cachePutAll } from "@/lib/offlineDb";
 
 export const INVENTORY_CATEGORIES = ["Soap", "Wax", "Towels", "Chemicals", "Tools", "Other"] as const;
 export type InventoryCategory = string;
@@ -142,14 +143,36 @@ export function useInventory() {
   const fetchAll = useCallback(async () => {
     if (!tenantId) { setItems([]); setTransactions([]); setLoading(false); return; }
     setLoading(true);
+
+    // 1) Hydrate items from IndexedDB cache so the page renders immediately,
+    //    even offline.
+    try {
+      const cached = await cacheGetAll<any>("inventory_items");
+      if (cached.length > 0) {
+        setItems(cached.map(rowToItem));
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn("[useInventory] cache hydrate failed", e);
+    }
+
+    // 2) Fetch fresh from the network. Silently no-op when offline so we keep
+    //    showing the cached state.
     const [itemsRes, txRes, defRes, mapRes] = await Promise.all([
       supabase.from("inventory_items" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
       supabase.from("inventory_transactions" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(1000),
       supabase.from("inventory_category_defaults" as any).select("category, expense_category").eq("tenant_id", tenantId),
       supabase.from("inventory_vehicle_map" as any).select("key, item_id").eq("tenant_id", tenantId),
     ]);
-    setItems(((itemsRes.data as any[]) ?? []).map(rowToItem));
-    setTransactions(((txRes.data as any[]) ?? []).map(rowToTx));
+    if (itemsRes.data) {
+      const rows = itemsRes.data as any[];
+      setItems(rows.map(rowToItem));
+      // Mirror to IndexedDB so the next cold start has data offline.
+      cachePutAll("inventory_items", rows).catch((e) =>
+        console.warn("[useInventory] cache mirror failed", e),
+      );
+    }
+    if (txRes.data) setTransactions((txRes.data as any[]).map(rowToTx));
     const defs: Record<string, string> = {};
     for (const d of (defRes.data as any[]) ?? []) defs[d.category] = d.expense_category;
     setCategoryDefaults(defs);
