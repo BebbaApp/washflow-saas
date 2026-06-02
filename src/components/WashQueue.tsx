@@ -548,11 +548,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                   <span className={`status-badge border ${statusBadge[o.status]}`}>
                     {statusLabel[o.status]}
                   </span>
                   {(o._pendingSync || o._syncing) && <SyncChip pending={!!o._pendingSync} />}
+                  {o.status === "completed" && pendingInventoryOrderIds.has(o.id) && <InventoryQueuedChip />}
                 </div>
               </div>
 
