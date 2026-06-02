@@ -23,8 +23,8 @@ export default defineConfig(({ mode }) => ({
       devOptions: { enabled: false },
       includeAssets: ["favicon.ico", "apple-touch-icon.png"],
       manifest: {
-        name: "AquaWash — Car Wash Management",
-        short_name: "AquaWash",
+        name: "Washflow",
+        short_name: "Washflow",
         description:
           "Tablet-ready car wash management with offline order capture.",
         theme_color: "#0f1319",
