@@ -82,6 +82,7 @@ async function processItem(item: OutboxItem): Promise<void> {
         id: item.id, // reuse client UUID so realtime reconciles the local row
         order_number: orderNum || `W-${Date.now()}`,
         customer: item.payload.customer,
+        customer_id: item.payload.customerId ?? null,
         customer_phone: item.payload.customerPhone?.trim() || null,
         vehicle: item.payload.vehicle,
         plate: item.payload.plate,

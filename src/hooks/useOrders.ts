@@ -196,7 +196,7 @@ export function useOrders() {
   }, []);
 
   const addOrder = useCallback(
-    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
+    async (data: { customer: string; customerId?: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
       const serviceLabel = LEGACY_LABELS[data.service] ?? data.service;
       const servicePrice =
         typeof data.servicePrice === "number"
@@ -215,6 +215,7 @@ export function useOrders() {
           id: clientId,
           orderNumber: tempNumber,
           customer: data.customer,
+          customerId: data.customerId,
           customerPhone: data.customerPhone,
           vehicle: data.vehicle,
           plate: data.plate,
@@ -230,6 +231,7 @@ export function useOrders() {
           kind: "order.create",
           payload: {
             customer: data.customer,
+            customerId: data.customerId,
             customerPhone: data.customerPhone,
             vehicle: data.vehicle,
             plate: data.plate,
@@ -258,6 +260,7 @@ export function useOrders() {
         .insert({
           order_number: orderNum || `W-${Date.now()}`,
           customer: data.customer,
+          customer_id: data.customerId ?? null,
           customer_phone: data.customerPhone?.trim() || null,
           vehicle: data.vehicle,
           plate: data.plate,
