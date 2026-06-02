@@ -454,9 +454,14 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                     <TableCell className="text-muted-foreground">{timeLabel}</TableCell>
                     <TableCell>
                       {tab === "completed" ? (
-                        typeof o.waitMinutes === "number" ? `${o.waitMinutes} min` : "—"
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{typeof o.waitMinutes === "number" ? `${o.waitMinutes} min` : "—"}</span>
+                          {pendingInventoryOrderIds.has(o.id)
+                            ? <InventoryQueuedChip />
+                            : <InventoryCommittedChip />}
+                        </div>
                       ) : (
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`status-badge border ${statusBadge[o.status]}`}>
                             {statusLabel[o.status]}
                           </span>
