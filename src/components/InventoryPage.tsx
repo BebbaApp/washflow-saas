@@ -405,6 +405,15 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                           {item.quantity <= effectiveMin(item) && <AlertTriangle className="w-3 h-3 mr-1" />}
                           {state.label}
                         </span>
+                        {pendingItemIds.has(item.id) && (
+                          <span
+                            title="Deduction queued offline — will write to Supabase when reconnected"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border bg-warning/10 text-warning border-warning/30"
+                          >
+                            <CloudOff className="w-2.5 h-2.5" />
+                            Queued
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {
