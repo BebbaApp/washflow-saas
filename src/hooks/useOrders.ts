@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { toast } from "sonner";
-import { cacheGetAll, cachePutAll, cachePut, cacheDelete, outboxAdd } from "@/lib/offlineDb";
-import { drainOutbox } from "@/lib/syncRunner";
 
 export type WashStatus = "waiting" | "in-progress" | "completed" | "cancelled";
 
@@ -11,7 +9,6 @@ export interface WashOrder {
   id: string;
   orderNumber: string;
   customer: string;
-  customerId?: string;
   customerPhone?: string;
   vehicle: string;
   plate: string;
@@ -22,10 +19,6 @@ export interface WashOrder {
   completedAt?: string;
   waitMinutes?: number;
   notes?: string;
-  /** True for rows queued offline and not yet acknowledged by Supabase (insert pending). */
-  _pendingSync?: boolean;
-  /** True when a mutation against an already-server row is queued offline (status/notes). */
-  _syncing?: boolean;
 }
 
 // Legacy fallbacks for old "basic|premium|detail" service ids. Real prices now
@@ -38,7 +31,6 @@ function mapRow(row: any): WashOrder {
     id: row.id,
     orderNumber: row.order_number,
     customer: row.customer,
-    customerId: row.customer_id ?? undefined,
     customerPhone: row.customer_phone ?? undefined,
     vehicle: row.vehicle,
     plate: row.plate,
@@ -49,31 +41,6 @@ function mapRow(row: any): WashOrder {
     completedAt: row.completed_at ?? undefined,
     waitMinutes: row.wait_minutes ?? undefined,
     notes: row.notes ?? undefined,
-    _pendingSync: row._pendingSync ?? false,
-    _syncing: row._syncing ?? false,
-  };
-}
-
-// Convert a domain WashOrder -> the shape we cache in IndexedDB (mirrors the
-// Supabase row layout so mapRow can round-trip).
-function toCacheRow(o: WashOrder) {
-  return {
-    id: o.id,
-    order_number: o.orderNumber,
-    customer: o.customer,
-    customer_id: o.customerId ?? null,
-    customer_phone: o.customerPhone ?? null,
-    vehicle: o.vehicle,
-    plate: o.plate,
-    service: o.service,
-    service_price: o.servicePrice,
-    status: o.status,
-    created_at: o.createdAt,
-    completed_at: o.completedAt ?? null,
-    wait_minutes: o.waitMinutes ?? null,
-    notes: o.notes ?? null,
-    _pendingSync: o._pendingSync ?? false,
-    _syncing: o._syncing ?? false,
   };
 }
 
@@ -86,18 +53,6 @@ export function useOrders() {
   useEffect(() => {
     let cancelled = false;
 
-    const hydrateFromCache = async () => {
-      const cached = await cacheGetAll<any>("orders");
-      if (!cancelled && cached.length > 0) {
-        setOrders(
-          cached
-            .map(mapRow)
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-        );
-        setLoading(false);
-      }
-    };
-
     const fetchOrders = async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -106,38 +61,21 @@ export function useOrders() {
 
       if (error) {
         console.error("[useOrders] Failed to fetch orders:", error);
-        if (navigator.onLine) {
-          toast.error("Could not load orders. Showing cached data.");
-        }
+        toast.error("Could not load orders. Please refresh the page.");
       } else if (data && !cancelled) {
-        const fresh = data.map(mapRow);
-        setOrders((prev) => {
-          // Preserve any locally-pending orders the server hasn't seen yet.
-          const pending = prev.filter(
-            (o) => o._pendingSync && !fresh.some((f) => f.id === o.id),
-          );
-          return [...pending, ...fresh];
-        });
-        // Mirror to IndexedDB for offline reads.
-        cachePutAll("orders", fresh.map(toCacheRow)).catch((e) =>
-          console.warn("[useOrders] cache mirror failed", e),
-        );
+        setOrders(data.map(mapRow));
       }
       if (!cancelled) setLoading(false);
     };
 
-    // 1) Show whatever we have cached immediately (works offline)
-    hydrateFromCache();
-    // 2) Then refresh from network (will silently fail offline)
     fetchOrders();
-    // 3) And drain any pending offline writes
-    drainOutbox();
 
     // Guard: only create the channel once per hook instance
     if (channelRef.current) {
       console.warn("[useOrders] Realtime channel already exists, skipping re-subscribe");
     } else {
       const channelName = `orders-realtime-${crypto.randomUUID()}`;
+      console.log(`[useOrders] Creating realtime channel: ${channelName}`);
 
       const channel = supabase
         .channel(channelName)
@@ -147,28 +85,13 @@ export function useOrders() {
           (payload) => {
             try {
               if (payload.eventType === "INSERT") {
-                const row = mapRow(payload.new);
-                setOrders((prev) => {
-                  // If we already have an optimistic pending row with the same
-                  // id, replace it in place (this is the sync reconciliation).
-                  const idx = prev.findIndex((o) => o.id === row.id);
-                  if (idx >= 0) {
-                    const next = [...prev];
-                    next[idx] = row;
-                    return next;
-                  }
-                  return [row, ...prev];
-                });
-                cachePut("orders", toCacheRow(row)).catch(() => {});
+                setOrders((prev) => [mapRow(payload.new), ...prev]);
               } else if (payload.eventType === "UPDATE") {
-                const row = mapRow(payload.new);
                 setOrders((prev) =>
-                  prev.map((o) => (o.id === row.id ? row : o)),
+                  prev.map((o) => (o.id === payload.new.id ? mapRow(payload.new) : o))
                 );
-                cachePut("orders", toCacheRow(row)).catch(() => {});
               } else if (payload.eventType === "DELETE") {
                 setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
-                cacheDelete("orders", payload.old.id).catch(() => {});
               }
             } catch (err) {
               console.error("[useOrders] Error handling realtime payload:", err, payload);
@@ -176,8 +99,12 @@ export function useOrders() {
           }
         )
         .subscribe((status, err) => {
+          console.log(`[useOrders] Realtime status: ${status}`);
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
             console.error("[useOrders] Realtime subscription failed:", status, err);
+            toast.error("Live updates are unavailable. Refresh to see latest orders.");
+          } else if (status === "SUBSCRIBED") {
+            console.log("[useOrders] Realtime subscribed successfully");
           }
         });
 
@@ -187,6 +114,7 @@ export function useOrders() {
     return () => {
       cancelled = true;
       if (channelRef.current) {
+        console.log("[useOrders] Cleaning up realtime channel");
         supabase.removeChannel(channelRef.current).catch((err) => {
           console.error("[useOrders] Error removing channel:", err);
         });
@@ -196,63 +124,16 @@ export function useOrders() {
   }, []);
 
   const addOrder = useCallback(
-    async (data: { customer: string; customerId?: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
+    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
+      // Prefer the explicit name/price coming from the Services tab; fall back to
+      // legacy keys for any caller still passing "basic|premium|detail".
       const serviceLabel = LEGACY_LABELS[data.service] ?? data.service;
       const servicePrice =
         typeof data.servicePrice === "number"
           ? data.servicePrice
           : LEGACY_PRICES[data.service] ?? 0;
 
-      // ---------- OFFLINE PATH ------------------------------------------------
-      // No network → queue to outbox, insert an optimistic local row with a
-      // client UUID. When connectivity returns, syncRunner will insert it
-      // server-side reusing the same id, and realtime INSERT will reconcile.
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const clientId = crypto.randomUUID();
-        const tempNumber = `W-OFF-${clientId.slice(0, 4).toUpperCase()}`;
-        const createdAt = new Date().toISOString();
-        const optimistic: WashOrder = {
-          id: clientId,
-          orderNumber: tempNumber,
-          customer: data.customer,
-          customerId: data.customerId,
-          customerPhone: data.customerPhone,
-          vehicle: data.vehicle,
-          plate: data.plate,
-          service: serviceLabel,
-          servicePrice,
-          status: "waiting",
-          createdAt,
-          _pendingSync: true,
-        };
-
-        await outboxAdd({
-          id: clientId,
-          kind: "order.create",
-          payload: {
-            customer: data.customer,
-            customerId: data.customerId,
-            customerPhone: data.customerPhone,
-            vehicle: data.vehicle,
-            plate: data.plate,
-            service: serviceLabel,
-            servicePrice,
-            createdAt,
-          },
-          createdAt: Date.now(),
-          attempts: 0,
-        });
-
-        setOrders((prev) => [optimistic, ...prev]);
-        await cachePut("orders", toCacheRow(optimistic));
-
-        toast.success(`Order saved offline for ${data.customer}`, {
-          description: `Will sync when reconnected (${tempNumber})`,
-        });
-        return optimistic;
-      }
-
-      // ---------- ONLINE PATH (original behaviour) ---------------------------
+      // Get next order number via RPC
       const { data: orderNum } = await supabase.rpc("next_order_number");
 
       const { data: row, error } = await supabase
@@ -260,7 +141,6 @@ export function useOrders() {
         .insert({
           order_number: orderNum || `W-${Date.now()}`,
           customer: data.customer,
-          customer_id: data.customerId ?? null,
           customer_phone: data.customerPhone?.trim() || null,
           vehicle: data.vehicle,
           plate: data.plate,
@@ -286,92 +166,27 @@ export function useOrders() {
     const prevOrder = orders.find((o) => o.id === orderId);
     if (!prevOrder) return;
 
-    // Status changes on a still-pending offline order would race the outbox
-    // insert. Keep this simple: require sync to finish first.
-    if (prevOrder._pendingSync) {
-      toast.error("This order is still syncing. Please wait until it appears with its real order number.");
-      return;
-    }
-
+    const updates: any = { status: newStatus };
     const optimistic: Partial<WashOrder> = { status: newStatus };
-    let completedAt: string | undefined;
-    let waitMinutes: number | undefined;
     if (newStatus === "completed") {
-      completedAt = new Date().toISOString();
-      waitMinutes = Math.round((Date.now() - new Date(prevOrder.createdAt).getTime()) / 60000);
+      const completedAt = new Date().toISOString();
+      const waitMinutes = Math.round((Date.now() - new Date(prevOrder.createdAt).getTime()) / 60000);
+      updates.completed_at = completedAt;
+      updates.wait_minutes = waitMinutes;
       optimistic.completedAt = completedAt;
       optimistic.waitMinutes = waitMinutes;
-      // Validation: a completed wash without a linked customer means
-      // loyalty points cannot be attributed. Warn loudly so the operator
-      // can link a customer before completing if they want credit.
-      if (!prevOrder.customerId) {
-        toast.warning(`${prevOrder.customer}: no customer linked`, {
-          description: "Loyalty points won't be earned for this wash. Link a customer in the order to attribute future washes.",
-          duration: 6000,
-        });
-      }
     }
 
-    const offline = typeof navigator !== "undefined" && !navigator.onLine;
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, ...optimistic, _syncing: offline ? true : o._syncing } : o)),
-    );
-
-    // ---------- OFFLINE PATH ----------
-    if (offline) {
-      await outboxAdd({
-        id: `order.updateStatus:${orderId}:${Date.now()}`,
-        kind: "order.updateStatus",
-        payload: { orderId, status: newStatus, completedAt, waitMinutes },
-        createdAt: Date.now(),
-        attempts: 0,
-      });
-
-      // Loyalty earn — queued for sync when the order is being completed and
-      // is linked to a known customer.
-      if (newStatus === "completed" && prevOrder.customerId) {
-        await outboxAdd({
-          id: `loyalty.earn:${orderId}`,
-          kind: "loyalty.earn",
-          payload: { customerId: prevOrder.customerId, orderId, points: 10 },
-          createdAt: Date.now(),
-          attempts: 0,
-        });
-      }
-
-      const updatedRow: WashOrder = { ...prevOrder, ...optimistic, _syncing: true };
-      await cachePut("orders", toCacheRow(updatedRow));
-      toast.success(
-        `${prevOrder.customer}: status saved offline (${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : newStatus})`,
-        { description: "Will sync when reconnected.", duration: 4000 },
-      );
-      return;
-    }
-
-    // ---------- ONLINE PATH ----------
-    const updates: any = { status: newStatus };
-    if (completedAt) updates.completed_at = completedAt;
-    if (waitMinutes != null) updates.wait_minutes = waitMinutes;
+    // Optimistic UI update
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...optimistic } : o)));
 
     const { error } = await supabase.from("orders").update(updates).eq("id", orderId);
 
     if (error) {
+      // Roll back
       setOrders((prev) => prev.map((o) => (o.id === orderId ? prevOrder : o)));
       toast.error("Failed to update status: " + error.message);
       return;
-    }
-
-    // Online loyalty earn — write directly through the outbox handler to avoid
-    // duplicating logic; drainOutbox runs it immediately.
-    if (newStatus === "completed" && prevOrder.customerId) {
-      await outboxAdd({
-        id: `loyalty.earn:${orderId}`,
-        kind: "loyalty.earn",
-        payload: { customerId: prevOrder.customerId, orderId, points: 10 },
-        createdAt: Date.now(),
-        attempts: 0,
-      });
-      drainOutbox();
     }
 
     toast.info(
@@ -383,10 +198,6 @@ export function useOrders() {
   const updateNotes = useCallback(async (orderId: string, notes: string) => {
     const prevOrder = orders.find((o) => o.id === orderId);
     if (!prevOrder) return false;
-    if (prevOrder._pendingSync) {
-      toast.error("This order is still syncing. Please wait before editing notes.");
-      return false;
-    }
     const trimmed = notes.trim();
     const value = trimmed.length ? trimmed : null;
 

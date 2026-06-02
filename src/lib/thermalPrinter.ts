@@ -46,7 +46,7 @@ export interface ReceiptBuildOpts {
 }
 
 const DEFAULT_SETTINGS: ReceiptSettings = {
-  businessName: "Washflow",
+  businessName: "AquaWash",
   businessLine2: "Premium Car Wash",
   footer: "Thank you for your business!",
 };

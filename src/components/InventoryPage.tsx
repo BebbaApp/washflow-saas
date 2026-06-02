@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, CloudOff } from "lucide-react";
-import { usePendingInventoryItemIds, retryPendingSync } from "@/hooks/usePendingOutbox";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -54,7 +53,6 @@ type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction } = useInventory();
-  const pendingItemIds = usePendingInventoryItemIds();
   const { suppliers } = useSuppliers();
   const [reordering, setReordering] = useState<InventoryItem | null>(null);
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
@@ -405,27 +403,6 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                           {item.quantity <= effectiveMin(item) && <AlertTriangle className="w-3 h-3 mr-1" />}
                           {state.label}
                         </span>
-                        {pendingItemIds.has(item.id) && (
-                          <span className="inline-flex items-center gap-1 rounded-full text-[10px] font-semibold border bg-warning/10 text-warning border-warning/30 overflow-hidden">
-                            <span
-                              title="Deduction queued offline — will write to Supabase when reconnected"
-                              className="inline-flex items-center gap-1 pl-1.5 py-0.5"
-                            >
-                              <CloudOff className="w-2.5 h-2.5" />
-                              Queued
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); retryPendingSync(); }}
-                              className="inline-flex items-center gap-0.5 pr-1.5 pl-1 py-0.5 border-l border-warning/30 hover:bg-warning/15 transition-colors"
-                              title="Retry sync now"
-                              aria-label="Retry sync for queued inventory deductions"
-                            >
-                              <RefreshCw className="w-2.5 h-2.5" />
-                              Retry
-                            </button>
-                          </span>
-                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {

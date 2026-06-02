@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,8 +7,6 @@ import { CurrencyProvider } from "@/hooks/useCurrency";
 import { TenantProvider } from "@/hooks/useTenant";
 import { LicenseGate } from "@/components/LicenseGate";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { OfflineBanner } from "@/components/OfflineBanner";
-import { startSyncRunner } from "@/lib/syncRunner";
 import Index from "./pages/Index";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
@@ -46,27 +43,22 @@ const GatedRoutes = () => {
   return isAuthenticated && !isPlatformRoute ? <LicenseGate>{routes}</LicenseGate> : routes;
 };
 
-const App = () => {
-  // Drain the offline outbox on mount + whenever connectivity returns.
-  useEffect(() => startSyncRunner(), []);
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TenantProvider>
-          <CurrencyProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <GatedRoutes />
-                <OfflineBanner />
-              </BrowserRouter>
-            </TooltipProvider>
-          </CurrencyProvider>
-        </TenantProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  );
-};
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <TenantProvider>
+        <CurrencyProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <GatedRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </CurrencyProvider>
+      </TenantProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+);
 
 export default App;

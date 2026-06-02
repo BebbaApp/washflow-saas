@@ -4,7 +4,6 @@ import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { CONCENTRATES, WATER, matchVehicle } from "@/lib/vehicleUsage";
 import { convertUnits, canConvert } from "@/lib/unitConversions";
-import { cacheGetAll, cachePutAll } from "@/lib/offlineDb";
 
 export const INVENTORY_CATEGORIES = ["Soap", "Wax", "Towels", "Chemicals", "Tools", "Other"] as const;
 export type InventoryCategory = string;
@@ -143,36 +142,14 @@ export function useInventory() {
   const fetchAll = useCallback(async () => {
     if (!tenantId) { setItems([]); setTransactions([]); setLoading(false); return; }
     setLoading(true);
-
-    // 1) Hydrate items from IndexedDB cache so the page renders immediately,
-    //    even offline.
-    try {
-      const cached = await cacheGetAll<any>("inventory_items");
-      if (cached.length > 0) {
-        setItems(cached.map(rowToItem));
-        setLoading(false);
-      }
-    } catch (e) {
-      console.warn("[useInventory] cache hydrate failed", e);
-    }
-
-    // 2) Fetch fresh from the network. Silently no-op when offline so we keep
-    //    showing the cached state.
     const [itemsRes, txRes, defRes, mapRes] = await Promise.all([
       supabase.from("inventory_items" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
       supabase.from("inventory_transactions" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(1000),
       supabase.from("inventory_category_defaults" as any).select("category, expense_category").eq("tenant_id", tenantId),
       supabase.from("inventory_vehicle_map" as any).select("key, item_id").eq("tenant_id", tenantId),
     ]);
-    if (itemsRes.data) {
-      const rows = itemsRes.data as any[];
-      setItems(rows.map(rowToItem));
-      // Mirror to IndexedDB so the next cold start has data offline.
-      cachePutAll("inventory_items", rows).catch((e) =>
-        console.warn("[useInventory] cache mirror failed", e),
-      );
-    }
-    if (txRes.data) setTransactions((txRes.data as any[]).map(rowToTx));
+    setItems(((itemsRes.data as any[]) ?? []).map(rowToItem));
+    setTransactions(((txRes.data as any[]) ?? []).map(rowToTx));
     const defs: Record<string, string> = {};
     for (const d of (defRes.data as any[]) ?? []) defs[d.category] = d.expense_category;
     setCategoryDefaults(defs);
@@ -716,10 +693,9 @@ export function useInventory() {
     lsSave(VEHICLE_PROCESSED_KEY, Array.from(vehicleProcessedRef.current));
 
     const vehicleLabel = args.vehicleInput ? matchVehicle(args.vehicleInput) ?? args.vehicleInput : null;
-
-    // Build per-item notes/payloads once so we can reuse between online + offline.
-    const lines = Array.from(byItem.entries()).map(([itemId, agg]) => {
+    for (const [itemId, agg] of byItem) {
       const item = items.find((i) => i.id === itemId);
+      if (!item) continue;
       const parts = [args.service];
       if (vehicleLabel && agg.sources.has("vehicle")) parts.push(`${vehicleLabel} usage`);
       if (agg.notes.length > 0) parts.push(agg.notes.join("; "));
@@ -727,58 +703,10 @@ export function useInventory() {
       if (opts.override) {
         note += ` · Override${opts.overrideNote ? `: ${opts.overrideNote}` : " (negative stock)"}`;
       }
-      return { itemId, item, qty: agg.qty, note };
-    });
-
-    // ---------- OFFLINE PATH ----------
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const validLines = lines
-        .filter((l) => l.item)
-        .map((l) => ({
-          itemId: l.itemId,
-          itemName: l.item!.name,
-          qty: l.qty,
-          source: `Order ${args.orderNumber}`,
-          notes: l.note,
-          flow: opts.override ? "override" : "auto",
-        }));
-
-      // Nothing to deduct (e.g. all line items deleted) — don't queue
-      // a no-op consume entry that would just sit in the outbox.
-      if (validLines.length === 0) {
-        return { ok: true, negativeItems: [] };
-      }
-
-      // Optimistically decrement local items so the UI reflects the deduction.
-      setItems((prev) =>
-        prev.map((it) => {
-          const ln = validLines.find((l) => l.itemId === it.id);
-          if (!ln) return it;
-          return { ...it, quantity: Math.max(0, it.quantity - ln.qty) };
-        }),
-      );
-      const { outboxAdd } = await import("@/lib/offlineDb");
-      await outboxAdd({
-        id: `inventory.consume:${args.orderId}`,
-        kind: "inventory.consume",
-        payload: {
-          orderId: args.orderId,
-          orderNumber: args.orderNumber,
-          lines: validLines,
-        },
-        createdAt: Date.now(),
-        attempts: 0,
-      });
-      return { ok: true, negativeItems: [] };
-    }
-
-    // ---------- ONLINE PATH ----------
-    for (const ln of lines) {
-      if (!ln.item) continue;
-      await applyDeltaAndLog(ln.item, -ln.qty, {
+      await applyDeltaAndLog(item, -agg.qty, {
         type: "consume",
         source: `Order ${args.orderNumber}`,
-        notes: ln.note,
+        notes: note,
         flow: opts.override ? "override" : "auto",
       });
     }

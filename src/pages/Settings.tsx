@@ -36,7 +36,7 @@ export default function Settings() {
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd } = useTenant();
-  const workspaceName = tenant?.name || "Washflow";
+  const workspaceName = tenant?.name || "AquaWash";
   const navigate = useNavigate();
 
   const navItems = allNavItems.filter((item) => {
@@ -107,7 +107,7 @@ export default function Settings() {
 
       <div className="mt-4 space-y-2 border-t border-border pt-4">
         <div className="flex items-center justify-between px-2">
-          <p className="text-xs text-muted-foreground">Washflow Saas v1.0</p>
+          <p className="text-xs text-muted-foreground">AquaWash v1.0</p>
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMode}
