@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw } from "lucide-react";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, CloudOff } from "lucide-react";
+import { usePendingInventoryItemIds } from "@/hooks/usePendingOutbox";
 import {
   LineChart,
   Line,
