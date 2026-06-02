@@ -11,6 +11,7 @@ export interface WashOrder {
   id: string;
   orderNumber: string;
   customer: string;
+  customerId?: string;
   customerPhone?: string;
   vehicle: string;
   plate: string;
@@ -21,8 +22,10 @@ export interface WashOrder {
   completedAt?: string;
   waitMinutes?: number;
   notes?: string;
-  /** True for rows queued offline and not yet acknowledged by Supabase. */
+  /** True for rows queued offline and not yet acknowledged by Supabase (insert pending). */
   _pendingSync?: boolean;
+  /** True when a mutation against an already-server row is queued offline (status/notes). */
+  _syncing?: boolean;
 }
 
 // Legacy fallbacks for old "basic|premium|detail" service ids. Real prices now
@@ -35,6 +38,7 @@ function mapRow(row: any): WashOrder {
     id: row.id,
     orderNumber: row.order_number,
     customer: row.customer,
+    customerId: row.customer_id ?? undefined,
     customerPhone: row.customer_phone ?? undefined,
     vehicle: row.vehicle,
     plate: row.plate,
@@ -46,6 +50,7 @@ function mapRow(row: any): WashOrder {
     waitMinutes: row.wait_minutes ?? undefined,
     notes: row.notes ?? undefined,
     _pendingSync: row._pendingSync ?? false,
+    _syncing: row._syncing ?? false,
   };
 }
 
@@ -56,6 +61,7 @@ function toCacheRow(o: WashOrder) {
     id: o.id,
     order_number: o.orderNumber,
     customer: o.customer,
+    customer_id: o.customerId ?? null,
     customer_phone: o.customerPhone ?? null,
     vehicle: o.vehicle,
     plate: o.plate,
@@ -67,6 +73,7 @@ function toCacheRow(o: WashOrder) {
     wait_minutes: o.waitMinutes ?? null,
     notes: o.notes ?? null,
     _pendingSync: o._pendingSync ?? false,
+    _syncing: o._syncing ?? false,
   };
 }
 
