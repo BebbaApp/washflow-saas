@@ -277,24 +277,46 @@ export function useOrders() {
     if (!prevOrder) return;
 
     // Status changes on a still-pending offline order would race the outbox
-    // insert. Keep this simple in Phase 2: require sync to finish first.
+    // insert. Keep this simple: require sync to finish first.
     if (prevOrder._pendingSync) {
       toast.error("This order is still syncing. Please wait until it appears with its real order number.");
       return;
     }
 
-    const updates: any = { status: newStatus };
     const optimistic: Partial<WashOrder> = { status: newStatus };
+    let completedAt: string | undefined;
+    let waitMinutes: number | undefined;
     if (newStatus === "completed") {
-      const completedAt = new Date().toISOString();
-      const waitMinutes = Math.round((Date.now() - new Date(prevOrder.createdAt).getTime()) / 60000);
-      updates.completed_at = completedAt;
-      updates.wait_minutes = waitMinutes;
+      completedAt = new Date().toISOString();
+      waitMinutes = Math.round((Date.now() - new Date(prevOrder.createdAt).getTime()) / 60000);
       optimistic.completedAt = completedAt;
       optimistic.waitMinutes = waitMinutes;
     }
 
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...optimistic } : o)));
+
+    // ---------- OFFLINE PATH ----------
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await outboxAdd({
+        id: `order.updateStatus:${orderId}:${Date.now()}`,
+        kind: "order.updateStatus",
+        payload: { orderId, status: newStatus, completedAt, waitMinutes },
+        createdAt: Date.now(),
+        attempts: 0,
+      });
+      const updatedRow: WashOrder = { ...prevOrder, ...optimistic };
+      await cachePut("orders", toCacheRow(updatedRow));
+      toast.success(
+        `${prevOrder.customer}: status saved offline (${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : newStatus})`,
+        { description: "Will sync when reconnected.", duration: 4000 },
+      );
+      return;
+    }
+
+    // ---------- ONLINE PATH ----------
+    const updates: any = { status: newStatus };
+    if (completedAt) updates.completed_at = completedAt;
+    if (waitMinutes != null) updates.wait_minutes = waitMinutes;
 
     const { error } = await supabase.from("orders").update(updates).eq("id", orderId);
 
