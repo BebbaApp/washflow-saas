@@ -171,7 +171,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
   const exportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("AquaWash Report", 14, 20);
+    doc.text("Washflow Saas Report", 14, 20);
     doc.setFontSize(10);
     doc.text(`Range: ${RANGES.find((r) => r.id === range)?.label} · Generated ${new Date().toLocaleDateString()}`, 14, 28);
     doc.setFontSize(12);
