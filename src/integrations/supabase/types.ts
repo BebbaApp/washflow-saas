@@ -441,6 +441,33 @@ export type Database = {
           },
         ]
       }
+      inventory_vehicle_map: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          key: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          key: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          key?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount_cents: number
