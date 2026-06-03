@@ -1390,7 +1390,7 @@ function ReceiptSection() {
           <Input
             value={settings.businessName}
             onChange={(e) => update({ businessName: e.target.value })}
-            placeholder="AquaWash"
+            placeholder="Washflow Saas"
             maxLength={32}
             className="bg-secondary border-border text-foreground"
           />
