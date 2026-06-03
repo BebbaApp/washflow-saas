@@ -10,6 +10,8 @@ import { ConsoleDashboard } from "@/components/platform/ConsoleDashboard";
 import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
 import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import { ConsolePlans } from "@/components/platform/ConsolePlans";
+import { UserMenu } from "@/components/UserMenu";
+import { HeaderClock } from "@/components/HeaderClock";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
