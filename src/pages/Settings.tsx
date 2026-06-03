@@ -36,7 +36,7 @@ export default function Settings() {
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd } = useTenant();
-  const workspaceName = tenant?.name || "AquaWash";
+  const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
 
   const navItems = allNavItems.filter((item) => {
