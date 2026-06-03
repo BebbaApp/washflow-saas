@@ -191,7 +191,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
       styles: { fontSize: 8 },
       headStyles: { fillColor: [30, 41, 59] },
     });
-    doc.save("aquawash-report.pdf");
+    doc.save("washflow-saas-report.pdf");
   };
 
   return (
