@@ -73,7 +73,7 @@ const Index = () => {
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd, isSuperAdmin } = useTenant();
-  const workspaceName = tenant?.name || "AquaWash";
+  const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
