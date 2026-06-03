@@ -1036,7 +1036,7 @@ function LogoUploader() {
                     {previewUrl && <img src={previewUrl} alt="Sidebar preview" className="w-full h-full object-cover" />}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-foreground leading-tight">AquaWash</p>
+                    <p className="text-sm font-bold text-foreground leading-tight">Washflow Saas</p>
                     <p className="text-xs text-muted-foreground leading-tight">Sidebar look</p>
                   </div>
                 </div>
