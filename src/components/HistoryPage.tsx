@@ -469,7 +469,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           <td colspan="2"></td>
         </tr></tfoot>
       </table>
-      <div class="footer">AquaWash · Confidential job report</div>
+      <div class="footer">Washflow Saas · Confidential job report</div>
       <script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print();},250);});</script>
     </body></html>`;
     const win = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");

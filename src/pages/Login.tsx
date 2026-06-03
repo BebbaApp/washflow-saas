@@ -124,7 +124,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
             <Droplets className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">AquaWash</h1>
+          <h1 className="text-2xl font-bold text-foreground">Washflow Saas</h1>
           <p className="text-sm text-muted-foreground mt-1">Staff Portal</p>
         </div>
 
