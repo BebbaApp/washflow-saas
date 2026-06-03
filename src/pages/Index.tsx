@@ -199,7 +199,7 @@ const Index = () => {
 
       <div className="mt-4 space-y-2 border-t border-border pt-4">
         <div className="flex items-center justify-between px-2">
-          <p className="text-xs text-muted-foreground">AquaWash v1.0</p>
+          <p className="text-xs text-muted-foreground">Washflow Saas v1.0</p>
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMode}
