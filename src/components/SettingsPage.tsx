@@ -627,14 +627,14 @@ function WorkersSection() {
 
                       <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground">
-                          Day-volume bonuses (added on top of base pay, per worked day)
+                          Day-volume wages (replace the day's normal pay on qualifying worked days)
                         </Label>
                         <p className="text-[11px] text-muted-foreground">
-                          Busy day = 20+ vehicles washed that day. Quiet day = fewer than 10.
+                          Busy day = 20+ vehicles washed that day. Quiet day = fewer than 10. Leave 0 to keep the normal rate.
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Busy day bonus</Label>
+                            <Label className="text-[11px] text-muted-foreground">Busy Day Wage</Label>
                             <Input
                               type="number"
                               min={0}
@@ -646,7 +646,7 @@ function WorkersSection() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Quiet day bonus</Label>
+                            <Label className="text-[11px] text-muted-foreground">Quiet Day Wage</Label>
                             <Input
                               type="number"
                               min={0}
