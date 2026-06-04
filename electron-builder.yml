@@ -10,7 +10,6 @@ files:
   - dist/**/*
   - electron/**/*
   - public/favicon.ico
-  - node_modules/**/*
   - package.json
 
 extraMetadata:
@@ -22,7 +21,6 @@ win:
     - target: nsis
       arch:
         - x64
-        - ia32
   publisherName: Aumsoft Technology (Pty) Ltd
   artifactName: Washflow-Setup-${version}.exe
 
@@ -49,7 +47,6 @@ linux:
   category: Office
   target:
     - AppImage
-    - deb
 
 publish:
   provider: github

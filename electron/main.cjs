@@ -4,7 +4,11 @@ const path = require('path');
 let mainWindow;
 let tray;
 
-const appIcon = path.join(__dirname, '../public/favicon.ico');
+// In a packaged app, __dirname points inside the asar archive.
+// app.getAppPath() gives the correct root in both dev and packaged.
+const appRoot = app.getAppPath();
+const appIcon = path.join(appRoot, 'public', 'favicon.ico');
+const indexPath = path.join(appRoot, 'dist', 'index.html');
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,28 +23,15 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs'),
+      preload: path.join(appRoot, 'electron', 'preload.cjs'),
       webSecurity: false,
     },
   });
 
-  // Load index.html directly
-  const indexPath = path.join(__dirname, '../dist/index.html');
   mainWindow.loadFile(indexPath);
 
-  // Intercept any navigation attempts and always reload index.html
-  // This makes React Router work correctly in Electron
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    // Only intercept file:// URLs (local navigation)
-    if (url.startsWith('file://')) {
-      event.preventDefault();
-      mainWindow.loadFile(indexPath);
-    }
-  });
-
-  // Handle hash-based or path-based routing after load
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    // On any load failure, fall back to index.html
+  // Always reload index.html on any failed navigation (handles React Router)
+  mainWindow.webContents.on('did-fail-load', () => {
     mainWindow.loadFile(indexPath);
   });
 
