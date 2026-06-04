@@ -5,6 +5,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
+import { VEHICLES } from "@/lib/vehicleUsage";
 import { toast } from "sonner";
 
 interface Props {
@@ -17,8 +18,7 @@ interface Compensation {
   user_id: string;
   pay_type: PayType;
   base_rate: number;
-  busy_day_rate: number;
-  quiet_day_rate: number;
+  category_rates: Record<string, number>;
 }
 interface StaffOption {
   id: string;
@@ -40,9 +40,6 @@ const PAY_LABEL: Record<PayType, string> = {
   hourly: "Hourly Rate",
 };
 
-const BUSY_THRESHOLD = 20;
-const QUIET_THRESHOLD = 10;
-
 function pairAttendance(rows: AttRow[]) {
   const byDate = new Map<string, { in?: Date; out?: Date }[]>();
   const sorted = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -60,19 +57,16 @@ function pairAttendance(rows: AttRow[]) {
   }
   let totalMs = 0;
   const workedDays = new Set<string>();
-  const hoursByDay = new Map<string, number>();
   for (const [key, pairs] of byDate) {
     let dayMs = 0; let hasPair = false;
     for (const p of pairs) if (p.in && p.out) { dayMs += p.out.getTime() - p.in.getTime(); hasPair = true; }
     if (hasPair) {
       const lunch = dayMs > 5 * 3600_000 ? 3600_000 : 0;
-      const net = Math.max(0, dayMs - lunch);
-      totalMs += net;
+      totalMs += Math.max(0, dayMs - lunch);
       workedDays.add(key);
-      hoursByDay.set(key, net / 3600_000);
     }
   }
-  return { hours: totalMs / 3600_000, workedDays, hoursByDay };
+  return { hours: totalMs / 3600_000, workedDays };
 }
 
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
@@ -84,11 +78,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [comps, setComps] = useState<Compensation[]>([]);
   const [attendance, setAttendance] = useState<AttRow[]>([]);
-  const [dailyVehicleCounts, setDailyVehicleCounts] = useState<Map<string, number>>(new Map());
   const [staffId, setStaffId] = useState("");
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
   });
+  const [vehicleCounts, setVehicleCounts] = useState<Record<string, number>>({});
   const [category, setCategory] = useState("Salaries");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -99,13 +93,14 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return { from: f, to: t, daysInMonth: t.getDate() };
   }, [monthAnchor]);
 
+  // load staff list (names + emails) via edge function, and active status
   useEffect(() => {
     if (!open || !tenant?.id) return;
     (async () => {
       const [staffRes, activeRes, compRes] = await Promise.all([
         supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } }),
         supabase.from("staff_active_status" as any).select("user_id, is_active").eq("tenant_id", tenant.id),
-        supabase.from("staff_compensation" as any).select("user_id, pay_type, base_rate, busy_day_rate, quiet_day_rate").eq("tenant_id", tenant.id),
+        supabase.from("staff_compensation" as any).select("user_id, pay_type, base_rate, category_rates").eq("tenant_id", tenant.id),
       ]);
       const activeMap = new Map<string, boolean>(
         ((activeRes.data as any[]) || []).map((r) => [r.user_id, r.is_active !== false])
@@ -126,12 +121,12 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
         user_id: r.user_id,
         pay_type: r.pay_type as PayType,
         base_rate: Number(r.base_rate) || 0,
-        busy_day_rate: Number(r.busy_day_rate) || 0,
-        quiet_day_rate: Number(r.quiet_day_rate) || 0,
+        category_rates: (r.category_rates || {}) as Record<string, number>,
       })));
     })();
   }, [open, tenant?.id]);
 
+  // load attendance
   useEffect(() => {
     if (!open || !staffId) { setAttendance([]); return; }
     (async () => {
@@ -146,95 +141,46 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     })();
   }, [open, staffId, from, to]);
 
-  useEffect(() => {
-    if (!open || !tenant?.id) { setDailyVehicleCounts(new Map()); return; }
-    (async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("completed_at, created_at, status")
-        .eq("status", "completed")
-        .gte("created_at", from.toISOString())
-        .lte("created_at", to.toISOString());
-      const map = new Map<string, number>();
-      ((data as any[]) || []).forEach((o) => {
-        const ts = o.completed_at || o.created_at;
-        if (!ts) return;
-        const key = new Date(ts).toDateString();
-        map.set(key, (map.get(key) || 0) + 1);
-      });
-      setDailyVehicleCounts(map);
-    })();
-  }, [open, tenant?.id, from, to]);
-
   const comp = comps.find((c) => c.user_id === staffId);
   const selected = staff.find((s) => s.id === staffId);
   const displayName = selected ? (selected.name || selected.email.split("@")[0] || "Employee") : "";
-  const { hours, workedDays, hoursByDay } = useMemo(() => pairAttendance(attendance), [attendance]);
+  const { hours, workedDays } = useMemo(() => pairAttendance(attendance), [attendance]);
   const days = workedDays.size;
 
+  // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const dayCells = useMemo(() => {
-    const cells: { date: Date; status: "worked" | "absent" | "future"; volume: "busy" | "quiet" | "normal" | "none" }[] = [];
+    const cells: { date: Date; status: "worked" | "absent" | "future" }[] = [];
     for (let i = 1; i <= daysInMonth; i++) {
       const d = new Date(from.getFullYear(), from.getMonth(), i);
       let status: "worked" | "absent" | "future";
       if (d > today) status = "future";
       else if (workedDays.has(d.toDateString())) status = "worked";
       else status = "absent";
-      const cnt = dailyVehicleCounts.get(d.toDateString()) || 0;
-      let volume: "busy" | "quiet" | "normal" | "none";
-      if (status === "future") volume = "none";
-      else if (cnt >= BUSY_THRESHOLD) volume = "busy";
-      else if (cnt < QUIET_THRESHOLD) volume = "quiet";
-      else volume = "normal";
-      cells.push({ date: d, status, volume });
+      cells.push({ date: d, status });
     }
     return cells;
-  }, [from, daysInMonth, workedDays, today, dailyVehicleCounts]);
+  }, [from, daysInMonth, workedDays, today]);
 
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
-  // Per-day pay model: busy/quiet wages REPLACE the day's normal pay when set (> 0).
-  const { busyWorked, quietWorked, normalWorked, normalHours, busyPay, quietPay, normalPay, total } = useMemo(() => {
-    let busyWorked = 0, quietWorked = 0, normalWorked = 0, normalHours = 0;
-    let busyPay = 0, quietPay = 0, normalPay = 0;
-    const baseRate = comp?.base_rate || 0;
-    const busyRate = comp?.busy_day_rate || 0;
-    const quietRate = comp?.quiet_day_rate || 0;
-    const payType = comp?.pay_type || "salary";
-    const salaryPerDay = payType === "salary" ? baseRate / Math.max(1, daysInMonth) : 0;
+  const baseAmount = useMemo(() => {
+    if (!comp) return 0;
+    if (comp.pay_type === "salary") return comp.base_rate;
+    if (comp.pay_type === "wage") return comp.base_rate * days;
+    return comp.base_rate * hours;
+  }, [comp, days, hours]);
 
-    const dailyNormal = (key: string) => {
-      if (payType === "wage") return baseRate;
-      if (payType === "hourly") return baseRate * (hoursByDay.get(key) || 0);
-      return salaryPerDay;
-    };
+  const categoryBonus = useMemo(() => {
+    if (!comp) return 0;
+    return VEHICLES.reduce((sum, v) => {
+      const rate = Number(comp.category_rates[v] || 0);
+      const count = Number(vehicleCounts[v] || 0);
+      return sum + rate * count;
+    }, 0);
+  }, [comp, vehicleCounts]);
 
-    for (const c of dayCells) {
-      if (c.status !== "worked") continue;
-      const key = c.date.toDateString();
-      const useBusy = c.volume === "busy" && busyRate > 0;
-      const useQuiet = c.volume === "quiet" && quietRate > 0;
-      if (useBusy) {
-        busyWorked++;
-        busyPay += busyRate;
-      } else if (useQuiet) {
-        quietWorked++;
-        quietPay += quietRate;
-      } else {
-        normalWorked++;
-        normalHours += hoursByDay.get(key) || 0;
-        normalPay += dailyNormal(key);
-      }
-    }
-
-    return {
-      busyWorked, quietWorked, normalWorked, normalHours,
-      busyPay, quietPay, normalPay,
-      total: busyPay + quietPay + normalPay,
-    };
-  }, [comp, dayCells, hoursByDay, daysInMonth]);
-
+  const total = baseAmount + categoryBonus;
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
   const handleSubmit = async () => {
@@ -243,8 +189,9 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
-    if (comp.pay_type === "hourly") parts.push(`${normalHours.toFixed(2)}h normal`);
-    parts.push(`${normalWorked} normal / ${busyWorked} busy / ${quietWorked} quiet`);
+    if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
+    else if (comp.pay_type === "hourly") parts.push(`${hours.toFixed(2)}h`);
+    if (categoryBonus > 0) parts.push(`+ vehicle bonuses`);
     const desc = `Remuneration — ${displayName} (${monthLabel})`;
     const summary = `${parts.join(", ")} · ${days} worked / ${absentDays} absent`;
     await addExpense({
@@ -315,6 +262,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
           {comp && (
             <>
+              {/* Pay settings summary */}
               <div className="rounded-xl border border-border bg-muted/30 p-3 flex flex-wrap items-center gap-3 justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Pay setting</p>
@@ -337,6 +285,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 )}
               </div>
 
+              {/* Month attendance chart */}
               <div className="rounded-xl border border-border p-3">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-1">
@@ -352,7 +301,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       aria-label="Next month"
                     ><ChevronRight className="w-4 h-4" /></button>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {days}</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500" />Absent {absentDays}</span>
                   </div>
@@ -370,55 +319,42 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       : c.status === "absent"
                       ? "bg-red-500/80 text-white"
                       : "bg-muted text-muted-foreground";
-                    const cnt = dailyVehicleCounts.get(c.date.toDateString()) || 0;
-                    const ring = c.volume === "busy"
-                      ? "ring-2 ring-amber-400"
-                      : c.volume === "quiet"
-                      ? "ring-2 ring-sky-400"
-                      : "";
                     return (
                   <div
                     key={c.date.toISOString()}
-                    className={`h-[45px] w-full rounded-md flex flex-col items-center justify-center text-[13px] font-medium ${cls} ${ring}`}
-                    title={`${c.date.toDateString()} — ${c.status} · ${cnt} vehicle(s)`}
+                    className={`h-[45px] w-full rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
+                    title={`${c.date.toDateString()} — ${c.status}`}
                   >
-                    <span>{c.date.getDate()}</span>
-                    {c.status !== "future" && (
-                      <span className="text-[9px] leading-none opacity-80">{cnt}</span>
-                    )}
+                    {c.date.getDate()}
                   </div>
                     );
                   })}
                 </div>
-                <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm ring-2 ring-amber-400" />Busy (≥{BUSY_THRESHOLD})</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm ring-2 ring-sky-400" />Quiet (&lt;{QUIET_THRESHOLD})</span>
-                </div>
               </div>
 
-              <div className="rounded-xl border border-border p-3 text-sm space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Pay breakdown</p>
-                <p className="text-foreground">
-                  Normal days: <span className="font-semibold">{normalWorked}</span>
-                  {comp.pay_type === "hourly" && <> · <span className="font-semibold">{normalHours.toFixed(2)}h</span></>}
-                  {" "}= <span className="font-semibold">{formatPrice(normalPay)}</span>
-                </p>
-                {comp.busy_day_rate > 0 && (
-                  <p className="text-foreground">
-                    Busy days: <span className="font-semibold">{busyWorked}</span> × {formatPrice(comp.busy_day_rate)} = <span className="font-semibold">{formatPrice(busyPay)}</span>
-                  </p>
-                )}
-                {comp.quiet_day_rate > 0 && (
-                  <p className="text-foreground">
-                    Quiet days: <span className="font-semibold">{quietWorked}</span> × {formatPrice(comp.quiet_day_rate)} = <span className="font-semibold">{formatPrice(quietPay)}</span>
-                  </p>
-                )}
-                {(comp.busy_day_rate > 0 || comp.quiet_day_rate > 0) && (
-                  <p className="text-[11px] text-muted-foreground pt-1">
-                    Busy/Quiet day wages replace the day's normal pay.
-                  </p>
-                )}
-              </div>
+              {VEHICLES.some((v) => Number(comp.category_rates[v] || 0) > 0) && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Vehicle category bonuses (optional units served)</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {VEHICLES.map((v) => {
+                      const rate = Number(comp.category_rates[v] || 0);
+                      if (!rate) return null;
+                      return (
+                        <label key={v} className="block">
+                          <span className="text-[11px] text-muted-foreground">{v} · {formatPrice(rate)}/unit</span>
+                          <input
+                            type="number" min="0" step="1"
+                            value={vehicleCounts[v] ?? ""}
+                            onChange={(e) => setVehicleCounts((p) => ({ ...p, [v]: parseInt(e.target.value) || 0 }))}
+                            className="mt-1 w-full px-2 py-1.5 rounded-md bg-background border border-border text-sm"
+                            placeholder="0"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-xl bg-muted/50 border border-border p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -426,9 +362,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   <div className="text-sm">
                     <p className="font-medium text-foreground">Computed amount</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatPrice(normalPay)} normal
-                      {busyPay > 0 ? ` + ${formatPrice(busyPay)} busy` : ""}
-                      {quietPay > 0 ? ` + ${formatPrice(quietPay)} quiet` : ""}
+                      Base {formatPrice(baseAmount)}{categoryBonus > 0 ? ` + bonus ${formatPrice(categoryBonus)}` : ""}
                     </p>
                   </div>
                 </div>
