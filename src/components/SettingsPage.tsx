@@ -288,13 +288,14 @@ function WorkersSection() {
     // Load compensation settings
     const { data: compRows } = await (supabase as any)
       .from("staff_compensation")
-      .select("user_id,pay_type,base_rate,category_rates");
+      .select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate");
     const cm: Record<string, Compensation> = {};
     (compRows || []).forEach((r: any) => {
       cm[r.user_id] = {
         pay_type: (r.pay_type ?? "salary") as Compensation["pay_type"],
         base_rate: Number(r.base_rate ?? 0),
-        category_rates: (r.category_rates && typeof r.category_rates === "object") ? r.category_rates : {},
+        busy_day_rate: Number(r.busy_day_rate ?? 0),
+        quiet_day_rate: Number(r.quiet_day_rate ?? 0),
       };
     });
     setCompMap(cm);
@@ -303,15 +304,6 @@ function WorkersSection() {
 
   const updateCompLocal = (userId: string, patch: Partial<Compensation>) => {
     setCompMap((m) => ({ ...m, [userId]: { ...(m[userId] ?? emptyComp()), ...patch } }));
-  };
-  const updateCategoryRate = (userId: string, category: string, value: number) => {
-    setCompMap((m) => {
-      const cur = m[userId] ?? emptyComp();
-      const rates = { ...cur.category_rates };
-      if (!Number.isFinite(value) || value === 0) delete rates[category];
-      else rates[category] = value;
-      return { ...m, [userId]: { ...cur, category_rates: rates } };
-    });
   };
   const saveCompensation = async (u: StaffUser) => {
     if (!tenant?.id) return;
