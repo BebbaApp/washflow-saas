@@ -1,56 +1,84 @@
-# Inventory → Supabase + Expenses + Suppliers
+# Installable PWA + Offline-First with Sync
 
-## 1. Database (new migration)
+Make Washflow installable on Windows / Android / iOS, and have it work fully offline with automatic background sync against Supabase across all tenant data.
 
-New tables (all tenant-scoped, RLS + GRANTs):
+This is a sizable build. I'll ship it in phases so you can use each milestone immediately and we can validate before moving on.
 
-- `inventory_items` — id, tenant_id, name, category, subtype, preset_id, unit, quantity, threshold, recommended_min, recommended_max, **unit_cost** (numeric), **expense_category** (text, nullable — overrides category default), **supplier_id** (uuid, nullable), created_at, updated_at.
-- `inventory_transactions` — id, tenant_id, item_id, item_name, delta, balance, type (`restock|consume|adjust`), source, notes, flow, **unit_cost** (snapshot), **total_cost** (snapshot), **expense_id** (nullable FK to expenses), created_at.
-- `suppliers` — id, tenant_id, name, contact_name, phone, email, address, notes, created_at, updated_at.
-- `inventory_category_defaults` — id, tenant_id, category (text), expense_category (text). Lets admins say "all 'Chemicals' default to expense category 'Supplies'".
+---
 
-Keep existing localStorage-only state for recipes / vehicle map / processed sets (out of scope — those stay local for now).
+## Phase 1 — Installable PWA (Windows / Android / iOS)
 
-## 2. Auto-expense logic
+Goal: users can install the app to the desktop / home screen, with proper icons and splash.
 
-When an item is **added with quantity > 0** OR **stock is adjusted up** (restock):
-- `total = unit_cost × delta`
-- Resolve expense category: item.expense_category → category default → fallback `"Supplies"`.
-- Insert row into `expenses` (description = `Restock: <item name> (<qty> <unit>)`, vendor = supplier name if any).
-- Store the new `expense_id` on the transaction row.
+- Add `public/manifest.webmanifest` with `name`, `short_name`, `display: "standalone"`, `theme_color`, `background_color`, `start_url: "/"`, `scope: "/"`.
+- Generate icon set (192, 512, maskable 512, apple-touch-icon 180) into `public/icons/`.
+- Update `index.html` head: `<link rel="manifest">`, `<link rel="apple-touch-icon">`, theme-color (already present), `apple-mobile-web-app-title`.
+- Add `vite-plugin-pwa` with `generateSW`, `registerType: "autoUpdate"`, `injectRegister: null`, `devOptions.enabled: false`.
+- Single guarded registration wrapper (`src/pwa/register.ts`) that refuses to register in dev, iframe, Lovable preview hosts (`*.lovableproject.com`, `*.lovableproject-dev.com`, `*.beta.lovable.dev`), or when `?sw=off`. Unregisters stale `/sw.js` in those contexts.
+- Workbox config: `NetworkFirst` for HTML navigations, `CacheFirst` for same-origin hashed assets, exclude `/~oauth` from navigation fallback.
 
-Consumption/downward adjustments do NOT create expenses.
+Outcome: install button on Chrome/Edge (Windows + Android), "Add to Home Screen" on iOS Safari. App shell loads offline.
 
-## 3. Reorder button
+---
 
-On each inventory row + details modal: **Reorder** button → opens a small dialog prefilled with last restock's qty, unit cost, and supplier. User can tweak qty / new unit cost / supplier, confirm → applies positive stock delta + creates expense (path above) + updates item's `unit_cost` and `supplier_id` to the new values.
+## Phase 2 — Local data mirror (IndexedDB)
 
-## 4. Suppliers UI
+Goal: every screen reads from a local DB first, so the app is instant and works offline.
 
-- New `useSuppliers` hook (Supabase + realtime).
-- Inventory add/edit form: supplier dropdown (+ "New supplier" inline).
-- Settings → Workspace tab: new **Suppliers** section directly below Members. CRUD list (name, contact, phone, email).
+- Add **Dexie** (`dexie`, `dexie-react-hooks`) as the local store.
+- Schema (`src/offline/db.ts`) mirrors tenant tables: `orders`, `customers`, `services`, `expenses`, `expense_categories`, `inventory_items`, `inventory_transactions`, `inventory_categories`, `product_types`, `suppliers`, `shifts`, `shift_templates`, `time_off_requests`, `staff_pins`, `staff_face_enrollments`, `attendance_records`, `loyalty_transactions`, `receipt_settings`, `role_permissions`, `user_roles`, `tenant_members`, `tenants`. Each row stores `tenant_id`, `updated_at`, and a local `_dirty` / `_op` flag.
+- Indexes per table on `[tenant_id+updated_at]` and primary key `id` for fast queries.
+- Add a `useLiveTable(tenantId, table, filter?)` hook returning live Dexie results via `useLiveQuery`.
 
-## 5. Members display fix
+---
 
-Settings → Workspace → Members currently shows UUIDs. Join `tenant_members` with `profiles` (already in `useWorkers` rewrite) and render `profile.name || email` instead of `user_id`.
+## Phase 3 — Sync engine
 
-## 6. Rewrite `useInventory`
+Goal: keep local DB in sync with Supabase in both directions; queue writes when offline.
 
-Replace the entire localStorage singleton with Supabase-backed hook + realtime subscription on `inventory_items` and `inventory_transactions`. Keep the same public API (`items`, `addItem`, `updateItem`, `adjustStock`, `confirmConsumption`, `consumeForWash`, etc.) so InventoryPage and CompleteWashDialog don't break. Recipes/vehicle-map/water-item stay in localStorage for this pass.
+- `src/offline/sync.ts` engine with three loops:
+  1. **Initial pull** per tenant on login/switch: paginated `select * where tenant_id=? order by updated_at` into Dexie.
+  2. **Realtime pull**: subscribe to `postgres_changes` per table (we already enable realtime in `phase19_enable_realtime_all.sql`); upsert into Dexie on INSERT/UPDATE, delete on DELETE.
+  3. **Push queue**: an `outbox` table records local mutations `{table, op, payload, baseUpdatedAt, attempts}`. A worker drains it when `navigator.onLine`, applying INSERT/UPDATE/DELETE via Supabase. On 409/constraint errors it surfaces a conflict toast and keeps the row for review.
+- Conflict policy: **server-wins for reads, last-write-wins for pushes** (Supabase `updated_at` decides). Hard conflicts (constraint, RLS denial) get flagged in a small "Sync issues" panel under Settings.
+- Connection state hook `useOnline()` + a status pill in the header ("Online", "Offline — N pending").
 
-## Files touched
+---
 
-- `supabase/sql/phase20_inventory_suppliers.sql` (new migration via tool)
-- `src/hooks/useInventory.ts` (full rewrite, same API surface)
-- `src/hooks/useSuppliers.ts` (new)
-- `src/hooks/useInventoryCategoryDefaults.ts` (new)
-- `src/components/InventoryPage.tsx` (add unit cost, supplier, reorder button, expense-category override field)
-- `src/components/InventoryItemDetailsModal.tsx` (show supplier, unit cost, reorder)
-- `src/components/ReorderDialog.tsx` (new)
-- `src/components/SettingsPage.tsx` (Suppliers section under Members; members render by profile name)
+## Phase 4 — Refactor hooks to offline-first
 
-## Out of scope (this pass)
+Rewrite the data hooks to read from Dexie and write through the outbox instead of calling Supabase directly:
 
-- Recipes, vehicle mappings, water item, idempotency sets — remain localStorage.
-- Migrating existing localStorage inventory data — users start fresh in Supabase (will note this in chat).
+- `useOrders`, `useCustomers`, `useServices`, `useExpenses`, `useExpenseCategories`, `useInventory`, `useInventoryCategories`, `useProductTypes`, `useSuppliers`, `useScheduling` (shifts/templates/time off), `useAttendance`, `useLoyalty`, `useWorkers` (staff_pins / face enrollments), `useReceiptSettings`, `useAppLogo`.
+- Each hook keeps the same external API so components don't change.
+- Edge-function-only operations (face verification, invite-member, pin-login, Stripe) stay online-only and show a clear "requires internet" message when offline.
+
+---
+
+## Phase 5 — Edge cases & polish
+
+- Login while offline: cache last session + tenant; allow read-only browsing of last-synced data; block writes that require server validation (e.g. face check-in) with explanatory toast.
+- Tenant switch invalidates the local cache scope and pulls the new tenant's data.
+- Storage quota guard: prune oldest `attendance_records` and `inventory_transactions` beyond 90 days locally (server keeps full history).
+- "Force resync" button in Settings → Sync.
+- Sync issues review panel.
+- Replace the existing "Live updates are unavailable" toast with the new connection-status pill (kept as fallback).
+
+---
+
+## Technical notes
+
+- **Stack additions**: `vite-plugin-pwa`, `workbox-window`, `dexie`, `dexie-react-hooks`.
+- **No DB schema changes required** — every table already has `tenant_id` + `updated_at` and realtime is enabled.
+- **RLS unchanged** — sync uses the user's session, so all reads/writes remain tenant-scoped.
+- **Service worker scope**: app shell only. Supabase API calls bypass the SW (they go to a different origin) so auth and realtime are unaffected.
+- **iOS caveats**: realtime websockets pause when the PWA is backgrounded; sync resumes on focus via a `visibilitychange` listener.
+- **Preview safety**: SW never registers inside the Lovable editor preview; you'll only see install/offline behavior on the published `.lovable.app` URL or your custom domain.
+
+---
+
+## Suggested rollout
+
+I'd ship and verify **Phase 1** first (installable, no behavior change), then **Phase 2 + 3** together (mirror + sync running in the background, hooks still hit Supabase), then **Phase 4** table-by-table starting with Orders. Phase 5 last.
+
+Reply with **"go"** to start with Phase 1, or tell me to bundle more phases into the first pass.
