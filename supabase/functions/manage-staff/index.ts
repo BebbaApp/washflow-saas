@@ -296,6 +296,35 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    if (action === "save_compensation") {
+      const { user_id } = body ?? {};
+      const payType = String(body?.pay_type ?? "salary");
+      if (!user_id || !["salary", "wage", "hourly"].includes(payType)) {
+        return reply({ error: "Invalid compensation input" }, 400);
+      }
+      const amount = (value: unknown) => {
+        const n = Number(value ?? 0);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const { error } = await admin
+        .from("staff_compensation")
+        .upsert(
+          {
+            tenant_id: tenantId,
+            user_id,
+            pay_type: payType,
+            base_rate: amount(body?.base_rate),
+            busy_day_rate: amount(body?.busy_day_rate),
+            quiet_day_rate: amount(body?.quiet_day_rate),
+            updated_at: new Date().toISOString(),
+            updated_by: callerId,
+          },
+          { onConflict: "tenant_id,user_id" },
+        );
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
+    }
+
     if (action === "delete") {
       const { user_id } = body ?? {};
       if (!user_id) return reply({ error: "Missing user_id" }, 400);
