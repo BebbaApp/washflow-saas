@@ -303,6 +303,13 @@ Deno.serve(async (req) => {
       if (!user_id || !["salary", "wage", "hourly"].includes(payType)) {
         return reply({ error: "Invalid compensation input" }, 400);
       }
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
       const amount = (value: unknown) => {
         const n = Number(value ?? 0);
         return Number.isFinite(n) ? n : 0;
