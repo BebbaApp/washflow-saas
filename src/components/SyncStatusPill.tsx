@@ -7,7 +7,10 @@ type State = { status: "idle" | "pulling" | "online" | "offline" | "error"; pend
 
 export function SyncStatusPill({ className }: { className?: string }) {
   const [state, setState] = useState<State>({ status: "idle", pending: 0 });
-  useEffect(() => onSyncStatus(setState), []);
+  useEffect(() => {
+    const unsub = onSyncStatus(setState);
+    return () => { unsub(); };
+  }, []);
 
   const { status, pending } = state;
   const isOffline = status === "offline";
