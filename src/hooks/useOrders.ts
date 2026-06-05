@@ -102,7 +102,9 @@ export function useOrders() {
           console.log(`[useOrders] Realtime status: ${status}`);
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
             console.error("[useOrders] Realtime subscription failed:", status, err);
-            toast.error("Live updates are unavailable. Refresh to see latest orders.");
+            toast("Live updates are unavailable. Refresh to see the latest orders.", {
+              className: "!bg-aqua !text-white !border-aqua",
+            });
           } else if (status === "SUBSCRIBED") {
             console.log("[useOrders] Realtime subscribed successfully");
           }
