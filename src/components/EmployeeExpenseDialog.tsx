@@ -364,26 +364,20 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {VEHICLES.some((v) => Number(comp.category_rates[v] || 0) > 0) && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Vehicle category bonuses (optional units served)</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {VEHICLES.map((v) => {
-                      const rate = Number(comp.category_rates[v] || 0);
-                      if (!rate) return null;
-                      return (
-                        <label key={v} className="block">
-                          <span className="text-[11px] text-muted-foreground">{v} · {formatPrice(rate)}/unit</span>
-                          <input
-                            type="number" min="0" step="1"
-                            value={vehicleCounts[v] ?? ""}
-                            onChange={(e) => setVehicleCounts((p) => ({ ...p, [v]: parseInt(e.target.value) || 0 }))}
-                            className="mt-1 w-full px-2 py-1.5 rounded-md bg-background border border-border text-sm"
-                            placeholder="0"
-                          />
-                        </label>
-                      );
-                    })}
+              {(comp.busy_day_rate !== 0 || comp.quiet_day_rate !== 0) && (
+                <div className="rounded-xl border border-border p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Day-volume adjustments (busy ≥ {BUSY_THRESHOLD} vehicles, quiet &lt; {QUIET_THRESHOLD} vehicles)
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Busy days · {formatPrice(comp.busy_day_rate)}/day</span>
+                      <span className="font-semibold text-foreground">{busyDays}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Quiet days · {formatPrice(comp.quiet_day_rate)}/day</span>
+                      <span className="font-semibold text-foreground">{quietDays}</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -394,7 +388,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   <div className="text-sm">
                     <p className="font-medium text-foreground">Computed amount</p>
                     <p className="text-xs text-muted-foreground">
-                      Base {formatPrice(baseAmount)}{categoryBonus > 0 ? ` + bonus ${formatPrice(categoryBonus)}` : ""}
+                      Base {formatPrice(baseAmount)}{dayAdjustment !== 0 ? ` ${dayAdjustment >= 0 ? "+" : "−"} ${formatPrice(Math.abs(dayAdjustment))} day adj.` : ""}
                     </p>
                   </div>
                 </div>
