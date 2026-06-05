@@ -13,6 +13,7 @@ import AcceptInvite from "./pages/AcceptInvite";
 import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
+import { SyncBoot } from "./offline/SyncBoot";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +52,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <SyncBoot />
             <BrowserRouter>
               <GatedRoutes />
             </BrowserRouter>
