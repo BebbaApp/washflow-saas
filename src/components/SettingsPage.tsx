@@ -611,7 +611,7 @@ function WorkersSection() {
                         })}
                       </div>
 
-                      <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="grid sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">{payTypeLabel}</Label>
                           <Input
@@ -623,27 +623,31 @@ function WorkersSection() {
                             className="bg-secondary border-border"
                           />
                         </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Rate per vehicle category (for remuneration calculation)</Label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                          {VEHICLES.map((v) => (
-                            <div key={v} className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">{v}</Label>
-                              <Input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={comp.category_rates[v] ?? ""}
-                                placeholder="0"
-                                onChange={(e) => updateCategoryRate(u.id, v, parseFloat(e.target.value))}
-                                className="bg-secondary border-border h-9"
-                              />
-                            </div>
-                          ))}
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Busy-day bonus (≥ 20 vehicles/day)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={comp.busy_day_rate}
+                            onChange={(e) => updateCompLocal(u.id, { busy_day_rate: parseFloat(e.target.value) || 0 })}
+                            className="bg-secondary border-border"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Quiet-day adjustment (&lt; 10 vehicles/day)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={comp.quiet_day_rate}
+                            onChange={(e) => updateCompLocal(u.id, { quiet_day_rate: parseFloat(e.target.value) || 0 })}
+                            className="bg-secondary border-border"
+                          />
                         </div>
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Busy/quiet adjustments are added per qualifying day on top of salary, daily wage, or hourly pay.
+                      </p>
+
 
                       <div className="flex justify-end">
                         <button
