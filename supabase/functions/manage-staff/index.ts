@@ -173,13 +173,14 @@ Deno.serve(async (req) => {
       const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (error) return reply({ error: error.message }, 500);
       const ids = list.users.map((u) => u.id);
-      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }, { data: compensationRows }] = await Promise.all([
         admin.from("profiles").select("user_id,name").in("user_id", ids),
         admin.from("user_roles").select("user_id,role").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("staff_pins").select("user_id,phone").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("platform_admins").select("user_id").in("user_id", ids),
         admin.from("super_admins").select("user_id").in("user_id", ids),
+        admin.from("staff_compensation").select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate").eq("tenant_id", tenantId),
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
@@ -237,7 +238,7 @@ Deno.serve(async (req) => {
           created_at: u.created_at,
         };
       });
-      return reply({ users });
+      return reply({ users, compensation_rows: compensationRows ?? [] });
     }
 
     if (action === "set_pin") {
