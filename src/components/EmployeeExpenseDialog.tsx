@@ -5,8 +5,10 @@ import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
-import { VEHICLES } from "@/lib/vehicleUsage";
 import { toast } from "sonner";
+
+const BUSY_THRESHOLD = 20;
+const QUIET_THRESHOLD = 10;
 
 interface Props {
   open: boolean;
