@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-2026-06-05-compensation-service-save";
+const FUNCTION_VERSION = "manage-staff-2026-06-05-face-enroll-service-upload";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
@@ -77,6 +77,15 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
   if (body?.user_id && body?.pin) return "set_pin";
   if (body?.user_id && body?.role && !body?.pin) return "update_role";
   return "";
+}
+
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; contentType: string } {
+  const match = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) throw new Error("Invalid enrollment image");
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return { bytes, contentType: match[1] || "image/jpeg" };
 }
 
 async function resolveCallerTenantId(
