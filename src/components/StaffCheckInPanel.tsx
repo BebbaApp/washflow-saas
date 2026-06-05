@@ -64,7 +64,7 @@ export function StaffCheckInPanel() {
   const { user } = useAuth();
   const { tenant } = useTenant();
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
-  const { records, enrollments, recordAttendance, recordAttendanceFor, lastForUser } = useAttendance();
+  const { records, enrollments, recordAttendance, recordAttendanceFor, lastForUser, refetch } = useAttendance();
 
   const [isStaffHere, setIsStaffHere] = useState<boolean | null>(null);
   useEffect(() => {
