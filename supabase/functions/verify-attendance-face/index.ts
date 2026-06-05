@@ -192,10 +192,20 @@ Deno.serve(async (req) => {
         if (upErr) return json({ error: "upload_failed", detail: upErr.message }, 500);
         uploadedPath = objectPath;
 
+        // Resolve subject's tenant_id (service role bypasses RLS / JWT default)
+        const { data: tm } = await admin
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("user_id", subjectUserId)
+          .limit(1)
+          .maybeSingle();
+        const subjectTenantId = tm?.tenant_id || null;
+
         const { data: rec, error: insErr } = await admin
           .from("attendance_records")
           .insert({
             user_id: subjectUserId,
+            tenant_id: subjectTenantId,
             kind,
             selfie_url: objectPath,
             match_score: score,
