@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "@/hooks/useCurrency";
 import { TenantProvider } from "@/hooks/useTenant";
 import { LicenseGate } from "@/components/LicenseGate";
@@ -23,13 +23,9 @@ const queryClient = new QueryClient({
   },
 });
 
-// Use HashRouter in Electron (file://), BrowserRouter on the web
-const isElectron = typeof window !== "undefined" && window.location.protocol === "file:";
-const Router = isElectron ? HashRouter : BrowserRouter;
-
 const GatedRoutes = () => {
   const { isAuthenticated } = useAuth();
-  const isPlatformRoute = typeof window !== "undefined" && window.location.hash.includes("/platform");
+  const isPlatformRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/platform");
   const routes = (
     <Routes>
       <Route path="/" element={<Index />} />
@@ -43,6 +39,7 @@ const GatedRoutes = () => {
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
+  // Platform console bypasses the license gate so super-admins can rescue suspended tenants.
   return isAuthenticated && !isPlatformRoute ? <LicenseGate>{routes}</LicenseGate> : routes;
 };
 
@@ -54,9 +51,9 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <Router>
+            <BrowserRouter>
               <GatedRoutes />
-            </Router>
+            </BrowserRouter>
           </TooltipProvider>
         </CurrencyProvider>
       </TenantProvider>

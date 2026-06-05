@@ -1186,10 +1186,9 @@ export type Database = {
       staff_compensation: {
         Row: {
           base_rate: number
-          busy_day_rate: number
+          category_rates: Json
           id: string
           pay_type: string
-          quiet_day_rate: number
           tenant_id: string
           updated_at: string
           updated_by: string | null
@@ -1197,10 +1196,9 @@ export type Database = {
         }
         Insert: {
           base_rate?: number
-          busy_day_rate?: number
+          category_rates?: Json
           id?: string
           pay_type?: string
-          quiet_day_rate?: number
           tenant_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -1208,10 +1206,9 @@ export type Database = {
         }
         Update: {
           base_rate?: number
-          busy_day_rate?: number
+          category_rates?: Json
           id?: string
           pay_type?: string
-          quiet_day_rate?: number
           tenant_id?: string
           updated_at?: string
           updated_by?: string | null
