@@ -36,6 +36,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderClock } from "@/components/HeaderClock";
+import { SyncStatusPill } from "@/components/SyncStatusPill";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
@@ -341,6 +342,7 @@ const Index = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <SyncStatusPill className="hidden sm:inline-flex" />
           <HeaderClock />
           </div>
         </div>
