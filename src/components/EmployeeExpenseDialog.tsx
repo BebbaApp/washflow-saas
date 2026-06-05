@@ -145,6 +145,26 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     })();
   }, [open, staffId, from, to]);
 
+  // load tenant-wide order volumes per day for the month (drives busy/quiet classification)
+  useEffect(() => {
+    if (!open || !tenant?.id) { setDayVolumes({}); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("created_at, status")
+        .eq("tenant_id", tenant.id)
+        .neq("status", "cancelled")
+        .gte("created_at", from.toISOString())
+        .lte("created_at", to.toISOString());
+      const map: Record<string, number> = {};
+      ((data as any[]) || []).forEach((r) => {
+        const k = new Date(r.created_at).toDateString();
+        map[k] = (map[k] || 0) + 1;
+      });
+      setDayVolumes(map);
+    })();
+  }, [open, tenant?.id, from, to]);
+
   const comp = comps.find((c) => c.user_id === staffId);
   const selected = staff.find((s) => s.id === staffId);
   const displayName = selected ? (selected.name || selected.email.split("@")[0] || "Employee") : "";
@@ -168,6 +188,17 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
+  // Count busy/quiet days based on worked days only.
+  const { busyDays, quietDays } = useMemo(() => {
+    let busy = 0, quiet = 0;
+    workedDays.forEach((key) => {
+      const v = dayVolumes[key] || 0;
+      if (v >= BUSY_THRESHOLD) busy++;
+      else if (v < QUIET_THRESHOLD) quiet++;
+    });
+    return { busyDays: busy, quietDays: quiet };
+  }, [workedDays, dayVolumes]);
+
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
     if (comp.pay_type === "salary") return comp.base_rate;
@@ -175,16 +206,12 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return comp.base_rate * hours;
   }, [comp, days, hours]);
 
-  const categoryBonus = useMemo(() => {
+  const dayAdjustment = useMemo(() => {
     if (!comp) return 0;
-    return VEHICLES.reduce((sum, v) => {
-      const rate = Number(comp.category_rates[v] || 0);
-      const count = Number(vehicleCounts[v] || 0);
-      return sum + rate * count;
-    }, 0);
-  }, [comp, vehicleCounts]);
+    return busyDays * comp.busy_day_rate + quietDays * comp.quiet_day_rate;
+  }, [comp, busyDays, quietDays]);
 
-  const total = baseAmount + categoryBonus;
+  const total = baseAmount + dayAdjustment;
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
   const handleSubmit = async () => {
