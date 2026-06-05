@@ -124,7 +124,8 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
         user_id: r.user_id,
         pay_type: r.pay_type as PayType,
         base_rate: Number(r.base_rate) || 0,
-        category_rates: (r.category_rates || {}) as Record<string, number>,
+        busy_day_rate: Number(r.busy_day_rate) || 0,
+        quiet_day_rate: Number(r.quiet_day_rate) || 0,
       })));
     })();
   }, [open, tenant?.id]);
