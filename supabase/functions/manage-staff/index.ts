@@ -8,7 +8,7 @@ const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "delete", "resend_verification"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +67,10 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     send_verification: "resend_verification",
     resend_confirmation: "resend_verification",
     send_confirmation_email: "resend_verification",
+
+    enroll_face: "enroll_face",
+    face_enroll: "enroll_face",
+    save_face: "enroll_face",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
@@ -329,6 +333,34 @@ Deno.serve(async (req) => {
           },
           { onConflict: "tenant_id,user_id" },
         );
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
+    }
+
+    if (action === "enroll_face") {
+      const { target_user_id, image_url } = body ?? {};
+      if (!target_user_id || !image_url) {
+        return reply({ error: "Missing target_user_id or image_url" }, 400);
+      }
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+      await admin
+        .from("staff_face_enrollments")
+        .update({ is_active: false })
+        .eq("user_id", target_user_id)
+        .eq("tenant_id", tenantId);
+      const { error } = await admin.from("staff_face_enrollments").insert({
+        tenant_id: tenantId,
+        user_id: target_user_id,
+        image_url,
+        enrolled_by: callerId,
+        is_active: true,
+      });
       if (error) return reply({ error: error.message }, 500);
       return reply({ success: true });
     }

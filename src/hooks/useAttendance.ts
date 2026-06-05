@@ -91,15 +91,15 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
   const enrollFace = useCallback(async (targetUserId: string, dataUrl: string) => {
     try {
       const path = await uploadDataUrl(targetUserId, "enroll", dataUrl);
-      await supabase.from("staff_face_enrollments").update({ is_active: false }).eq("user_id", targetUserId);
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from("staff_face_enrollments").insert({
-        user_id: targetUserId,
-        image_url: path,
-        enrolled_by: user?.id,
-        is_active: true,
+      // Route through edge function so platform/super admins (who aren't tenant
+      // members) can enroll without hitting RLS. The function uses service
+      // role to deactivate previous enrollments and insert the new row with
+      // the correct tenant_id resolved from the target user.
+      const { data, error } = await supabase.functions.invoke("manage-staff", {
+        body: { action: "enroll_face", target_user_id: targetUserId, image_url: path },
       });
       if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
       toast.success("Face enrolled");
       return true;
     } catch (e: any) {
