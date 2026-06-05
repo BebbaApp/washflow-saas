@@ -347,9 +347,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "enroll_face") {
-      const { target_user_id, image_url } = body ?? {};
-      if (!target_user_id || !image_url) {
-        return reply({ error: "Missing target_user_id or image_url" }, 400);
+      const { target_user_id } = body ?? {};
+      const imageDataUrl = body?.image_data_url;
+      if (!target_user_id || !imageDataUrl) {
+        return reply({ error: "Missing target_user_id or image_data_url" }, 400);
       }
       const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
         admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
@@ -358,6 +359,13 @@ Deno.serve(async (req) => {
       if (!targetMember && !targetRole) {
         return reply({ error: "Worker is not part of this workspace" }, 400);
       }
+      const { bytes, contentType } = dataUrlToBytes(String(imageDataUrl));
+      const ext = contentType.includes("png") ? "png" : "jpg";
+      const image_url = `${target_user_id}/enroll-${Date.now()}.${ext}`;
+      const { error: uploadError } = await admin.storage
+        .from("attendance-selfies")
+        .upload(image_url, bytes, { contentType, upsert: false });
+      if (uploadError) return reply({ error: uploadError.message }, 500);
       await admin
         .from("staff_face_enrollments")
         .update({ is_active: false })
