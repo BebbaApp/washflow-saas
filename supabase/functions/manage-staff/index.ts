@@ -337,6 +337,34 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    if (action === "enroll_face") {
+      const { target_user_id, image_url } = body ?? {};
+      if (!target_user_id || !image_url) {
+        return reply({ error: "Missing target_user_id or image_url" }, 400);
+      }
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+      await admin
+        .from("staff_face_enrollments")
+        .update({ is_active: false })
+        .eq("user_id", target_user_id)
+        .eq("tenant_id", tenantId);
+      const { error } = await admin.from("staff_face_enrollments").insert({
+        tenant_id: tenantId,
+        user_id: target_user_id,
+        image_url,
+        enrolled_by: callerId,
+        is_active: true,
+      });
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
+    }
+
     if (action === "delete") {
       const { user_id } = body ?? {};
       if (!user_id) return reply({ error: "Missing user_id" }, 400);
