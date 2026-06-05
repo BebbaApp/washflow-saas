@@ -100,11 +100,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   useEffect(() => {
     if (!open || !tenant?.id) return;
     (async () => {
-      const [staffRes, activeRes, compRes] = await Promise.all([
+      const [staffRes, activeRes] = await Promise.all([
         supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } }),
         supabase.from("staff_active_status" as any).select("user_id, is_active").eq("tenant_id", tenant.id),
-        supabase.from("staff_compensation" as any).select("user_id, pay_type, base_rate, busy_day_rate, quiet_day_rate").eq("tenant_id", tenant.id),
       ]);
+      const compRes = { data: (staffRes.data?.compensation_rows ?? []) as any[] };
       const activeMap = new Map<string, boolean>(
         ((activeRes.data as any[]) || []).map((r) => [r.user_id, r.is_active !== false])
       );
