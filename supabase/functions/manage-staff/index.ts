@@ -3,12 +3,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-global-admin-precedence";
+const FUNCTION_VERSION = "manage-staff-2026-06-05-compensation-service-save";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete", "resend_verification"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "delete", "resend_verification"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +54,10 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     update_role: "update_role",
     set_role: "update_role",
     change_role: "update_role",
+
+    save_compensation: "save_compensation",
+    set_compensation: "save_compensation",
+    upsert_compensation: "save_compensation",
 
     delete: "delete",
     delete_user: "delete",
