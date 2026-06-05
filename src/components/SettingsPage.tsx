@@ -285,10 +285,9 @@ function WorkersSection() {
     const m: Record<string, boolean> = {};
     (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
     setActiveMap(m);
-    // Load compensation settings
-    const { data: compRows } = await (supabase as any)
-      .from("staff_compensation")
-      .select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate");
+    // Load compensation settings from the staff function so platform admins can
+    // manage the active workspace without requiring tenant_members rows.
+    const compRows = res.data.compensation_rows ?? [];
     const cm: Record<string, Compensation> = {};
     (compRows || []).forEach((r: any) => {
       cm[r.user_id] = {
@@ -309,25 +308,21 @@ function WorkersSection() {
     if (!tenant?.id) return;
     setSavingComp(u.id);
     const cur = compMap[u.id] ?? emptyComp();
-    const { data: { user: caller } } = await supabase.auth.getUser();
-    const { error } = await (supabase as any)
-      .from("staff_compensation")
-      .upsert(
-        {
-          tenant_id: tenant.id,
-          user_id: u.id,
-          pay_type: cur.pay_type,
-          base_rate: cur.base_rate,
-          busy_day_rate: cur.busy_day_rate,
-          quiet_day_rate: cur.quiet_day_rate,
-          updated_at: new Date().toISOString(),
-          updated_by: caller?.id ?? null,
-        },
-        { onConflict: "tenant_id,user_id" }
-      );
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "save_compensation",
+        tenant_id: tenant.id,
+        user_id: u.id,
+        pay_type: cur.pay_type,
+        base_rate: cur.base_rate,
+        busy_day_rate: cur.busy_day_rate,
+        quiet_day_rate: cur.quiet_day_rate,
+      },
+    });
     setSavingComp(null);
-    if (error) {
-      toast({ title: "Could not save", description: error.message, variant: "destructive" });
+    if (res.error || res.data?.error) {
+      const info = await extractFnError(res);
+      toast({ title: "Could not save", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     toast({ title: "Compensation saved" });
