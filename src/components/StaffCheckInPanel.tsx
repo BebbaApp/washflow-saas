@@ -129,11 +129,11 @@ export function StaffCheckInPanel() {
     try {
       if (captureMode.kind === "check_in" || captureMode.kind === "check_out") {
         const res = await recordAttendance(captureMode.kind, dataUrl);
-        if (res) setCaptureMode(null);
+        if (res) { setCaptureMode(null); await refetch(); }
       } else if (captureMode.targetUserId) {
         const realKind = captureMode.kind === "assist_check_in" ? "check_in" : "check_out";
         const res = await recordAttendanceFor(captureMode.targetUserId, realKind, dataUrl);
-        if (res) setCaptureMode(null);
+        if (res) { setCaptureMode(null); await refetch(); }
       }
     } finally { setBusy(false); }
   };
