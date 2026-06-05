@@ -285,10 +285,9 @@ function WorkersSection() {
     const m: Record<string, boolean> = {};
     (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
     setActiveMap(m);
-    // Load compensation settings
-    const { data: compRows } = await (supabase as any)
-      .from("staff_compensation")
-      .select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate");
+    // Load compensation settings from the staff function so platform admins can
+    // manage the active workspace without requiring tenant_members rows.
+    const compRows = res.data.compensation_rows ?? [];
     const cm: Record<string, Compensation> = {};
     (compRows || []).forEach((r: any) => {
       cm[r.user_id] = {
