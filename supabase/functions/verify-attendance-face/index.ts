@@ -57,13 +57,15 @@ Deno.serve(async (req) => {
     // Resolve who is being verified
     const isAssisted = !!targetUserId && targetUserId !== caller.id;
     if (isAssisted) {
-      // Caller must hold an assistive role
-      const { data: roles } = await admin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", caller.id);
+      // Platform / super admins always allowed; otherwise must hold an assistive role
+      const [{ data: pAdmin }, { data: sAdmin }, { data: roles }] = await Promise.all([
+        admin.from("platform_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
+        admin.from("super_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
+        admin.from("user_roles").select("role").eq("user_id", caller.id),
+      ]);
       const callerRoles = (roles || []).map((r: any) => r.role);
-      if (!callerRoles.some((r: string) => ASSIST_ROLES.has(r))) {
+      const allowed = !!pAdmin || !!sAdmin || callerRoles.some((r: string) => ASSIST_ROLES.has(r));
+      if (!allowed) {
         return json({ error: "forbidden_assisted_check_in" }, 403);
       }
       if (kind !== "check_in" && kind !== "check_out") {
