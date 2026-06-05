@@ -20,7 +20,8 @@ interface Compensation {
   user_id: string;
   pay_type: PayType;
   base_rate: number;
-  category_rates: Record<string, number>;
+  busy_day_rate: number;
+  quiet_day_rate: number;
 }
 interface StaffOption {
   id: string;
