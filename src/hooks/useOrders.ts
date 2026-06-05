@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import { useTenant } from "@/hooks/useTenant";
+import { db } from "@/offline/db";
+import { enqueueOutbox } from "@/offline/sync";
+import { useLiveTable } from "@/offline/useLiveTable";
 
 export type WashStatus = "waiting" | "in-progress" | "completed" | "cancelled";
 
@@ -45,175 +48,102 @@ function mapRow(row: any): WashOrder {
 }
 
 export function useOrders() {
-  const [orders, setOrders] = useState<WashOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const channelRef = useRef<RealtimeChannel | null>(null);
+  const { tenant } = useTenant();
+  const rows = useLiveTable<any>(tenant?.id, "orders");
+  const loading = rows === undefined;
 
-  // Fetch orders + subscribe to realtime (guarded against double-init)
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchOrders = async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("[useOrders] Failed to fetch orders:", error);
-        toast.error("Could not load orders. Please refresh the page.");
-      } else if (data && !cancelled) {
-        setOrders(data.map(mapRow));
-      }
-      if (!cancelled) setLoading(false);
-    };
-
-    fetchOrders();
-
-    // Guard: only create the channel once per hook instance
-    if (channelRef.current) {
-      console.warn("[useOrders] Realtime channel already exists, skipping re-subscribe");
-    } else {
-      const channelName = `orders-realtime-${crypto.randomUUID()}`;
-      console.log(`[useOrders] Creating realtime channel: ${channelName}`);
-
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "orders" },
-          (payload) => {
-            try {
-              if (payload.eventType === "INSERT") {
-                setOrders((prev) => [mapRow(payload.new), ...prev]);
-              } else if (payload.eventType === "UPDATE") {
-                setOrders((prev) =>
-                  prev.map((o) => (o.id === payload.new.id ? mapRow(payload.new) : o))
-                );
-              } else if (payload.eventType === "DELETE") {
-                setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
-              }
-            } catch (err) {
-              console.error("[useOrders] Error handling realtime payload:", err, payload);
-            }
-          }
-        )
-        .subscribe((status, err) => {
-          console.log(`[useOrders] Realtime status: ${status}`);
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.error("[useOrders] Realtime subscription failed:", status, err);
-            toast("Live updates are unavailable. Refresh to see the latest orders.", {
-              className: "!bg-aqua !text-white !border-aqua",
-            });
-          } else if (status === "SUBSCRIBED") {
-            console.log("[useOrders] Realtime subscribed successfully");
-          }
-        });
-
-      channelRef.current = channel;
-    }
-
-    return () => {
-      cancelled = true;
-      if (channelRef.current) {
-        console.log("[useOrders] Cleaning up realtime channel");
-        supabase.removeChannel(channelRef.current).catch((err) => {
-          console.error("[useOrders] Error removing channel:", err);
-        });
-        channelRef.current = null;
-      }
-    };
-  }, []);
+  const orders = useMemo<WashOrder[]>(() => {
+    const list = (rows ?? []).map(mapRow);
+    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return list;
+  }, [rows]);
 
   const addOrder = useCallback(
     async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
-      // Prefer the explicit name/price coming from the Services tab; fall back to
-      // legacy keys for any caller still passing "basic|premium|detail".
+      if (!tenant?.id) {
+        toast.error("No workspace selected.");
+        return null;
+      }
       const serviceLabel = LEGACY_LABELS[data.service] ?? data.service;
       const servicePrice =
         typeof data.servicePrice === "number"
           ? data.servicePrice
           : LEGACY_PRICES[data.service] ?? 0;
 
-      // Get next order number via RPC
-      const { data: orderNum } = await supabase.rpc("next_order_number");
-
-      const { data: row, error } = await supabase
-        .from("orders")
-        .insert({
-          order_number: orderNum || `W-${Date.now()}`,
-          customer: data.customer,
-          customer_phone: data.customerPhone?.trim() || null,
-          vehicle: data.vehicle,
-          plate: data.plate,
-          service: serviceLabel,
-          service_price: servicePrice,
-          status: "waiting",
-        })
-        .select()
-        .single();
-
-      if (error) {
-        toast.error("Failed to create order: " + error.message);
-        return null;
+      // Try to get a sequential order number when online; fall back to a local
+      // placeholder offline so the row is still usable until sync resolves it.
+      let orderNum: string | null = null;
+      try {
+        const { data: rpc } = await supabase.rpc("next_order_number");
+        if (rpc) orderNum = rpc as unknown as string;
+      } catch {
+        /* offline */
       }
+      if (!orderNum) orderNum = `W-LOCAL-${Date.now().toString(36).toUpperCase()}`;
 
+      const id = crypto.randomUUID();
+      const nowIso = new Date().toISOString();
+      const payload = {
+        id,
+        tenant_id: tenant.id,
+        order_number: orderNum,
+        customer: data.customer,
+        customer_phone: data.customerPhone?.trim() || null,
+        vehicle: data.vehicle,
+        plate: data.plate,
+        service: serviceLabel,
+        service_price: servicePrice,
+        status: "waiting" as const,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+
+      await db.orders.put({ ...payload, _dirty: 1, _op: "insert" });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "insert", payload });
       toast.success(`Order created for ${data.customer}`);
-      return mapRow(row);
+      return mapRow(payload);
     },
-    []
+    [tenant?.id],
   );
 
-  const updateStatus = useCallback(async (orderId: string, newStatus: WashStatus) => {
-    const prevOrder = orders.find((o) => o.id === orderId);
-    if (!prevOrder) return;
+  const updateStatus = useCallback(
+    async (orderId: string, newStatus: WashStatus) => {
+      if (!tenant?.id) return;
+      const existing = await db.orders.get(orderId);
+      if (!existing) return;
 
-    const updates: any = { status: newStatus };
-    const optimistic: Partial<WashOrder> = { status: newStatus };
-    if (newStatus === "completed") {
-      const completedAt = new Date().toISOString();
-      const waitMinutes = Math.round((Date.now() - new Date(prevOrder.createdAt).getTime()) / 60000);
-      updates.completed_at = completedAt;
-      updates.wait_minutes = waitMinutes;
-      optimistic.completedAt = completedAt;
-      optimistic.waitMinutes = waitMinutes;
-    }
+      const updates: any = { id: orderId, status: newStatus, updated_at: new Date().toISOString() };
+      if (newStatus === "completed") {
+        updates.completed_at = new Date().toISOString();
+        updates.wait_minutes = Math.round((Date.now() - new Date(existing.created_at as string).getTime()) / 60000);
+      }
 
-    // Optimistic UI update
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...optimistic } : o)));
+      await db.orders.put({ ...existing, ...updates, _dirty: 1, _op: "update" });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: updates });
 
-    const { error } = await supabase.from("orders").update(updates).eq("id", orderId);
+      toast.info(
+        `📱 ${(existing as any).customer}: ${(existing as any).vehicle} is now "${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : "Waiting"}"`,
+        { description: "Status updated", duration: 4000 },
+      );
+    },
+    [tenant?.id],
+  );
 
-    if (error) {
-      // Roll back
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? prevOrder : o)));
-      toast.error("Failed to update status: " + error.message);
-      return;
-    }
-
-    toast.info(
-      `📱 ${prevOrder.customer}: ${prevOrder.vehicle} is now "${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : "Waiting"}"`,
-      { description: "Status updated", duration: 4000 }
-    );
-  }, [orders]);
-
-  const updateNotes = useCallback(async (orderId: string, notes: string) => {
-    const prevOrder = orders.find((o) => o.id === orderId);
-    if (!prevOrder) return false;
-    const trimmed = notes.trim();
-    const value = trimmed.length ? trimmed : null;
-
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, notes: value ?? undefined } : o)));
-
-    const { error } = await supabase.from("orders").update({ notes: value }).eq("id", orderId);
-    if (error) {
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? prevOrder : o)));
-      toast.error("Failed to save notes: " + error.message);
-      return false;
-    }
-    toast.success("Notes saved");
-    return true;
-  }, [orders]);
+  const updateNotes = useCallback(
+    async (orderId: string, notes: string) => {
+      if (!tenant?.id) return false;
+      const existing = await db.orders.get(orderId);
+      if (!existing) return false;
+      const trimmed = notes.trim();
+      const value = trimmed.length ? trimmed : null;
+      const updates: any = { id: orderId, notes: value, updated_at: new Date().toISOString() };
+      await db.orders.put({ ...existing, ...updates, _dirty: 1, _op: "update" });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: updates });
+      toast.success("Notes saved");
+      return true;
+    },
+    [tenant?.id],
+  );
 
   return { orders, addOrder, updateStatus, updateNotes, loading };
 }
