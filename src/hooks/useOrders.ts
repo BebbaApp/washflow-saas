@@ -109,7 +109,7 @@ export function useOrders() {
   const updateStatus = useCallback(
     async (orderId: string, newStatus: WashStatus) => {
       if (!tenant?.id) return;
-      const existing = await db.orders.get(orderId);
+      const existing = (await db.orders.get(orderId)) as any;
       if (!existing) return;
 
       const updates: any = { id: orderId, status: newStatus, updated_at: new Date().toISOString() };
