@@ -28,6 +28,28 @@ let channels: Channel[] = [];
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pulling = false;
 
+const TABLES_WITHOUT_UPDATED_AT = new Set<MirroredTable>([
+  "loyalty_transactions",
+  "shifts",
+  "shift_templates",
+  "time_off_requests",
+  "attendance_records",
+  "user_roles",
+  "tenant_members",
+]);
+
+const tableOrderColumn = (table: MirroredTable) => {
+  if (table === "tenant_members" || table === "receipt_settings" || table === "role_permissions") return "tenant_id";
+  return "id";
+};
+
+const withLocalId = (table: MirroredTable, row: any) => {
+  if (row?.id) return row;
+  if (table === "tenant_members") return { ...row, id: `${row.tenant_id}:${row.user_id}` };
+  if (table === "receipt_settings" || table === "role_permissions") return { ...row, id: row.tenant_id };
+  return row;
+};
+
 type Status = "idle" | "pulling" | "online" | "offline" | "error";
 type Listener = (s: { status: Status; pending: number; lastError?: string | null }) => void;
 const listeners = new Set<Listener>();
@@ -63,16 +85,13 @@ async function pullTable(tenantId: string, table: MirroredTable) {
   // predate the touch trigger have null updated_at and would otherwise never
   // make it into the local mirror.
   let from = 0;
+  const hasUpdatedAt = !TABLES_WITHOUT_UPDATED_AT.has(table);
   let highWater = since ?? "1970-01-01T00:00:00Z";
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    let q = supabase.from(table as any).select("*").order("id", { ascending: true }).range(from, from + PAGE_SIZE - 1);
-    if (table === "tenants") {
-      q = q.eq("id", tenantId);
-    } else {
-      q = q.eq("tenant_id", tenantId);
-    }
-    if (since) q = q.or(`updated_at.gt.${since},updated_at.is.null`);
+    let q = supabase.from(table as any).select("*").order(tableOrderColumn(table), { ascending: true }).range(from, from + PAGE_SIZE - 1);
+    q = q.eq("tenant_id", tenantId);
+    if (since && hasUpdatedAt) q = q.or(`updated_at.gt.${since},updated_at.is.null`);
     const { data, error } = await q;
     if (error) {
       // Permission denied is expected for some tables (e.g. user without role) — skip silently.
@@ -82,7 +101,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     const rows = (data as any[]) ?? [];
     if (rows.length === 0) break;
     await (db as any)[table].bulkPut(
-      rows.map((r) => ({ ...r, _dirty: 0 as 0 })),
+      rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })),
     );
     for (const r of rows) {
       if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
@@ -90,7 +109,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     if (rows.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
-  await db.sync_meta.put({ key, last_pulled_at: highWater });
+  await db.sync_meta.put({ key, last_pulled_at: hasUpdatedAt ? highWater : new Date().toISOString() });
 }
 
 async function initialPull(tenantId: string) {
@@ -109,7 +128,7 @@ async function initialPull(tenantId: string) {
 function subscribeRealtime(tenantId: string) {
   unsubscribeRealtime();
   for (const table of MIRRORED_TABLES) {
-    const filter = table === "tenants" ? `id=eq.${tenantId}` : `tenant_id=eq.${tenantId}`;
+    const filter = `tenant_id=eq.${tenantId}`;
     const ch = supabase
       .channel(`offline_${table}_${tenantId}`)
       .on(
@@ -122,7 +141,7 @@ function subscribeRealtime(tenantId: string) {
               const id = (payload.old as any)?.id;
               if (id) await tbl.delete(id);
             } else {
-              const row = payload.new as BaseRow;
+              const row = withLocalId(table, payload.new as BaseRow);
               if (row?.id) await tbl.put({ ...row, _dirty: 0 });
             }
           } catch (e) {
