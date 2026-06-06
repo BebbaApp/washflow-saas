@@ -31,7 +31,7 @@ export function SyncStatusPill({ className }: { className?: string }) {
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
         isOffline && "border-muted bg-muted/40 text-muted-foreground",
         isError && "border-destructive/40 bg-destructive/10 text-destructive",
-        !isOffline && !isError && "border-border bg-background/60 text-muted-foreground",
+        !isOffline && !isError && "border-success/30 bg-success/15 text-success",
         className,
       )}
       title={state.lastError ?? undefined}

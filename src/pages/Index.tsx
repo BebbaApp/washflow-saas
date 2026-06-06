@@ -300,6 +300,7 @@ const Index = () => {
                 Payment past due
               </span>
             )}
+            <SyncStatusPill className="hidden sm:inline-flex" />
           </div>
           <div className="flex items-center gap-3">
           <DropdownMenu>
@@ -342,7 +343,6 @@ const Index = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <SyncStatusPill className="hidden sm:inline-flex" />
           <HeaderClock />
           </div>
         </div>
