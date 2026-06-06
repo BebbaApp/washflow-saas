@@ -233,6 +233,77 @@ export async function forceResync() {
   await initialPull(currentTenant);
 }
 
+/** Returns the most recent outbox items for the current tenant (newest first). */
+export async function getOutboxItems(limit = 50): Promise<OutboxItem[]> {
+  const items = await db.outbox.orderBy("created_at").reverse().limit(limit).toArray();
+  if (!currentTenant) return items;
+  return items.filter((i) => i.tenant_id === currentTenant);
+}
+
+/** Retry a single outbox item now (resets its attempt counter & error). */
+export async function retryOutboxItem(id: number) {
+  await db.outbox.update(id, { attempts: 0, last_error: null });
+  schedulePush(0);
+}
+
+/** Permanently drop an outbox item — the local mutation is abandoned.
+ *  The next pull will overwrite any optimistic change with the server row. */
+export async function discardOutboxItem(id: number) {
+  await db.outbox.delete(id);
+  emit();
+}
+
+/** Drain all retryable items immediately. */
+export async function retryAllOutbox() {
+  await db.outbox.toCollection().modify({ attempts: 0, last_error: null });
+  schedulePush(0);
+}
+
+/** Wipe the local cache for the current tenant and re-pull from scratch.
+ *  Outbox is preserved so pending writes are not lost. */
+export async function clearLocalCache() {
+  if (!currentTenant) return;
+  const t = currentTenant;
+  await Promise.all(MIRRORED_TABLES.map((tbl) => (db as any)[tbl].where("tenant_id").equals(t).delete()));
+  await db.sync_meta.where("key").startsWith(`${t}:`).delete();
+  await initialPull(t);
+}
+
+/** Best-effort storage usage from the browser quota API. */
+export async function getStorageEstimate(): Promise<{ usage?: number; quota?: number } | null> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.storage?.estimate) {
+      return await navigator.storage.estimate();
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/** Prune oldest rows from high-volume tables to free space. Returns rows removed. */
+export async function pruneLocalCache(opts: { keepOrders?: number; keepTx?: number; keepLoyalty?: number } = {}) {
+  if (!currentTenant) return 0;
+  const t = currentTenant;
+  const keepOrders = opts.keepOrders ?? 500;
+  const keepTx = opts.keepTx ?? 500;
+  const keepLoyalty = opts.keepLoyalty ?? 500;
+  let removed = 0;
+  const prune = async (table: MirroredTable, keep: number) => {
+    const rows = await (db as any)[table].where("tenant_id").equals(t).toArray();
+    if (rows.length <= keep) return;
+    const sorted = rows.sort((a: any, b: any) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")));
+    const toDelete = sorted.slice(keep).map((r: any) => r.id);
+    await (db as any)[table].bulkDelete(toDelete);
+    removed += toDelete.length;
+  };
+  await prune("orders", keepOrders);
+  await prune("inventory_transactions", keepTx);
+  await prune("loyalty_transactions", keepLoyalty);
+  await db.sync_meta.where("key").anyOf([
+    metaKey(t, "orders"), metaKey(t, "inventory_transactions"), metaKey(t, "loyalty_transactions"),
+  ]).delete();
+  return removed;
+}
+
 // Auto-drain when connectivity returns / tab regains focus.
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => { setStatus("online", null); schedulePush(0); });
