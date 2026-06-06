@@ -57,19 +57,22 @@ async function pullTable(tenantId: string, table: MirroredTable) {
   const meta = await db.sync_meta.get(key);
   const since = meta?.last_pulled_at;
 
-  // Page through rows newer than the cursor. Tables without `tenant_id`
-  // (only `tenants` here) fall back to id filter.
+  // Page through rows for the tenant. We order by id (stable across pages even
+  // when updated_at is null) and, on incremental pulls, include rows whose
+  // updated_at is either newer than the cursor OR null — old rows that
+  // predate the touch trigger have null updated_at and would otherwise never
+  // make it into the local mirror.
   let from = 0;
   let highWater = since ?? "1970-01-01T00:00:00Z";
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    let q = supabase.from(table as any).select("*").order("updated_at", { ascending: true }).range(from, from + PAGE_SIZE - 1);
+    let q = supabase.from(table as any).select("*").order("id", { ascending: true }).range(from, from + PAGE_SIZE - 1);
     if (table === "tenants") {
       q = q.eq("id", tenantId);
     } else {
       q = q.eq("tenant_id", tenantId);
     }
-    if (since) q = q.gt("updated_at", since);
+    if (since) q = q.or(`updated_at.gt.${since},updated_at.is.null`);
     const { data, error } = await q;
     if (error) {
       // Permission denied is expected for some tables (e.g. user without role) — skip silently.
@@ -81,8 +84,9 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     await (db as any)[table].bulkPut(
       rows.map((r) => ({ ...r, _dirty: 0 as 0 })),
     );
-    const last = rows[rows.length - 1];
-    if (last?.updated_at && last.updated_at > highWater) highWater = last.updated_at;
+    for (const r of rows) {
+      if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
+    }
     if (rows.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
@@ -188,6 +192,16 @@ async function drainOutbox() {
 export async function startSync(tenantId: string) {
   if (currentTenant === tenantId) return;
   currentTenant = tenantId;
+  // One-shot cursor reset for clients that mirrored data before the
+  // null-updated_at fix landed; ensures historical completed/cancelled rows
+  // get pulled on next boot.
+  try {
+    const FLAG = "wf_sync_reset_v2";
+    if (typeof localStorage !== "undefined" && !localStorage.getItem(FLAG)) {
+      await db.sync_meta.clear();
+      localStorage.setItem(FLAG, "1");
+    }
+  } catch { /* ignore storage errors */ }
   subscribeRealtime(tenantId);
   if (!pulling) {
     pulling = true;
