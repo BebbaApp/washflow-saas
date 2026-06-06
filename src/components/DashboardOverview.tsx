@@ -15,6 +15,14 @@ interface DashboardOverviewProps {
 }
 
 type TabKey = "overview" | "inventory";
+type RangeKey = "today" | "week" | "month" | "custom";
+
+const RANGE_OPTIONS: { id: RangeKey; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "week", label: "This Week" },
+  { id: "month", label: "This Month" },
+  { id: "custom", label: "Custom" },
+];
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
