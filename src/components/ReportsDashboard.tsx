@@ -18,13 +18,14 @@ interface ReportsDashboardProps {
   orders: WashOrder[];
 }
 
-type Range = "today" | "week" | "month" | "all";
+type Range = "today" | "week" | "month" | "all" | "custom";
 
 const RANGES: { id: Range; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "week", label: "This Week" },
   { id: "month", label: "This Month" },
   { id: "all", label: "All Time" },
+  { id: "custom", label: "Custom" },
 ];
 
 const VEHICLE_TYPES = ["SUV", "Sedan", "Truck", "Van"] as const;
@@ -44,22 +45,28 @@ function classifyVehicle(v: string): VehicleType {
   return "Sedan";
 }
 
-function rangeStart(r: Range): number {
+function rangeBounds(r: Range, customStart: string, customEnd: string): { start: number; end: number } {
   const now = new Date();
+  const endNow = now.getTime();
   if (r === "today") {
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return { start: new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), end: endNow };
   }
   if (r === "week") {
     const d = new Date(now);
-    const day = (d.getDay() + 6) % 7; // Monday=0
+    const day = (d.getDay() + 6) % 7;
     d.setDate(d.getDate() - day);
     d.setHours(0, 0, 0, 0);
-    return d.getTime();
+    return { start: d.getTime(), end: endNow };
   }
   if (r === "month") {
-    return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1).getTime(), end: endNow };
   }
-  return 0;
+  if (r === "custom") {
+    const s = customStart ? new Date(customStart + "T00:00:00").getTime() : 0;
+    const e = customEnd ? new Date(customEnd + "T23:59:59").getTime() : endNow;
+    return { start: s, end: e };
+  }
+  return { start: 0, end: endNow };
 }
 
 export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
