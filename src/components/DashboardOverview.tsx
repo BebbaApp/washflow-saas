@@ -74,7 +74,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
     const dayMs = 86_400_000;
     if (range === "today") {
       const buckets: { day: string; revenue: number }[] = [];
-      for (let h = 0; h < 24; h++) {
+      for (let h = 7; h <= 18; h++) {
         const start = new Date(rangeStart);
         start.setHours(h, 0, 0, 0);
         const end = new Date(start);
