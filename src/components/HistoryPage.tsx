@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useTenant } from "@/hooks/useTenant";
 import { formatPhone, telHref } from "@/lib/phone";
 import { useAppLogo } from "@/hooks/useAppLogo";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,7 @@ function presetRange(preset: DatePreset, customFrom?: string, customTo?: string)
 export const HistoryPage = (_props: HistoryPageProps) => {
   const { formatPrice, currency } = useCurrency();
   const { logo } = useAppLogo();
+  const { isSuperAdmin, tenant } = useTenant();
 
   const persisted = useRef<PersistedFilters>(loadPersistedFilters()).current;
   const [query, setQuery] = useState(persisted.query);
@@ -203,6 +205,27 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
   // Fetch a specific page (offset). Returns the rows + range information.
   const fetchPage = useCallback(async (offset: number) => {
+    if (isSuperAdmin && tenant?.id) {
+      const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const { data, error } = await supabase.functions.invoke("platform-admin", {
+        body: {
+          action: "history_orders",
+          tenant_id: tenant.id,
+          status: filter,
+          cancelled_reason: cancelledSub,
+          query: debouncedQuery.trim() || undefined,
+          from: from?.toISOString().slice(0, 10),
+          to: to?.toISOString().slice(0, 10),
+          offset,
+          limit: PAGE_SIZE,
+        },
+      });
+      if (error || (data as any)?.error) {
+        console.error("[HistoryPage] super-admin fetch error", error || (data as any)?.error);
+        return [] as WashOrder[];
+      }
+      return (((data as any)?.orders ?? []) as any[]).map(mapRow);
+    }
     let q = buildQuery(false).order("created_at", { ascending: false });
     q = q.range(offset, offset + PAGE_SIZE - 1);
     const { data, error } = await q;
@@ -211,10 +234,34 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       return [] as WashOrder[];
     }
     return (data || []).map(mapRow);
-  }, [buildQuery]);
+  }, [buildQuery, isSuperAdmin, tenant?.id, filter, cancelledSub, datePreset, customRange, debouncedQuery]);
 
   // Fetch totals (count + amount sum + per-status counts) using lightweight head queries
   const fetchTotals = useCallback(async () => {
+    if (isSuperAdmin && tenant?.id) {
+      const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const common = {
+        action: "history_orders",
+        tenant_id: tenant.id,
+        query: debouncedQuery.trim() || undefined,
+        from: from?.toISOString().slice(0, 10),
+        to: to?.toISOString().slice(0, 10),
+        offset: 0,
+        limit: 1,
+      };
+      const [total, completed, cancelled] = await Promise.all([
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: filter, cancelled_reason: cancelledSub } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "completed", cancelled_reason: "all" } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "cancelled", cancelled_reason: "all" } }),
+      ]);
+      setTotalCount(Number((total.data as any)?.count ?? 0));
+      setCounts({
+        completed: Number((completed.data as any)?.count ?? 0),
+        cancelled: Number((cancelled.data as any)?.count ?? 0),
+      });
+      setTotalAmountAll(0);
+      return;
+    }
     // Total filtered count
     const totalQ = buildQuery(true);
     const { count: totalC } = await totalQ;
@@ -248,7 +295,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     // approximate by summing the loaded rows for the visible total chip. We keep the
     // exact count above and recompute amount from loaded rows in render.
     setTotalAmountAll(0);
-  }, [buildQuery, datePreset, customRange, debouncedQuery]);
+  }, [buildQuery, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id, filter, cancelledSub]);
 
   // Initial + filter-change fetch
   useEffect(() => {

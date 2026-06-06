@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
+import { db } from "@/offline/db";
 
 export type StaffRole = "admin" | "supervisor" | "washer" | "driver" | "manager" | "cashier";
 
@@ -30,6 +31,26 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
+
+function activeTenantIdFor(authUser: User): string | null {
+  const claim = (authUser.app_metadata as any)?.active_tenant_id;
+  if (typeof claim === "string" && claim) return claim;
+  try { return localStorage.getItem(ACTIVE_TENANT_KEY); } catch { return null; }
+}
+
+async function isInactiveLocally(authUser: User) {
+  const tenantId = activeTenantIdFor(authUser);
+  if (!tenantId) return false;
+  try {
+    const row = await db.staff_active_status
+      .where("tenant_id")
+      .equals(tenantId)
+      .and((r: any) => r.user_id === authUser.id)
+      .first();
+    return (row as any)?.is_active === false;
+  } catch { return false; }
+}
 
 function useAuthInternal(): AuthContextValue {
   const [user, setUser] = useState<StaffUser | null>(null);
@@ -53,7 +74,7 @@ function useAuthInternal(): AuthContextValue {
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       try {
         const raw = localStorage.getItem(CACHE_KEY);
-        if (raw) return JSON.parse(raw) as StaffUser;
+        if (raw) return (await isInactiveLocally(authUser)) ? null : JSON.parse(raw) as StaffUser;
       } catch { /* ignore */ }
     }
 
@@ -106,6 +127,20 @@ function useAuthInternal(): AuthContextValue {
     }
 
     if (isGlobalAdmin) return persist(makeUser("admin"));
+
+    const activeTenantId = activeTenantIdFor(authUser);
+    if (activeTenantId) {
+      const { data: activeRow } = await (supabase as any)
+        .from("staff_active_status")
+        .select("is_active")
+        .eq("tenant_id", activeTenantId)
+        .eq("user_id", authUser.id)
+        .maybeSingle();
+      if (activeRow?.is_active === false) {
+        try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
+        return null;
+      }
+    }
 
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
     const userRoles = (roleRows ?? []).map((r: any) => r.role as StaffRole);

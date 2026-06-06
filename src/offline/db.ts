@@ -48,7 +48,6 @@ export const MIRRORED_TABLES = [
   "inventory_items",
   "inventory_transactions",
   "inventory_categories",
-  "product_types",
   "suppliers",
   "loyalty_transactions",
   "shifts",
@@ -57,11 +56,11 @@ export const MIRRORED_TABLES = [
   "staff_pins",
   "staff_face_enrollments",
   "attendance_records",
+  "staff_active_status",
   "receipt_settings",
   "role_permissions",
   "user_roles",
   "tenant_members",
-  "tenants",
 ] as const;
 export type MirroredTable = (typeof MIRRORED_TABLES)[number];
 
@@ -83,6 +82,7 @@ class OfflineDB extends Dexie {
   staff_pins!: Table<BaseRow>;
   staff_face_enrollments!: Table<BaseRow>;
   attendance_records!: Table<BaseRow>;
+  staff_active_status!: Table<BaseRow>;
   receipt_settings!: Table<BaseRow>;
   role_permissions!: Table<BaseRow>;
   user_roles!: Table<BaseRow>;
@@ -101,6 +101,7 @@ class OfflineDB extends Dexie {
     };
     for (const t of MIRRORED_TABLES) schemas[t] = rowSchema;
     this.version(1).stores(schemas);
+    this.version(2).stores({ staff_active_status: rowSchema });
   }
 }
 

@@ -15,33 +15,36 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   const [streaming, setStreaming] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
-  // Acquire the camera stream once and keep it in a ref so we can reattach it
-  // to a re-mounted <video> element after the user taps "Retake".
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: false,
-        });
-        if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-          await videoRef.current.play().catch(() => { /* ignore autoplay race */ });
-          setStreaming(true);
-        }
-      } catch (e: any) {
-        setError(e?.message || "Could not access camera");
-      }
-    })();
-    return () => {
-      cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    };
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setStreaming(false);
   }, []);
+
+  const startCamera = useCallback(async () => {
+    stopCamera();
+    setError(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      streamRef.current = s;
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        await videoRef.current.play().catch(() => { /* ignore autoplay race */ });
+      }
+      setStreaming(true);
+    } catch (e: any) {
+      setError(e?.message || "Could not access camera");
+    }
+  }, [stopCamera]);
+
+  useEffect(() => {
+    void startCamera();
+    return () => stopCamera();
+  }, [startCamera, stopCamera]);
 
   // Callback ref: every time the <video> element mounts (initial render AND
   // after Retake), re-bind the existing stream so the live feed resumes.
@@ -70,7 +73,10 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   };
 
   const confirm = () => { if (preview) onCapture(preview); };
-  const retake = () => setPreview(null);
+  const retake = () => {
+    setPreview(null);
+    void startCamera();
+  };
 
   if (error) {
     return (
@@ -83,11 +89,14 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   return (
     <div className="space-y-3">
       <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-secondary">
-        {preview ? (
-          <img src={preview} className="w-full h-full object-cover" alt="Captured selfie" />
-        ) : (
-          <video ref={setVideoRef} muted playsInline autoPlay className="w-full h-full object-cover scale-x-[-1]" />
-        )}
+        <video
+          ref={setVideoRef}
+          muted
+          playsInline
+          autoPlay
+          className={`w-full h-full object-cover scale-x-[-1] ${preview ? "opacity-0" : ""}`}
+        />
+        {preview && <img src={preview} className="absolute inset-0 w-full h-full object-cover" alt="Captured selfie" />}
         {!streaming && !preview && (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
