@@ -58,7 +58,29 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
   // Reads come from the Dexie mirror (auto-synced by the central sync engine).
   const recordRows = useLiveTable<any>(tenantId, "attendance_records");
   const enrollmentRows = useLiveTable<any>(tenantId, "staff_face_enrollments");
-  const auditRows = useLiveTable<any>(tenantId, "attendance_audit_log");
+
+  // attendance_audit_log isn't in the local mirror — fetch + subscribe directly.
+  const [auditRows, setAuditRows] = useState<any[] | undefined>(undefined);
+  useEffect(() => {
+    if (!tenantId) { setAuditRows([]); return; }
+    let active = true;
+    const load = async () => {
+      const { data } = await supabase
+        .from("attendance_audit_log")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (active) setAuditRows((data as any[]) ?? []);
+    };
+    load();
+    const ch = supabase
+      .channel(`audit-${tenantId}-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_audit_log" }, () => load())
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
+  }, [tenantId]);
+
+
 
   // Profiles aren't tenant-scoped in the mirror; fetch once and listen for changes.
   const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
