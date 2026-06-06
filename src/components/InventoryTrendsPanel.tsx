@@ -64,15 +64,26 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 export function InventoryTrendsPanel() {
   const { items, transactions } = useInventory();
   const [range, setRange] = useState<RangeDays>(28);
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
+  const { sinceMs, rangeDays } = useMemo(() => {
+    if (range === "custom") {
+      const start = customStart ? new Date(customStart + "T00:00:00").getTime() : Date.now() - 28 * 86400000;
+      const end = customEnd ? new Date(customEnd + "T23:59:59").getTime() : Date.now();
+      const days = Math.max(1, Math.round((end - start) / 86400000));
+      return { sinceMs: start, rangeDays: days };
+    }
+    return { sinceMs: Date.now() - range * 86400000, rangeDays: range };
+  }, [range, customStart, customEnd]);
+
   const rows = useMemo<ForecastRow[]>(() => {
-    const since = Date.now() - range * 24 * 60 * 60 * 1000;
-    const weeks = range / 7;
+    const weeks = rangeDays / 7;
     return items.map((it) => {
       const consumed = transactions
         .filter((t) => t.itemId === it.id && t.type === "consume")
-        .filter((t) => new Date(t.createdAt).getTime() >= since)
+        .filter((t) => new Date(t.createdAt).getTime() >= sinceMs)
         .reduce((s, t) => s + Math.abs(t.delta), 0);
       const weeklyUse = consumed / weeks;
       const remaining = Math.max(0, it.quantity - it.threshold);
@@ -88,7 +99,7 @@ export function InventoryTrendsPanel() {
         daysToThreshold,
       };
     });
-  }, [items, transactions, range]);
+  }, [items, transactions, sinceMs, rangeDays]);
 
   const runningOut = rows.filter((r) => isFinite(r.daysToThreshold) && r.daysToThreshold > 0 && r.daysToThreshold <= 7).length;
   const lowSoon = rows.filter((r) => isFinite(r.daysToThreshold) && r.daysToThreshold > 7 && r.daysToThreshold <= 14).length;
