@@ -138,7 +138,7 @@ function subscribeRealtime(tenantId: string) {
           try {
             const tbl = (db as any)[table];
             if (payload.eventType === "DELETE") {
-              const id = (payload.old as any)?.id;
+              const id = withLocalId(table, payload.old as any)?.id;
               if (id) await tbl.delete(id);
             } else {
               const row = withLocalId(table, payload.new as BaseRow);
