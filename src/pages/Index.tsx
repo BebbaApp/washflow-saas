@@ -343,7 +343,6 @@ const Index = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <SyncStatusPill className="hidden sm:inline-flex" />
           <HeaderClock />
           </div>
         </div>
