@@ -20,10 +20,12 @@ UPDATE public.orders
  WHERE updated_at IS NULL;
 
 -- Same safety net for the other mirrored tables that already have an
--- updated_at column but may still hold NULLs from older inserts.
+-- updated_at column but may still hold NULLs from older inserts. Some tables
+-- (e.g. role_permissions) don't carry created_at, so fall back to now().
 DO $$
 DECLARE
   t text;
+  has_created boolean;
   tables text[] := ARRAY[
     'services','customers','expenses','expense_categories',
     'inventory_items','suppliers','loyalty_transactions',
@@ -36,10 +38,21 @@ BEGIN
       SELECT 1 FROM information_schema.columns
        WHERE table_schema='public' AND table_name=t AND column_name='updated_at'
     ) THEN
-      EXECUTE format(
-        'UPDATE public.%I SET updated_at = COALESCE(updated_at, created_at, now()) WHERE updated_at IS NULL',
-        t
-      );
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema='public' AND table_name=t AND column_name='created_at'
+      ) INTO has_created;
+      IF has_created THEN
+        EXECUTE format(
+          'UPDATE public.%I SET updated_at = COALESCE(updated_at, created_at, now()) WHERE updated_at IS NULL',
+          t
+        );
+      ELSE
+        EXECUTE format(
+          'UPDATE public.%I SET updated_at = now() WHERE updated_at IS NULL',
+          t
+        );
+      END IF;
     END IF;
   END LOOP;
 END $$;
