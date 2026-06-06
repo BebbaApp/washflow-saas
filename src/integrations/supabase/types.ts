@@ -696,6 +696,7 @@ export type Database = {
           service_price: number
           status: string
           tenant_id: string
+          updated_at: string
           vehicle: string
           wait_minutes: number | null
         }
@@ -714,6 +715,7 @@ export type Database = {
           service_price?: number
           status?: string
           tenant_id?: string
+          updated_at?: string
           vehicle: string
           wait_minutes?: number | null
         }
@@ -732,6 +734,7 @@ export type Database = {
           service_price?: number
           status?: string
           tenant_id?: string
+          updated_at?: string
           vehicle?: string
           wait_minutes?: number | null
         }

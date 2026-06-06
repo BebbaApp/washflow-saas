@@ -24,7 +24,7 @@ interface ForecastRow {
   daysToThreshold: number;
 }
 
-type RangeDays = 7 | 14 | 28;
+type RangeDays = 7 | 14 | 28 | "custom";
 
 // Match the colors from the reference screenshots.
 const COLOR_STOCK = "#3b82f6";        // blue-500
@@ -64,15 +64,26 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 export function InventoryTrendsPanel() {
   const { items, transactions } = useInventory();
   const [range, setRange] = useState<RangeDays>(28);
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
+  const { sinceMs, rangeDays } = useMemo(() => {
+    if (range === "custom") {
+      const start = customStart ? new Date(customStart + "T00:00:00").getTime() : Date.now() - 28 * 86400000;
+      const end = customEnd ? new Date(customEnd + "T23:59:59").getTime() : Date.now();
+      const days = Math.max(1, Math.round((end - start) / 86400000));
+      return { sinceMs: start, rangeDays: days };
+    }
+    return { sinceMs: Date.now() - range * 86400000, rangeDays: range };
+  }, [range, customStart, customEnd]);
+
   const rows = useMemo<ForecastRow[]>(() => {
-    const since = Date.now() - range * 24 * 60 * 60 * 1000;
-    const weeks = range / 7;
+    const weeks = rangeDays / 7;
     return items.map((it) => {
       const consumed = transactions
         .filter((t) => t.itemId === it.id && t.type === "consume")
-        .filter((t) => new Date(t.createdAt).getTime() >= since)
+        .filter((t) => new Date(t.createdAt).getTime() >= sinceMs)
         .reduce((s, t) => s + Math.abs(t.delta), 0);
       const weeklyUse = consumed / weeks;
       const remaining = Math.max(0, it.quantity - it.threshold);
@@ -88,7 +99,7 @@ export function InventoryTrendsPanel() {
         daysToThreshold,
       };
     });
-  }, [items, transactions, range]);
+  }, [items, transactions, sinceMs, rangeDays]);
 
   const runningOut = rows.filter((r) => isFinite(r.daysToThreshold) && r.daysToThreshold > 0 && r.daysToThreshold <= 7).length;
   const lowSoon = rows.filter((r) => isFinite(r.daysToThreshold) && r.daysToThreshold > 7 && r.daysToThreshold <= 14).length;
@@ -109,19 +120,21 @@ export function InventoryTrendsPanel() {
 
   const sortedForecast = [...rows].sort((a, b) => a.daysToThreshold - b.daysToThreshold);
 
+  const rangeLabel = range === "custom" ? `${rangeDays}d` : `${range}d`;
+
   const exportForecast = () => {
     const header = ["Item", "Category", "Stock", "Unit", "Threshold", "Weekly Use", "Days to Threshold"];
     const data = sortedForecast.map((r) => [
       r.name, r.category, r.stock, r.unit, r.threshold, r.weeklyUse,
       isFinite(r.daysToThreshold) ? Math.round(r.daysToThreshold) : "",
     ]);
-    downloadCsv(`depletion-forecast-${range}d.csv`, [header, ...data]);
+    downloadCsv(`depletion-forecast-${rangeLabel}.csv`, [header, ...data]);
   };
 
   const exportUsage = () => {
     const header = ["Item", "Weekly Use", "Range (days)"];
-    const data = usageChartData.map((r) => [r.name, r.weeklyUse, range]);
-    downloadCsv(`weekly-usage-${range}d.csv`, [header, ...data]);
+    const data = usageChartData.map((r) => [r.name, r.weeklyUse, rangeDays]);
+    downloadCsv(`weekly-usage-${rangeLabel}.csv`, [header, ...data]);
   };
 
   const selectedItem: InventoryItem | null =
@@ -140,20 +153,49 @@ export function InventoryTrendsPanel() {
   }
 
   const RangeSelector = (
-    <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border text-xs">
-      {([7, 14, 28] as RangeDays[]).map((d) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border text-xs">
+        {([7, 14, 28] as const).map((d) => (
+          <button
+            key={d}
+            onClick={() => setRange(d)}
+            className={`px-3 py-1 rounded-full font-medium transition-all ${
+              range === d
+                ? "bg-card text-foreground shadow-sm border border-border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
         <button
-          key={d}
-          onClick={() => setRange(d)}
+          onClick={() => setRange("custom")}
           className={`px-3 py-1 rounded-full font-medium transition-all ${
-            range === d
+            range === "custom"
               ? "bg-card text-foreground shadow-sm border border-border"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          {d}d
+          Custom
         </button>
-      ))}
+      </div>
+      {range === "custom" && (
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+          />
+          <span className="text-muted-foreground text-xs">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -258,7 +300,7 @@ export function InventoryTrendsPanel() {
         <div className="h-72">
           {usageChartData.length === 0 ? (
             <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              No consumption recorded in the last {range} days — usage will appear once orders deplete stock.
+              No consumption recorded in the last {rangeDays} days — usage will appear once orders deplete stock.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -291,7 +333,7 @@ export function InventoryTrendsPanel() {
         <div className="p-6 pb-3 flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Depletion Forecast</h3>
-            <p className="text-sm text-muted-foreground">Predicted days until each item hits its low-stock threshold (based on last {range} days)</p>
+            <p className="text-sm text-muted-foreground">Predicted days until each item hits its low-stock threshold (based on last {rangeDays} days)</p>
           </div>
           <div className="flex items-center gap-2">
             {RangeSelector}

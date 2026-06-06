@@ -18,13 +18,14 @@ interface ReportsDashboardProps {
   orders: WashOrder[];
 }
 
-type Range = "today" | "week" | "month" | "all";
+type Range = "today" | "week" | "month" | "all" | "custom";
 
 const RANGES: { id: Range; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "week", label: "This Week" },
   { id: "month", label: "This Month" },
   { id: "all", label: "All Time" },
+  { id: "custom", label: "Custom" },
 ];
 
 const VEHICLE_TYPES = ["SUV", "Sedan", "Truck", "Van"] as const;
@@ -44,22 +45,28 @@ function classifyVehicle(v: string): VehicleType {
   return "Sedan";
 }
 
-function rangeStart(r: Range): number {
+function rangeBounds(r: Range, customStart: string, customEnd: string): { start: number; end: number } {
   const now = new Date();
+  const endNow = now.getTime();
   if (r === "today") {
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return { start: new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), end: endNow };
   }
   if (r === "week") {
     const d = new Date(now);
-    const day = (d.getDay() + 6) % 7; // Monday=0
+    const day = (d.getDay() + 6) % 7;
     d.setDate(d.getDate() - day);
     d.setHours(0, 0, 0, 0);
-    return d.getTime();
+    return { start: d.getTime(), end: endNow };
   }
   if (r === "month") {
-    return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1).getTime(), end: endNow };
   }
-  return 0;
+  if (r === "custom") {
+    const s = customStart ? new Date(customStart + "T00:00:00").getTime() : 0;
+    const e = customEnd ? new Date(customEnd + "T23:59:59").getTime() : endNow;
+    return { start: s, end: e };
+  }
+  return { start: 0, end: endNow };
 }
 
 export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
@@ -69,11 +76,16 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
   const canExport = can("reports.export");
   const [tab, setTab] = useState<"overview" | "vat">("overview");
   const [range, setRange] = useState<Range>("week");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   const filtered = useMemo(() => {
-    const start = rangeStart(range);
-    return orders.filter((o) => new Date(o.createdAt).getTime() >= start);
-  }, [orders, range]);
+    const { start, end } = rangeBounds(range, customStart, customEnd);
+    return orders.filter((o) => {
+      const t = new Date(o.createdAt).getTime();
+      return t >= start && t <= end;
+    });
+  }, [orders, range, customStart, customEnd]);
 
   const stats = useMemo(() => {
     const completed = filtered.filter((o) => o.status === "completed");
@@ -125,7 +137,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
   }, [filtered]);
 
   const hourly = useMemo(() => {
-    const start = rangeStart("today");
+    const { start } = rangeBounds("today", "", "");
     const map = new Map<number, number>();
     for (let h = 8; h <= 19; h++) map.set(h, 0);
     orders.forEach((o) => {
@@ -249,6 +261,24 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
           )}
         </div>
       </div>
+
+      {tab === "overview" && range === "custom" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="px-3 py-1.5 rounded-md bg-secondary border border-border text-foreground text-sm"
+          />
+          <span className="text-muted-foreground text-sm">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="px-3 py-1.5 rounded-md bg-secondary border border-border text-foreground text-sm"
+          />
+        </div>
+      )}
 
       {tab === "vat" && <VATReport orders={orders} />}
 
