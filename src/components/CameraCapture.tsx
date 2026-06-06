@@ -89,7 +89,13 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   return (
     <div className="space-y-3">
       <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-secondary">
-        <video ref={setVideoRef} muted playsInline autoPlay className={cnVideo(preview)} />
+        <video
+          ref={setVideoRef}
+          muted
+          playsInline
+          autoPlay
+          className={`w-full h-full object-cover scale-x-[-1] ${preview ? "opacity-0" : ""}`}
+        />
         {preview && <img src={preview} className="absolute inset-0 w-full h-full object-cover" alt="Captured selfie" />}
         {!streaming && !preview && (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
