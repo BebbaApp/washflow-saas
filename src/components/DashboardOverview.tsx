@@ -153,6 +153,42 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
         <InventoryTrendsPanel />
       ) : (
         <>
+      {/* Range filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border">
+          {RANGE_OPTIONS.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setRange(r.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                range === r.id
+                  ? "bg-card text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        {range === "custom" && (
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+            />
+            <span className="text-muted-foreground text-xs">to</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+            />
+          </div>
+        )}
+      </div>
+
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {stats.map((s) => (
