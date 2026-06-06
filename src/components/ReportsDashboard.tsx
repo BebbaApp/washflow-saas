@@ -76,11 +76,16 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
   const canExport = can("reports.export");
   const [tab, setTab] = useState<"overview" | "vat">("overview");
   const [range, setRange] = useState<Range>("week");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   const filtered = useMemo(() => {
-    const start = rangeStart(range);
-    return orders.filter((o) => new Date(o.createdAt).getTime() >= start);
-  }, [orders, range]);
+    const { start, end } = rangeBounds(range, customStart, customEnd);
+    return orders.filter((o) => {
+      const t = new Date(o.createdAt).getTime();
+      return t >= start && t <= end;
+    });
+  }, [orders, range, customStart, customEnd]);
 
   const stats = useMemo(() => {
     const completed = filtered.filter((o) => o.status === "completed");
