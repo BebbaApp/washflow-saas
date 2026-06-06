@@ -262,6 +262,24 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
         </div>
       </div>
 
+      {tab === "overview" && range === "custom" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="px-3 py-1.5 rounded-md bg-secondary border border-border text-foreground text-sm"
+          />
+          <span className="text-muted-foreground text-sm">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="px-3 py-1.5 rounded-md bg-secondary border border-border text-foreground text-sm"
+          />
+        </div>
+      )}
+
       {tab === "vat" && <VATReport orders={orders} />}
 
       {tab === "overview" && (
