@@ -144,6 +144,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const activeRow = list.find((m) => m.id === activeId) ?? list[0];
     writeStoredTenant(activeRow.id);
 
+    // Super admins are not tenant_members; without an explicit JWT claim,
+    // current_tenant_id() returns null and RLS-scoped reads (orders, history,
+    // etc.) return nothing. Ensure the JWT claim matches the active tenant.
+    if (superAdmin && jwtId !== activeRow.id) {
+      try {
+        await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
+        await supabase.auth.refreshSession();
+      } catch (e) {
+        console.warn("super-admin tenant sync failed", e);
+      }
+    }
+
     // If a URL slug picked a tenant different from the current JWT claim, sync
     // the server-side active tenant so RLS-scoped queries hit the right workspace.
     if (urlMatchId && urlMatchId !== jwtId) {

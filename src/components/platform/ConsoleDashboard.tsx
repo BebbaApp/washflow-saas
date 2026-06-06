@@ -67,6 +67,22 @@ export function ConsoleDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-refresh: re-run the platform overview when filters change, when the
+  // tab regains focus, and on a 60s heartbeat so the console reflects new
+  // data captured by tenants without requiring a manual reload.
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to, tenantId]);
+
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    const id = setInterval(load, 60_000);
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to, tenantId]);
+
   // Load configured categories for the selected tenant (used to enrich the breakdown).
   useEffect(() => {
     if (tenantId === "all") { setConfiguredCategories([]); return; }
