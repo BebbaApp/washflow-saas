@@ -68,26 +68,52 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
   const activeNow = orders.filter((o) => o.status === "in-progress");
   const activeJobs = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
 
-  const revenueLast7Days = useMemo(() => {
+  const { revenueSeries, chartTitle } = useMemo(() => {
+    const completed = orders.filter((o) => o.status === "completed");
+    const spanMs = Math.max(0, rangeEnd - rangeStart);
+    const dayMs = 86_400_000;
+    if (range === "today") {
+      const buckets: { day: string; revenue: number }[] = [];
+      for (let h = 0; h < 24; h++) {
+        const start = new Date(rangeStart);
+        start.setHours(h, 0, 0, 0);
+        const end = new Date(start);
+        end.setHours(h + 1, 0, 0, 0);
+        const rev = completed
+          .filter((o) => {
+            const t = new Date(o.completedAt ?? o.createdAt).getTime();
+            return t >= start.getTime() && t < end.getTime();
+          })
+          .reduce((s, o) => s + o.servicePrice, 0);
+        buckets.push({ day: `${(h % 12) || 12}${h >= 12 ? "p" : "a"}`, revenue: rev });
+      }
+      return { revenueSeries: buckets, chartTitle: "Revenue (Today, hourly)" };
+    }
+    const start = new Date(rangeStart);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(rangeEnd);
+    end.setHours(0, 0, 0, 0);
     const buckets: { day: string; revenue: number }[] = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      d.setHours(0, 0, 0, 0);
-      const next = new Date(d);
-      next.setDate(d.getDate() + 1);
-      const dayRevenue = orders
-        .filter((o) => o.status === "completed")
+    const cursor = new Date(start);
+    let safety = 0;
+    while (cursor.getTime() <= end.getTime() && safety < 400) {
+      const next = new Date(cursor);
+      next.setDate(cursor.getDate() + 1);
+      const rev = completed
         .filter((o) => {
-          const od = new Date(o.completedAt ?? o.createdAt);
-          return od >= d && od < next;
+          const t = new Date(o.completedAt ?? o.createdAt).getTime();
+          return t >= cursor.getTime() && t < next.getTime();
         })
         .reduce((s, o) => s + o.servicePrice, 0);
-      buckets.push({ day: DAYS[d.getDay()], revenue: dayRevenue });
+      const label = spanMs > 31 * dayMs
+        ? cursor.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        : `${DAYS[cursor.getDay()]} ${cursor.getDate()}`;
+      buckets.push({ day: label, revenue: rev });
+      cursor.setDate(cursor.getDate() + 1);
+      safety++;
     }
-    return buckets;
-  }, [orders]);
+    return { revenueSeries: buckets, chartTitle: `Revenue (${rangeLabel})` };
+  }, [orders, rangeStart, rangeEnd, range, rangeLabel]);
 
   const stats = [
     {
