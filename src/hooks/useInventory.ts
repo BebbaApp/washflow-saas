@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { useLiveTable } from "@/offline/useLiveTable";
 import { CONCENTRATES, WATER, matchVehicle } from "@/lib/vehicleUsage";
 import { convertUnits, canConvert } from "@/lib/unitConversions";
+
 
 export const INVENTORY_CATEGORIES = ["Soap", "Wax", "Towels", "Chemicals", "Tools", "Other"] as const;
 export type InventoryCategory = string;
