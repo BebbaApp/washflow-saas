@@ -104,20 +104,36 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
     };
   }, [filtered]);
 
-  // Revenue & Job Count over last 14 days
-  const dailySeries = useMemo(() => {
+  // Revenue & Job Count over the selected range
+  const { dailySeries, seriesLabel } = useMemo(() => {
+    const { start, end } = rangeBounds(range, customStart, customEnd);
+    const dayMs = 86_400_000;
+    let effectiveStart = start;
+    // "All time" defaults to start=0; use earliest order date or last 90 days for sanity
+    if (range === "all") {
+      const earliest = orders.reduce((min, o) => {
+        const t = new Date(o.createdAt).getTime();
+        return t && t < min ? t : min;
+      }, Date.now());
+      effectiveStart = Math.max(earliest, Date.now() - 90 * dayMs);
+    }
+    const startDate = new Date(effectiveStart);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(end);
+    endDate.setHours(0, 0, 0, 0);
+    const span = endDate.getTime() - startDate.getTime();
     const days: { day: number; label: string; revenue: number; jobs: number }[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
+    const cursor = new Date(startDate);
+    let safety = 0;
+    while (cursor.getTime() <= endDate.getTime() && safety < 500) {
       days.push({
-        day: d.getTime(),
-        label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        day: cursor.getTime(),
+        label: cursor.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
         revenue: 0,
         jobs: 0,
       });
+      cursor.setDate(cursor.getDate() + 1);
+      safety++;
     }
     orders.forEach((o) => {
       const t = new Date(o.createdAt);
@@ -127,8 +143,9 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
       days[idx].jobs += 1;
       if (o.status === "completed") days[idx].revenue += o.servicePrice;
     });
-    return days;
-  }, [orders]);
+    const label = RANGES.find((r) => r.id === range)?.label ?? "";
+    return { dailySeries: days, seriesLabel: range === "all" ? "Last 90 days" : label };
+  }, [orders, range, customStart, customEnd]);
 
   const vehicleTypes = useMemo(() => {
     const counts: Record<VehicleType, number> = { SUV: 0, Sedan: 0, Truck: 0, Van: 0 };
