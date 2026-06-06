@@ -45,27 +45,39 @@ function useAuthInternal(): AuthContextValue {
   }, []);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
-    const [{ data: profile, error: profileError }, { data: roleRows, error: rolesError }, { data: superAdmin }, { data: platformAdmin }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("name")
-        .eq("user_id", authUser.id)
-        .maybeSingle(),
-      supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authUser.id),
-      supabase
-        .from("super_admins" as any)
-        .select("user_id")
-        .eq("user_id", authUser.id)
-        .maybeSingle(),
-      supabase
-        .from("platform_admins" as any)
-        .select("user_id")
-        .eq("user_id", authUser.id)
-        .maybeSingle(),
-    ]);
+    const CACHE_KEY = `wf_user_profile_${authUser.id}`;
+
+    // Offline short-circuit: rehydrate from the last successful fetch so the
+    // app stays usable (Dexie mirror) without a network round-trip. Without
+    // this, refreshing the tab offline drops the user back to the login screen.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (raw) return JSON.parse(raw) as StaffUser;
+      } catch { /* ignore */ }
+    }
+
+    let profileRes: any, rolesRes: any, superAdminRes: any, platformAdminRes: any;
+    try {
+      [profileRes, rolesRes, superAdminRes, platformAdminRes] = await Promise.all([
+        supabase.from("profiles").select("name").eq("user_id", authUser.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", authUser.id),
+        supabase.from("super_admins" as any).select("user_id").eq("user_id", authUser.id).maybeSingle(),
+        supabase.from("platform_admins" as any).select("user_id").eq("user_id", authUser.id).maybeSingle(),
+      ]);
+    } catch (e) {
+      // Network failure mid-fetch: fall back to cached profile if available.
+      console.warn("[useAuth] profile fetch network error, using cache", e);
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (raw) return JSON.parse(raw) as StaffUser;
+      } catch { /* ignore */ }
+      return null;
+    }
+    const { data: profile, error: profileError } = profileRes;
+    const { data: roleRows, error: rolesError } = rolesRes;
+    const { data: superAdmin } = superAdminRes;
+    const { data: platformAdmin } = platformAdminRes;
 
     const meta = (authUser.user_metadata ?? {}) as Record<string, any>;
     const isBootstrapSuperAdmin = authUser.email?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
@@ -78,22 +90,28 @@ function useAuthInternal(): AuthContextValue {
       phone: (meta.phone as string) || authUser.phone || null,
     });
 
+    const persist = (u: StaffUser) => {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(u)); } catch { /* ignore */ }
+      return u;
+    };
+
     if (profileError || rolesError) {
       console.error("[useAuth] Failed to load staff profile:", profileError || rolesError);
-      return isGlobalAdmin ? makeUser("admin") : null;
+      if (isGlobalAdmin) return persist(makeUser("admin"));
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (raw) return JSON.parse(raw) as StaffUser;
+      } catch { /* ignore */ }
+      return null;
     }
 
-    if (isGlobalAdmin) {
-      return makeUser("admin");
-    }
+    if (isGlobalAdmin) return persist(makeUser("admin"));
 
     const priority: StaffRole[] = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-    const userRoles = (roleRows ?? []).map((r) => r.role as StaffRole);
+    const userRoles = (roleRows ?? []).map((r: any) => r.role as StaffRole);
     const bestRole = priority.find((r) => userRoles.includes(r));
 
-    if (bestRole) {
-      return makeUser(bestRole);
-    }
+    if (bestRole) return persist(makeUser(bestRole));
     return null;
   }, []);
 
