@@ -123,9 +123,20 @@ function useAuthInternal(): AuthContextValue {
         // Validate the session is still alive server-side. Stale JWTs (session
         // deleted in Supabase) keep returning 401/403 on every protected call
         // until we explicitly sign out.
-        supabase.auth.getUser().then(({ error: validateErr }) => {
+        //
+        // IMPORTANT: skip the round-trip when the browser reports offline —
+        // otherwise a refresh while offline would force-sign-out the user and
+        // they would be unable to sign back in until connectivity returns.
+        const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+        const validate = isOffline
+          ? Promise.resolve({ error: null as any })
+          : supabase.auth.getUser();
+        validate.then(({ error: validateErr }) => {
           if (cancelled || currentRequest !== requestId) return;
-          if (validateErr) {
+          // Treat network failures as "offline" — keep the local session intact
+          // so the app can continue working from the Dexie mirror.
+          const isNetworkErr = validateErr && /fetch|network|failed to fetch|load failed/i.test(validateErr.message || "");
+          if (validateErr && !isNetworkErr) {
             console.warn("[useAuth] Stale session detected, signing out:", validateErr.message);
             supabase.auth.signOut().finally(() => {
               if (!cancelled && currentRequest === requestId) {
