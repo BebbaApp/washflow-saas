@@ -120,19 +120,21 @@ export function InventoryTrendsPanel() {
 
   const sortedForecast = [...rows].sort((a, b) => a.daysToThreshold - b.daysToThreshold);
 
+  const rangeLabel = range === "custom" ? `${rangeDays}d` : `${range}d`;
+
   const exportForecast = () => {
     const header = ["Item", "Category", "Stock", "Unit", "Threshold", "Weekly Use", "Days to Threshold"];
     const data = sortedForecast.map((r) => [
       r.name, r.category, r.stock, r.unit, r.threshold, r.weeklyUse,
       isFinite(r.daysToThreshold) ? Math.round(r.daysToThreshold) : "",
     ]);
-    downloadCsv(`depletion-forecast-${range}d.csv`, [header, ...data]);
+    downloadCsv(`depletion-forecast-${rangeLabel}.csv`, [header, ...data]);
   };
 
   const exportUsage = () => {
     const header = ["Item", "Weekly Use", "Range (days)"];
-    const data = usageChartData.map((r) => [r.name, r.weeklyUse, range]);
-    downloadCsv(`weekly-usage-${range}d.csv`, [header, ...data]);
+    const data = usageChartData.map((r) => [r.name, r.weeklyUse, rangeDays]);
+    downloadCsv(`weekly-usage-${rangeLabel}.csv`, [header, ...data]);
   };
 
   const selectedItem: InventoryItem | null =
@@ -151,20 +153,49 @@ export function InventoryTrendsPanel() {
   }
 
   const RangeSelector = (
-    <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border text-xs">
-      {([7, 14, 28] as RangeDays[]).map((d) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border text-xs">
+        {([7, 14, 28] as const).map((d) => (
+          <button
+            key={d}
+            onClick={() => setRange(d)}
+            className={`px-3 py-1 rounded-full font-medium transition-all ${
+              range === d
+                ? "bg-card text-foreground shadow-sm border border-border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
         <button
-          key={d}
-          onClick={() => setRange(d)}
+          onClick={() => setRange("custom")}
           className={`px-3 py-1 rounded-full font-medium transition-all ${
-            range === d
+            range === "custom"
               ? "bg-card text-foreground shadow-sm border border-border"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          {d}d
+          Custom
         </button>
-      ))}
+      </div>
+      {range === "custom" && (
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+          />
+          <span className="text-muted-foreground text-xs">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+          />
+        </div>
+      )}
     </div>
   );
 
