@@ -24,7 +24,7 @@ interface ForecastRow {
   daysToThreshold: number;
 }
 
-type RangeDays = 7 | 14 | 28;
+type RangeDays = 7 | 14 | 28 | "custom";
 
 // Match the colors from the reference screenshots.
 const COLOR_STOCK = "#3b82f6";        // blue-500
