@@ -30,17 +30,40 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
   const { formatPrice } = useCurrency();
   const { eligibleOrderIds } = useRewardEligibility(orders);
   const [tab, setTab] = useState<TabKey>("overview");
+  const [range, setRange] = useState<RangeKey>("today");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
+  const { rangeStart, rangeEnd, rangeLabel } = useMemo(() => {
+    const now = new Date();
+    const end = now.getTime();
+    if (range === "today") {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      return { rangeStart: s, rangeEnd: end, rangeLabel: "Today" };
+    }
+    if (range === "week") {
+      const d = new Date(now);
+      const day = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - day);
+      d.setHours(0, 0, 0, 0);
+      return { rangeStart: d.getTime(), rangeEnd: end, rangeLabel: "This week" };
+    }
+    if (range === "month") {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      return { rangeStart: s, rangeEnd: end, rangeLabel: "This month" };
+    }
+    const s = customStart ? new Date(customStart + "T00:00:00").getTime() : 0;
+    const e = customEnd ? new Date(customEnd + "T23:59:59").getTime() : end;
+    return { rangeStart: s, rangeEnd: e, rangeLabel: "Custom" };
+  }, [range, customStart, customEnd]);
 
-  const todayOrders = orders.filter((o) => new Date(o.createdAt) >= today);
-  const todayCompleted = todayOrders.filter((o) => o.status === "completed");
-  const todayRevenue = todayCompleted.reduce((s, o) => s + o.servicePrice, 0);
+  const rangeOrders = orders.filter((o) => {
+    const t = new Date(o.createdAt).getTime();
+    return t >= rangeStart && t <= rangeEnd;
+  });
+  const rangeCompleted = rangeOrders.filter((o) => o.status === "completed");
+  const rangeRevenue = rangeCompleted.reduce((s, o) => s + o.servicePrice, 0);
   const inQueue = orders.filter((o) => o.status === "waiting").length;
   const activeNow = orders.filter((o) => o.status === "in-progress");
   const activeJobs = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
