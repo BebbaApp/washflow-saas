@@ -346,7 +346,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
               <div className="flex items-start justify-between">
                 <div>
                   <h4 className="text-sm font-bold text-foreground">Revenue & Job Count</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">Last 14 days</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{seriesLabel}</p>
                 </div>
               </div>
               <div className="h-72 mt-4">
