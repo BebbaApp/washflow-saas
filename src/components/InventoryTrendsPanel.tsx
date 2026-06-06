@@ -300,7 +300,7 @@ export function InventoryTrendsPanel() {
         <div className="h-72">
           {usageChartData.length === 0 ? (
             <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              No consumption recorded in the last {range} days — usage will appear once orders deplete stock.
+              No consumption recorded in the last {rangeDays} days — usage will appear once orders deplete stock.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
