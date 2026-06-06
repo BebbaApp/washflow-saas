@@ -401,8 +401,10 @@ Deno.serve(async (req) => {
       }
 
       case "platform_overview": {
-        const from = body.from ? new Date(body.from).toISOString() : new Date(Date.now() - 30 * 86_400_000).toISOString();
-        const to = body.to ? new Date(body.to).toISOString() : new Date().toISOString();
+        const fromDate = body.from ? new Date(`${body.from}T00:00:00.000Z`) : new Date(Date.now() - 30 * 86_400_000);
+        const toDate = body.to ? new Date(`${body.to}T23:59:59.999Z`) : new Date();
+        const from = fromDate.toISOString();
+        const to = toDate.toISOString();
 
         let ordersQ = admin.from("orders")
           .select("id, tenant_id, service, service_price, status, created_at, completed_at")
@@ -416,11 +418,20 @@ Deno.serve(async (req) => {
           .gte("date", from).lte("date", to).limit(10000);
         if (body.tenant_id) expensesQ = expensesQ.eq("tenant_id", body.tenant_id);
 
+        let membersQ = admin.from("tenant_members").select("*", { count: "exact", head: true });
+        let tenantsQ = admin.from("tenants").select("*", { count: "exact", head: true });
+        let invoicesQ = admin.from("invoices").select("tenant_id, amount_cents, currency, status, paid_at, created_at")
+          .gte("created_at", from).lte("created_at", to).limit(10000);
+        if (body.tenant_id) {
+          membersQ = membersQ.eq("tenant_id", body.tenant_id);
+          tenantsQ = tenantsQ.eq("id", body.tenant_id);
+          invoicesQ = invoicesQ.eq("tenant_id", body.tenant_id);
+        }
+
         const [{ count: memberCount }, { count: tenantCount }, { data: invoices }, { data: expenses }] = await Promise.all([
-          admin.from("tenant_members").select("*", { count: "exact", head: true }),
-          admin.from("tenants").select("*", { count: "exact", head: true }),
-          admin.from("invoices").select("tenant_id, amount_cents, currency, status, paid_at, created_at")
-            .gte("created_at", from).lte("created_at", to).limit(10000),
+          membersQ,
+          tenantsQ,
+          invoicesQ,
           expensesQ,
         ]);
 
