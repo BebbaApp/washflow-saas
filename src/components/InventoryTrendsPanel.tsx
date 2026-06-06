@@ -333,7 +333,7 @@ export function InventoryTrendsPanel() {
         <div className="p-6 pb-3 flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Depletion Forecast</h3>
-            <p className="text-sm text-muted-foreground">Predicted days until each item hits its low-stock threshold (based on last {range} days)</p>
+            <p className="text-sm text-muted-foreground">Predicted days until each item hits its low-stock threshold (based on last {rangeDays} days)</p>
           </div>
           <div className="flex items-center gap-2">
             {RangeSelector}
