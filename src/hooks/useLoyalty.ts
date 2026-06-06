@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTenant } from "@/hooks/useTenant";
+import { useLiveTable } from "@/offline/useLiveTable";
 
 export interface Customer {
   id: string;
@@ -38,64 +40,51 @@ function mapCustomer(row: any): Customer {
 }
 
 export function useLoyalty() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { tenant } = useTenant();
+  const rows = useLiveTable<any>(tenant?.id, "customers");
+  const loading = rows === undefined;
 
-  const fetchCustomers = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setCustomers(data.map(mapCustomer));
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchCustomers();
-    const channel = supabase
-      .channel(`loyalty-realtime-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => fetchCustomers())
-      .on("postgres_changes", { event: "*", schema: "public", table: "loyalty_transactions" }, () => fetchCustomers())
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchCustomers]);
+  const customers = useMemo<Customer[]>(() => {
+    const list = (rows ?? []).map(mapCustomer);
+    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return list;
+  }, [rows]);
 
   const addCustomer = useCallback(async (data: { name: string; email?: string; phone?: string }) => {
+    if (!tenant?.id) {
+      toast.error("No workspace selected.");
+      return;
+    }
     const { error } = await supabase.from("customers").insert({
+      tenant_id: tenant.id,
       name: data.name,
       email: data.email || null,
       phone: data.phone || null,
-    });
+    } as any);
 
     if (error) {
       toast.error("Failed to add customer: " + error.message);
       return;
     }
     toast.success(`Customer ${data.name} added`);
-    fetchCustomers();
-  }, [fetchCustomers]);
+  }, [tenant?.id]);
 
   const earnPoints = useCallback(async (customerId: string, orderId?: string) => {
-    // Add points
+    if (!tenant?.id) return;
     const { error: txnError } = await supabase.from("loyalty_transactions").insert({
+      tenant_id: tenant.id,
       customer_id: customerId,
       order_id: orderId || null,
       points: POINTS_PER_WASH,
       type: "earned",
       description: `Earned ${POINTS_PER_WASH} points for wash`,
-    });
+    } as any);
 
     if (txnError) {
       toast.error("Failed to add points: " + txnError.message);
       return;
     }
 
-    // Update customer totals
     const customer = customers.find((c) => c.id === customerId);
     if (customer) {
       await supabase.from("customers").update({
@@ -106,7 +95,6 @@ export function useLoyalty() {
 
     const newPoints = (customer?.loyaltyPoints || 0) + POINTS_PER_WASH;
 
-    // Send SMS milestone notifications
     if (customer?.phone) {
       let milestone: string | null = null;
       if (newPoints >= FREE_WASH_COST && (customer.loyaltyPoints || 0) < FREE_WASH_COST) {
@@ -116,7 +104,6 @@ export function useLoyalty() {
       }
 
       if (milestone) {
-        // Fire-and-forget SMS
         supabase.functions.invoke("send-loyalty-sms", {
           body: {
             phone: customer.phone,
@@ -132,10 +119,10 @@ export function useLoyalty() {
     }
 
     toast.success(`+${POINTS_PER_WASH} loyalty points earned!`);
-    fetchCustomers();
-  }, [customers, fetchCustomers]);
+  }, [customers, tenant?.id]);
 
   const redeemPoints = useCallback(async (customerId: string) => {
+    if (!tenant?.id) return;
     const customer = customers.find((c) => c.id === customerId);
     if (!customer || customer.loyaltyPoints < FREE_WASH_COST) {
       toast.error("Not enough points for a free wash");
@@ -143,11 +130,12 @@ export function useLoyalty() {
     }
 
     const { error: txnError } = await supabase.from("loyalty_transactions").insert({
+      tenant_id: tenant.id,
       customer_id: customerId,
       points: FREE_WASH_COST,
       type: "redeemed",
       description: "Redeemed for free wash",
-    });
+    } as any);
 
     if (txnError) {
       toast.error("Failed to redeem: " + txnError.message);
@@ -159,8 +147,9 @@ export function useLoyalty() {
     }).eq("id", customerId);
 
     toast.success("🎉 Free wash redeemed!");
-    fetchCustomers();
-  }, [customers, fetchCustomers]);
+  }, [customers, tenant?.id]);
+
+  const refetch = useCallback(async () => { /* sync engine handles it */ }, []);
 
   return {
     customers,
@@ -170,6 +159,6 @@ export function useLoyalty() {
     redeemPoints,
     POINTS_PER_WASH,
     FREE_WASH_COST,
-    refetch: fetchCustomers,
+    refetch,
   };
 }
