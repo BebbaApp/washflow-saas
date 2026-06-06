@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
+import { useLiveTable } from "@/offline/useLiveTable";
 
 export interface ShiftTemplate {
   id: string;
@@ -35,106 +36,90 @@ export interface TimeOffRequest {
 
 export function useScheduling() {
   const { tenant } = useTenant();
-  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
+  const tenantId = tenant?.id ?? null;
+
+  const templateRows = useLiveTable<any>(tenantId, "shift_templates");
+  const shiftRows = useLiveTable<any>(tenantId, "shifts");
+  const timeOffRows = useLiveTable<any>(tenantId, "time_off_requests");
+
   const [staffMembers, setStaffMembers] = useState<{ id: string; name: string; createdAt?: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [staffLoading, setStaffLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
-    if (!tenant?.id) {
-      setTemplates([]);
-      setShifts([]);
-      setTimeOffRequests([]);
-      setStaffMembers([]);
-      setLoading(false);
-      return;
-    }
-
-    const [templatesRes, shiftsRes, timeOffRes, staffRes] = await Promise.all([
-      supabase.from("shift_templates").select("*").order("start_time"),
-      supabase.from("shifts").select("*").order("shift_date"),
-      supabase.from("time_off_requests").select("*").order("created_at", { ascending: false }),
-      supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } }),
-    ]);
-
-    const profileMap: Record<string, string> = {};
-    const tenantStaff = ((staffRes.data as any)?.users ?? [])
-      .filter((u: any) => !!u.role)
-      .map((u: any) => ({ id: u.id, name: u.name || u.email || "Staff", createdAt: u.created_at }));
-    if (tenantStaff.length > 0) {
-      tenantStaff.forEach((p: any) => {
-        profileMap[p.id] = p.name;
-      });
-    }
-    setStaffMembers(tenantStaff);
-
-    if (templatesRes.data) {
-      setTemplates(templatesRes.data.map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        startTime: t.start_time,
-        endTime: t.end_time,
-        color: t.color,
-      })));
-    }
-
-    if (shiftsRes.data) {
-      setShifts(shiftsRes.data.map((s: any) => ({
-        id: s.id,
-        staffUserId: s.staff_user_id,
-        templateId: s.template_id,
-        shiftDate: s.shift_date,
-        startTime: s.start_time,
-        endTime: s.end_time,
-        notes: s.notes,
-        staffName: profileMap[s.staff_user_id] || "Unknown",
-      })));
-    }
-
-    if (timeOffRes.data) {
-      setTimeOffRequests(timeOffRes.data.map((r: any) => ({
-        id: r.id,
-        staffUserId: r.staff_user_id,
-        startDate: r.start_date,
-        endDate: r.end_date,
-        reason: r.reason,
-        status: r.status,
-        staffName: profileMap[r.staff_user_id] || "Unknown",
-        createdAt: r.created_at,
-      })));
-    }
-
-    setLoading(false);
-  }, [tenant?.id]);
-
+  // Staff list still comes from the manage-staff edge function (auth.users-backed),
+  // since profiles aren't tenant-scoped in the local mirror.
   useEffect(() => {
-    fetchAll();
+    if (!tenantId) { setStaffMembers([]); setStaffLoading(false); return; }
+    let active = true;
+    (async () => {
+      setStaffLoading(true);
+      const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenantId } });
+      if (!active) return;
+      const list = ((data as any)?.users ?? [])
+        .filter((u: any) => !!u.role)
+        .map((u: any) => ({ id: u.id, name: u.name || u.email || "Staff", createdAt: u.created_at }));
+      setStaffMembers(list);
+      setStaffLoading(false);
+    })();
+    return () => { active = false; };
+  }, [tenantId]);
 
-    const shiftsChannel = supabase
-      .channel(`shifts-realtime-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "shifts" }, () => fetchAll())
-      .subscribe();
+  const profileMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of staffMembers) m[s.id] = s.name;
+    return m;
+  }, [staffMembers]);
 
-    const timeOffChannel = supabase
-      .channel(`timeoff-realtime-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "time_off_requests" }, () => fetchAll())
-      .subscribe();
+  const templates = useMemo<ShiftTemplate[]>(() => {
+    const list = (templateRows ?? []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      startTime: t.start_time,
+      endTime: t.end_time,
+      color: t.color,
+    }));
+    list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return list;
+  }, [templateRows]);
 
-    return () => {
-      supabase.removeChannel(shiftsChannel);
-      supabase.removeChannel(timeOffChannel);
-    };
-  }, [fetchAll]);
+  const shifts = useMemo<Shift[]>(() => {
+    const list = (shiftRows ?? []).map((s: any) => ({
+      id: s.id,
+      staffUserId: s.staff_user_id,
+      templateId: s.template_id,
+      shiftDate: s.shift_date,
+      startTime: s.start_time,
+      endTime: s.end_time,
+      notes: s.notes,
+      staffName: profileMap[s.staff_user_id] || "Unknown",
+    }));
+    list.sort((a, b) => a.shiftDate.localeCompare(b.shiftDate));
+    return list;
+  }, [shiftRows, profileMap]);
 
-  // Returns conflicting shift if overlap exists for the same staff on the same date
+  const timeOffRequests = useMemo<TimeOffRequest[]>(() => {
+    const list = (timeOffRows ?? []).map((r: any) => ({
+      id: r.id,
+      staffUserId: r.staff_user_id,
+      startDate: r.start_date,
+      endDate: r.end_date,
+      reason: r.reason,
+      status: r.status,
+      staffName: profileMap[r.staff_user_id] || "Unknown",
+      createdAt: r.created_at,
+    }));
+    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return list;
+  }, [timeOffRows, profileMap]);
+
+  const loading =
+    staffLoading || templateRows === undefined || shiftRows === undefined || timeOffRows === undefined;
+
   const findConflict = useCallback(
     (data: { staffUserId: string; shiftDate: string; startTime: string; endTime: string; ignoreShiftId?: string }) => {
       return shifts.find((s) => {
         if (s.id === data.ignoreShiftId) return false;
         if (s.staffUserId !== data.staffUserId) return false;
         if (s.shiftDate !== data.shiftDate) return false;
-        // overlap if start < other.end && end > other.start
         return data.startTime < s.endTime && data.endTime > s.startTime;
       }) || null;
     },
@@ -149,6 +134,7 @@ export function useScheduling() {
     endTime: string;
     notes?: string;
   }): Promise<{ ok: boolean; error?: string }> => {
+    if (!tenantId) return { ok: false, error: "No workspace selected" };
     if (data.endTime <= data.startTime) {
       return { ok: false, error: "End time must be after start time" };
     }
@@ -161,13 +147,14 @@ export function useScheduling() {
     }
 
     const { error } = await supabase.from("shifts").insert({
+      tenant_id: tenantId,
       staff_user_id: data.staffUserId,
       template_id: data.templateId || null,
       shift_date: data.shiftDate,
       start_time: data.startTime,
       end_time: data.endTime,
       notes: data.notes || null,
-    });
+    } as any);
 
     if (error) {
       toast.error("Failed to add shift: " + error.message);
@@ -175,7 +162,7 @@ export function useScheduling() {
     }
     toast.success("Shift scheduled");
     return { ok: true };
-  }, [findConflict]);
+  }, [findConflict, tenantId]);
 
   const updateShift = useCallback(async (
     shiftId: string,
@@ -199,15 +186,6 @@ export function useScheduling() {
       };
     }
 
-    // Optimistic update
-    setShifts((prev) =>
-      prev.map((s) =>
-        s.id === shiftId
-          ? { ...s, staffUserId: data.staffUserId, templateId: data.templateId ?? null, shiftDate: data.shiftDate, startTime: data.startTime, endTime: data.endTime, notes: data.notes ?? null }
-          : s
-      )
-    );
-
     const { error } = await supabase.from("shifts").update({
       staff_user_id: data.staffUserId,
       template_id: data.templateId ?? null,
@@ -219,46 +197,45 @@ export function useScheduling() {
 
     if (error) {
       toast.error("Failed to update shift: " + error.message);
-      fetchAll();
       return { ok: false, error: error.message };
     }
     toast.success("Shift updated");
     return { ok: true };
-  }, [findConflict, fetchAll]);
+  }, [findConflict]);
 
   const deleteShift = useCallback(async (shiftId: string) => {
-    setShifts((prev) => prev.filter((s) => s.id !== shiftId));
     const { error } = await supabase.from("shifts").delete().eq("id", shiftId);
     if (error) {
       toast.error("Failed to cancel shift: " + error.message);
-      fetchAll();
       return false;
     }
     toast.success("Shift cancelled");
     return true;
-  }, [fetchAll]);
+  }, []);
 
   const requestTimeOff = useCallback(async (data: {
     startDate: string;
     endDate: string;
     reason?: string;
   }) => {
+    if (!tenantId) return;
     const { data: session } = await supabase.auth.getSession();
     if (!session.session) return;
 
     const { error } = await supabase.from("time_off_requests").insert({
+      tenant_id: tenantId,
       staff_user_id: session.session.user.id,
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason || null,
-    });
+    } as any);
 
     if (error) {
       toast.error("Failed to submit request: " + error.message);
       return;
     }
     toast.success("Time off request submitted");
-  }, []);
+  }, [tenantId]);
 
   const updateTimeOffStatus = useCallback(async (requestId: string, status: "approved" | "denied") => {
     const { error } = await supabase.from("time_off_requests").update({ status }).eq("id", requestId);
@@ -269,6 +246,8 @@ export function useScheduling() {
     }
     toast.success(`Request ${status}`);
   }, []);
+
+  const refetch = useCallback(async () => { /* sync engine handles it */ }, []);
 
   return {
     templates,
@@ -282,6 +261,6 @@ export function useScheduling() {
     findConflict,
     requestTimeOff,
     updateTimeOffStatus,
-    refetch: fetchAll,
+    refetch,
   };
 }
