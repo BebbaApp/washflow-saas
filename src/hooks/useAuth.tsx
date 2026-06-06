@@ -48,7 +48,7 @@ async function isInactiveLocally(authUser: User) {
       .equals(tenantId)
       .and((r: any) => r.user_id === authUser.id)
       .first();
-    return row?.is_active === false;
+    return (row as any)?.is_active === false;
   } catch { return false; }
 }
 
