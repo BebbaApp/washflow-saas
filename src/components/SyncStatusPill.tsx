@@ -48,7 +48,7 @@ export function SyncStatusPill({ className }: { className?: string }) {
   const [storage, setStorage] = useState<{ usage?: number; quota?: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => onSyncStatus(setState), []);
+  useEffect(() => { const unsub = onSyncStatus(setState); return () => { unsub(); }; }, []);
 
   const refresh = useCallback(async () => {
     const [o, s] = await Promise.all([getOutboxItems(100), getStorageEstimate()]);
