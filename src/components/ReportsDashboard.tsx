@@ -137,7 +137,7 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
   }, [filtered]);
 
   const hourly = useMemo(() => {
-    const start = rangeStart("today");
+    const { start } = rangeBounds("today", "", "");
     const map = new Map<number, number>();
     for (let h = 8; h <= 19; h++) map.set(h, 0);
     orders.forEach((o) => {
