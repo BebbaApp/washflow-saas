@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useLiveTable } from "@/offline/useLiveTable";
 
 export type WorkerRole =
   | "admin"
@@ -20,116 +21,69 @@ export interface Worker {
 }
 
 /**
- * Read-only view of the tenant's staff, composed from the existing tables:
- *   - `tenant_members`     → membership (source of truth for "is on the team")
- *   - `profiles`           → display name
- *   - `user_roles`         → app role (washer / cashier / …)
- *   - `staff_pins`         → phone number
+ * Read-only view of the tenant's staff, composed from local mirrors:
+ *   - `tenant_members` (mirrored)   → membership
+ *   - `user_roles`     (mirrored)   → app role
+ *   - `staff_pins`     (mirrored)   → phone number
+ *   - `profiles`       (not tenant-scoped) → fetched once and kept in a local state map
  *
- * Subscribes to realtime changes on all four so the list stays live.
- * Mutations (add/update/remove) are intentionally not exposed here — staff are
- * managed via SettingsPage / invite-member / manage-staff edge functions so
- * permissions and auth invites stay consistent.
+ * Staff mutations are intentionally not exposed — manage them via Settings → Team.
  */
 export function useWorkers() {
   const { tenant } = useTenant();
   const tenantId = tenant?.id ?? null;
-  const [workers, setWorkers] = useState<Worker[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const memberRows = useLiveTable<any>(tenantId, "tenant_members");
+  const roleRows = useLiveTable<any>(tenantId, "user_roles");
+  const pinRows = useLiveTable<any>(tenantId, "staff_pins");
+
+  const [profileByUser, setProfileByUser] = useState<Map<string, string>>(new Map());
+  const [profilesLoading, setProfilesLoading] = useState(true);
 
   useEffect(() => {
-    if (!tenantId) {
-      setWorkers([]);
-      setLoading(false);
-      return;
-    }
-
+    if (!tenantId) { setProfileByUser(new Map()); setProfilesLoading(false); return; }
     let active = true;
-
     const load = async () => {
-      const [membersRes, rolesRes, pinsRes] = await Promise.all([
-        supabase
-          .from("tenant_members")
-          .select("user_id")
-          .eq("tenant_id", tenantId),
-        supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .eq("tenant_id", tenantId),
-        supabase
-          .from("staff_pins")
-          .select("user_id, phone")
-          .eq("tenant_id", tenantId),
-      ]);
-
+      const ids = Array.from(new Set((memberRows ?? []).map((m: any) => m.user_id)));
+      if (ids.length === 0) {
+        if (active) { setProfileByUser(new Map()); setProfilesLoading(false); }
+        return;
+      }
+      const { data } = await supabase.from("profiles").select("user_id, name").in("user_id", ids);
       if (!active) return;
-
-      const userIds = Array.from(
-        new Set((membersRes.data ?? []).map((m) => m.user_id))
-      );
-
-      const profilesRes = userIds.length
-        ? await supabase
-            .from("profiles")
-            .select("user_id, name")
-            .in("user_id", userIds)
-        : { data: [] as { user_id: string; name: string }[] };
-
-      if (!active) return;
-
-      const profileByUser = new Map(
-        (profilesRes.data ?? []).map((p) => [p.user_id, p.name])
-      );
-      const roleByUser = new Map(
-        (rolesRes.data ?? []).map((r) => [r.user_id, r.role as WorkerRole])
-      );
-      const phoneByUser = new Map(
-        (pinsRes.data ?? []).map((p) => [p.user_id, p.phone ?? ""])
-      );
-
-      setWorkers(
-        userIds.map((uid) => ({
-          id: uid,
-          name: profileByUser.get(uid) ?? "",
-          role: roleByUser.get(uid) ?? "washer",
-          phone: phoneByUser.get(uid) ?? "",
-          active: true,
-        }))
-      );
-      setLoading(false);
+      setProfileByUser(new Map((data ?? []).map((p: any) => [p.user_id, p.name])));
+      setProfilesLoading(false);
     };
-
     load();
-
-    const channel = supabase
-      .channel(`workers-${tenantId}-${crypto.randomUUID()}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tenant_members", filter: `tenant_id=eq.${tenantId}` },
-        () => load()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_roles", filter: `tenant_id=eq.${tenantId}` },
-        () => load()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "staff_pins", filter: `tenant_id=eq.${tenantId}` },
-        () => load()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles" },
-        () => load()
-      )
+    const ch = supabase
+      .channel(`workers-profiles-${tenantId}-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
       .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
+  }, [tenantId, memberRows]);
 
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
-  }, [tenantId]);
+  const workers = useMemo<Worker[]>(() => {
+    const ids = Array.from(new Set((memberRows ?? []).map((m: any) => m.user_id)));
+    const roleByUser = new Map<string, WorkerRole>(
+      (roleRows ?? []).map((r: any) => [r.user_id, r.role as WorkerRole])
+    );
+    const phoneByUser = new Map<string, string>(
+      (pinRows ?? []).map((p: any) => [p.user_id, p.phone ?? ""])
+    );
+    return ids.map((uid) => ({
+      id: uid,
+      name: profileByUser.get(uid) ?? "",
+      role: roleByUser.get(uid) ?? "washer",
+      phone: phoneByUser.get(uid) ?? "",
+      active: true,
+    }));
+  }, [memberRows, roleRows, pinRows, profileByUser]);
+
+  const loading =
+    profilesLoading ||
+    memberRows === undefined ||
+    roleRows === undefined ||
+    pinRows === undefined;
 
   const notManaged = () => {
     throw new Error(
