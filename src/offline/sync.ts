@@ -192,6 +192,16 @@ async function drainOutbox() {
 export async function startSync(tenantId: string) {
   if (currentTenant === tenantId) return;
   currentTenant = tenantId;
+  // One-shot cursor reset for clients that mirrored data before the
+  // null-updated_at fix landed; ensures historical completed/cancelled rows
+  // get pulled on next boot.
+  try {
+    const FLAG = "wf_sync_reset_v2";
+    if (typeof localStorage !== "undefined" && !localStorage.getItem(FLAG)) {
+      await db.sync_meta.clear();
+      localStorage.setItem(FLAG, "1");
+    }
+  } catch { /* ignore storage errors */ }
   subscribeRealtime(tenantId);
   if (!pulling) {
     pulling = true;
