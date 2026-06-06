@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTenant } from "@/hooks/useTenant";
+import { useLiveTable } from "@/offline/useLiveTable";
 
 export interface AttendanceRecord {
   id: string;
@@ -49,51 +51,68 @@ async function uploadDataUrl(userId: string, kind: string, dataUrl: string): Pro
   return path;
 }
 
-export function useAttendance(opts: { adminView?: boolean } = {}) {
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [enrollments, setEnrollments] = useState<FaceEnrollment[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
+export function useAttendance(_opts: { adminView?: boolean } = {}) {
+  const { tenant } = useTenant();
+  const tenantId = tenant?.id ?? null;
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    const [{ data: recs }, { data: enrs }, { data: profs }, { data: audits }] = await Promise.all([
-      supabase.from("attendance_records").select("*").order("created_at", { ascending: false }).limit(2000),
-      supabase.from("staff_face_enrollments").select("*").eq("is_active", true).order("created_at", { ascending: false }),
-      supabase.from("profiles").select("user_id,name"),
-      supabase.from("attendance_audit_log").select("*").order("created_at", { ascending: false }).limit(500),
-    ]);
+  // Reads come from the Dexie mirror (auto-synced by the central sync engine).
+  const recordRows = useLiveTable<any>(tenantId, "attendance_records");
+  const enrollmentRows = useLiveTable<any>(tenantId, "staff_face_enrollments");
+  const auditRows = useLiveTable<any>(tenantId, "attendance_audit_log");
+
+  // Profiles aren't tenant-scoped in the mirror; fetch once and listen for changes.
+  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
+  const [profilesLoading, setProfilesLoading] = useState(true);
+
+  const loadProfiles = useCallback(async () => {
+    const { data } = await supabase.from("profiles").select("user_id,name");
     const map: Record<string, string> = {};
-    (profs || []).forEach((p: any) => { map[p.user_id] = p.name; });
+    (data || []).forEach((p: any) => { map[p.user_id] = p.name; });
     setProfilesMap(map);
-    setRecords((recs || []).map((r: any) => ({ ...r, staffName: map[r.user_id] || "Unknown" })));
-    setEnrollments((enrs || []).map((e: any) => ({ ...e, staffName: map[e.user_id] || "Unknown" })));
-    setAuditLog((audits || []).map((a: any) => ({
-      ...a,
-      targetName: map[a.target_user_id] || "Unknown",
-      actorName: map[a.acted_by] || "Admin",
-    })));
-    setLoading(false);
+    setProfilesLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchAll();
+    loadProfiles();
     const ch = supabase
-      .channel(`attendance-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_records" }, () => fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "staff_face_enrollments" }, () => fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_audit_log" }, () => fetchAll())
+      .channel(`attendance-profiles-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadProfiles())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [fetchAll]);
+  }, [loadProfiles]);
+
+  const records = useMemo<AttendanceRecord[]>(() => {
+    const list = (recordRows ?? []).map((r: any) => ({ ...r, staffName: profilesMap[r.user_id] || "Unknown" }));
+    list.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return list.slice(0, 2000);
+  }, [recordRows, profilesMap]);
+
+  const enrollments = useMemo<FaceEnrollment[]>(() => {
+    const list = (enrollmentRows ?? [])
+      .filter((e: any) => e.is_active !== false)
+      .map((e: any) => ({ ...e, staffName: profilesMap[e.user_id] || "Unknown" }));
+    list.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return list;
+  }, [enrollmentRows, profilesMap]);
+
+  const auditLog = useMemo<AuditEntry[]>(() => {
+    const list = (auditRows ?? []).map((a: any) => ({
+      ...a,
+      targetName: profilesMap[a.target_user_id] || "Unknown",
+      actorName: profilesMap[a.acted_by] || "Admin",
+    }));
+    list.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return list.slice(0, 500);
+  }, [auditRows, profilesMap]);
+
+  const loading =
+    profilesLoading ||
+    recordRows === undefined ||
+    enrollmentRows === undefined ||
+    auditRows === undefined;
 
   const enrollFace = useCallback(async (targetUserId: string, dataUrl: string) => {
     try {
-      // Route through edge function so platform/super admins (who aren't tenant
-      // members) can enroll without hitting Storage or table RLS. The function
-      // uploads the selfie with service role, deactivates previous enrollments,
-      // and inserts the new row with the correct tenant_id.
       const { data, error } = await supabase.functions.invoke("manage-staff", {
         body: { action: "enroll_face", target_user_id: targetUserId, image_data_url: dataUrl },
       });
@@ -115,7 +134,6 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Not signed in"); return null; }
 
-    // Client-side sequencing pre-check (server enforces too)
     const last = lastForUser(user.id);
     if (kind === "check_in" && last?.kind === "check_in") {
       toast.error("You're already checked in. Check out first.");
@@ -152,28 +170,25 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
     const { data, error } = await supabase
       .from("attendance_records")
       .insert({
+        tenant_id: tenantId,
         user_id: user.id,
         kind,
         selfie_url: path,
         match_score: score,
         status: "verified",
-      })
+      } as any)
       .select()
       .single();
     if (error) { toast.error(error.message); return null; }
     toast.success(kind === "check_in" ? "Checked in" : "Checked out");
     return data as AttendanceRecord;
-  }, [lastForUser]);
+  }, [lastForUser, tenantId]);
 
-  // Assisted check-in/out by an admin/supervisor/manager. Server verifies the
-  // selfie against the TARGET user's enrolled face, uploads, and inserts the
-  // attendance record server-side (service role) in one call.
   const recordAttendanceFor = useCallback(async (
     targetUserId: string,
     kind: "check_in" | "check_out",
     selfieDataUrl: string,
   ) => {
-    // Client-side sequencing pre-check (server trigger enforces too)
     const last = lastForUser(targetUserId);
     if (kind === "check_in" && last?.kind === "check_in") {
       toast.error("Staff is already checked in. Check out first.");
@@ -225,18 +240,20 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
     const { data: rec, error } = await supabase
       .from("attendance_records")
       .insert({
+        tenant_id: tenantId,
         user_id: targetUserId,
         kind,
         selfie_url: null,
         match_score: null,
         status: "manual",
         notes: `Admin override: ${reason}`,
-      })
+      } as any)
       .select()
       .single();
     if (error) { toast.error(error.message); return null; }
 
     const { error: aErr } = await supabase.from("attendance_audit_log").insert({
+      tenant_id: tenantId,
       attendance_id: rec.id,
       target_user_id: targetUserId,
       acted_by: user.id,
@@ -244,11 +261,13 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
       reason: reason.trim(),
       original_score: originalScore,
       original_status: originalStatus,
-    });
+    } as any);
     if (aErr) { toast.error("Override saved but audit log failed: " + aErr.message); }
     else { toast.success("Manual override recorded"); }
     return rec as AttendanceRecord;
-  }, []);
+  }, [tenantId]);
+
+  const refetch = useCallback(async () => { await loadProfiles(); }, [loadProfiles]);
 
   return {
     records,
@@ -261,7 +280,7 @@ export function useAttendance(opts: { adminView?: boolean } = {}) {
     recordAttendanceFor,
     manualOverride,
     lastForUser,
-    refetch: fetchAll,
+    refetch,
   };
 }
 
@@ -272,7 +291,6 @@ export async function getSignedSelfieUrl(path: string, expiresIn = 300): Promise
   return data?.signedUrl || null;
 }
 
-// Batch sign multiple selfie paths (used by CSV export)
 export async function signSelfieUrls(paths: (string | null)[], expiresIn = 7 * 24 * 3600): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   await Promise.all(paths.filter(Boolean).map(async (p) => {
