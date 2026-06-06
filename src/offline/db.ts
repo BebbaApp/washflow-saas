@@ -48,7 +48,6 @@ export const MIRRORED_TABLES = [
   "inventory_items",
   "inventory_transactions",
   "inventory_categories",
-  "product_types",
   "suppliers",
   "loyalty_transactions",
   "shifts",
@@ -62,7 +61,6 @@ export const MIRRORED_TABLES = [
   "role_permissions",
   "user_roles",
   "tenant_members",
-  "tenants",
 ] as const;
 export type MirroredTable = (typeof MIRRORED_TABLES)[number];
 
