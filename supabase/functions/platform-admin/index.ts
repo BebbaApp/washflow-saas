@@ -65,6 +65,14 @@ const ActionSchema = z.discriminatedUnion("action", [
     from: z.string().optional(),
     to: z.string().optional(),
     tenant_id: z.string().uuid().optional() }),
+  z.object({ action: z.literal("history_orders"),
+    tenant_id: z.string().uuid(),
+    status: z.enum(["all", "completed", "cancelled"]).default("all"),
+    query: z.string().max(120).optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    offset: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(100).default(50) }),
   z.object({ action: z.literal("list_plans") }),
   z.object({ action: z.literal("upsert_plan"),
     id: z.string().uuid().optional(),
@@ -499,6 +507,22 @@ Deno.serve(async (req) => {
           expense_categories,
           series,
         });
+      }
+
+      case "history_orders": {
+        let q = admin.from("orders").select("*", { count: "exact" }).eq("tenant_id", body.tenant_id);
+        if (body.status === "all") q = q.in("status", ["completed", "cancelled"]);
+        else q = q.eq("status", body.status);
+        if (body.from) q = q.gte("created_at", new Date(`${body.from}T00:00:00.000Z`).toISOString());
+        if (body.to) q = q.lte("created_at", new Date(`${body.to}T23:59:59.999Z`).toISOString());
+        const term = (body.query ?? "").trim().replace(/[%,()]/g, " ").trim();
+        if (term) {
+          const like = `%${term}%`;
+          q = q.or(`customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`);
+        }
+        const { data, error, count } = await q.order("created_at", { ascending: false }).range(body.offset, body.offset + body.limit - 1);
+        if (error) return json({ error: error.message }, 500);
+        return json({ orders: data ?? [], count: count ?? 0 });
       }
 
       case "list_plans": {
