@@ -91,17 +91,17 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
 
   const stats = [
     {
-      label: "Today's Washes",
-      value: String(todayOrders.length),
-      sub: `${todayCompleted.length} completed`,
+      label: `Washes (${rangeLabel})`,
+      value: String(rangeOrders.length),
+      sub: `${rangeCompleted.length} completed`,
       icon: Car,
       iconBg: "bg-info/10",
       iconColor: "text-info",
     },
     {
-      label: "Revenue Today",
-      value: formatPrice(todayRevenue),
-      sub: `${todayCompleted.length} paid jobs`,
+      label: `Revenue (${rangeLabel})`,
+      value: formatPrice(rangeRevenue),
+      sub: `${rangeCompleted.length} paid jobs`,
       icon: DollarSign,
       iconBg: "bg-success/10",
       iconColor: "text-success",
