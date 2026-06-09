@@ -34,6 +34,8 @@ const TABLES_WITHOUT_UPDATED_AT = new Set<MirroredTable>([
   "shift_templates",
   "time_off_requests",
   "attendance_records",
+  "staff_face_enrollments",
+  "staff_pins",
   "user_roles",
   "tenant_members",
 ]);
