@@ -38,6 +38,11 @@ const TABLES_WITHOUT_UPDATED_AT = new Set<MirroredTable>([
   "staff_pins",
   "user_roles",
   "tenant_members",
+  "customers",
+  "expenses",
+  "expense_categories",
+  "inventory_categories",
+  "inventory_transactions",
 ]);
 
 const tableOrderColumn = (table: MirroredTable) => {

@@ -905,18 +905,24 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          theme_id: string | null
+          theme_mode: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           name?: string
+          theme_id?: string | null
+          theme_mode?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          theme_id?: string | null
+          theme_mode?: string | null
           user_id?: string
         }
         Relationships: []
@@ -1516,6 +1522,54 @@ export type Database = {
             foreignKeyName: "tenant_members_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_settings: {
+        Row: {
+          created_at: string
+          currency_code: string | null
+          currency_symbol: string | null
+          logo_data_url: string | null
+          tenant_id: string
+          updated_at: string
+          vat_enabled: boolean | null
+          vat_percent: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency_code?: string | null
+          currency_symbol?: string | null
+          logo_data_url?: string | null
+          tenant_id: string
+          updated_at?: string
+          vat_enabled?: boolean | null
+          vat_percent?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency_code?: string | null
+          currency_symbol?: string | null
+          logo_data_url?: string | null
+          tenant_id?: string
+          updated_at?: string
+          vat_enabled?: boolean | null
+          vat_percent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "platform_tenants_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
