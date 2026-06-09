@@ -785,6 +785,14 @@ function TransactionLog({
     [transactions, startTs, orderQuery]
   );
 
+  const totalPages = Math.max(1, Math.ceil(inRange.length / PAGE_SIZE));
+  const paged = useMemo(
+    () => inRange.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [inRange, page]
+  );
+
+  useEffect(() => { setPage(1); }, [range, itemFilter, orderQuery]);
+
   const selectedItem = itemFilter === "all" ? null : items.find((i) => i.id === itemFilter) ?? null;
   const itemUnit = selectedItem?.unit ?? "";
 
