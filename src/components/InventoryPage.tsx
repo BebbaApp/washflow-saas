@@ -768,6 +768,8 @@ function TransactionLog({
 }) {
   const [range, setRange] = useState<HistoryRange>("30d");
   const [orderQuery, setOrderQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 8;
   const startTs = rangeStart(range);
 
   const inRange = useMemo(
