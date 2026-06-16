@@ -178,13 +178,13 @@ export function AttendancePage() {
         const ok = await enrollFace(captureMode.targetUserId, dataUrl);
         if (ok) setCaptureMode(null);
       } else if (captureMode.kind === "check_in" || captureMode.kind === "check_out") {
-        const res = await recordAttendance(captureMode.kind, dataUrl);
-        if (res) setCaptureMode(null);
+        await recordAttendance(captureMode.kind, dataUrl);
+        setCaptureMode(null);
       } else if (captureMode.kind === "assist_check_in" || captureMode.kind === "assist_check_out") {
         if (!captureMode.targetUserId) return;
         const realKind = captureMode.kind === "assist_check_in" ? "check_in" : "check_out";
-        const res = await recordAttendanceFor(captureMode.targetUserId, realKind, dataUrl);
-        if (res) setCaptureMode(null);
+        await recordAttendanceFor(captureMode.targetUserId, realKind, dataUrl);
+        setCaptureMode(null);
       }
     } finally { setBusy(false); }
   };
