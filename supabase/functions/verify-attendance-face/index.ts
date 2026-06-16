@@ -174,6 +174,60 @@ Deno.serve(async (req) => {
     const score = Math.max(0, Math.min(100, Number(parsed.score ?? 0)));
     const isMatch = !!parsed.sameFace && score >= 70;
 
+    // Self check-in/out: if the UI sent a kind, write the attendance row here
+    // with service role so RLS/JWT tenant-claim drift cannot drop the clock event.
+    if (!isAssisted && isMatch && (kind === "check_in" || kind === "check_out")) {
+      let subjectTenantId = requestedTenantId;
+      if (subjectTenantId) {
+        const { data: scopedMember } = await admin
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("tenant_id", subjectTenantId)
+          .eq("user_id", subjectUserId)
+          .maybeSingle();
+        const { data: scopedRole } = await admin
+          .from("user_roles")
+          .select("tenant_id")
+          .eq("tenant_id", subjectTenantId)
+          .eq("user_id", subjectUserId)
+          .maybeSingle();
+        if (!scopedMember && !scopedRole) subjectTenantId = null;
+      }
+      if (!subjectTenantId) {
+        const { data: tm } = await admin
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("user_id", subjectUserId)
+          .limit(1)
+          .maybeSingle();
+        subjectTenantId = tm?.tenant_id || null;
+      }
+      if (!subjectTenantId) return json({ error: "tenant_not_resolved", score, isMatch }, 400);
+
+      const blob = await (await fetch(selfieDataUrl)).blob();
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const objectPath = `${subjectUserId}/${kind}-${Date.now()}.jpg`;
+      const { error: upErr } = await admin.storage
+        .from("attendance-selfies")
+        .upload(objectPath, buf, { contentType: "image/jpeg", upsert: false });
+      if (upErr) return json({ error: "upload_failed", detail: upErr.message }, 500);
+
+      const { data: rec, error: insErr } = await admin
+        .from("attendance_records")
+        .insert({
+          user_id: subjectUserId,
+          tenant_id: subjectTenantId,
+          kind,
+          selfie_url: objectPath,
+          match_score: score,
+          status: "verified",
+        })
+        .select()
+        .single();
+      if (insErr) return json({ error: insErr.message, score, isMatch }, 400);
+      return json({ score, isMatch, reason: parsed.reason || "", record: rec });
+    }
+
     // For assisted flow we ALSO upload + insert server-side so the manager
     // can perform the entire action in one round-trip and so RLS doesn't
     // block them from inserting on someone else's behalf. We also log every
