@@ -76,15 +76,17 @@ Deno.serve(async (req) => {
     const subjectUserId = isAssisted ? targetUserId! : caller.id;
     const requestedTenantId = typeof tenantId === "string" && tenantId.trim() ? tenantId.trim() : null;
 
-    // Look up active enrollment for the subject
-    const { data: enrol } = await admin
+    // Look up active enrollment for the subject, scoped to the current tenant
+    // when provided so multi-workspace users do not verify against old data.
+    let enrolQuery = admin
       .from("staff_face_enrollments")
       .select("image_url")
       .eq("user_id", subjectUserId)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    if (requestedTenantId) enrolQuery = enrolQuery.eq("tenant_id", requestedTenantId);
+    const { data: enrol } = await enrolQuery.maybeSingle();
 
     if (!enrol?.image_url) {
       return json({ error: "no_enrollment" }, 404);
