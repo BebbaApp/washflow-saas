@@ -163,19 +163,53 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Not signed in"); return null; }
 
-    const last = lastForUser(user.id);
-    if (kind === "check_in" && last?.kind === "check_in") {
-      toast.error("You're already checked in. Check out first.");
-      return null;
-    }
-    if (kind === "check_out" && (!last || last.kind === "check_out")) {
-      toast.error("You haven't checked in yet.");
-      return null;
-    }
-
     try {
+      // Resolve tenant_id before checking the last record so a stale Dexie mirror
+      // cannot block the correct next action for staff like Andre after capture.
+      let activeTenantId: string | null = tenantId;
+      if (!activeTenantId) {
+        const claim = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
+        if (claim) activeTenantId = claim;
+      }
+      if (!activeTenantId) {
+        const { data: tm } = await supabase
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+        activeTenantId = (tm as any)?.tenant_id ?? null;
+      }
+      if (!activeTenantId) {
+        toast.error("No active workspace selected. Open a tenant and try again.");
+        return null;
+      }
+
+      const { data: freshLast, error: lastErr } = await supabase
+        .from("attendance_records")
+        .select("*")
+        .eq("tenant_id", activeTenantId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastErr) {
+        console.warn("[attendance] last record lookup failed", lastErr);
+      }
+      const last = (freshLast as any) ?? lastForUser(user.id);
+      if (kind === "check_in" && last?.kind === "check_in") {
+        toast.error("You're already checked in. Check out first.");
+        if (freshLast) await cacheAttendanceRecord(freshLast);
+        return null;
+      }
+      if (kind === "check_out" && (!last || last.kind === "check_out")) {
+        toast.error("You haven't checked in yet.");
+        if (freshLast) await cacheAttendanceRecord(freshLast);
+        return null;
+      }
+
       const { data: verify, error: vErr } = await supabase.functions.invoke("verify-attendance-face", {
-        body: { selfieDataUrl },
+        body: { selfieDataUrl, kind, tenantId: activeTenantId },
       });
       if (vErr) {
         const msg = (vErr as any).message || String(vErr);
@@ -193,26 +227,6 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       const { score = 0, isMatch = false, reason = "" } = (verify || {}) as any;
       if (!isMatch) {
         toast.error(`Face did not match (score ${score}). ${reason || "Please retake or ask admin for override."}`);
-        return null;
-      }
-
-      // Resolve tenant_id robustly: hook value first, then JWT claim, then membership lookup.
-      let activeTenantId: string | null = tenantId;
-      if (!activeTenantId) {
-        const claim = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
-        if (claim) activeTenantId = claim;
-      }
-      if (!activeTenantId) {
-        const { data: tm } = await supabase
-          .from("tenant_members")
-          .select("tenant_id")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
-        activeTenantId = (tm as any)?.tenant_id ?? null;
-      }
-      if (!activeTenantId) {
-        toast.error("No active workspace selected. Open a tenant and try again.");
         return null;
       }
 
@@ -234,6 +248,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
         toast.error("Could not save attendance: " + error.message);
         return null;
       }
+      await cacheAttendanceRecord(data);
       toast.success(kind === "check_in" ? "Checked in" : "Checked out");
       return data as AttendanceRecord;
     } catch (e: any) {
