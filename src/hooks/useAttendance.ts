@@ -204,6 +204,10 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
           .maybeSingle();
         activeTenantId = (tm as any)?.tenant_id ?? null;
       }
+      if (!activeTenantId) {
+        toast.error("No active workspace selected. Open a tenant and try again.");
+        return null;
+      }
 
       const path = await uploadDataUrl(user.id, kind, selfieDataUrl);
       const { data, error } = await supabase
