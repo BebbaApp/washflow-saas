@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
     if (!caller) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
-    const { selfieDataUrl, targetUserId, kind } = body as {
-      selfieDataUrl?: string; targetUserId?: string; kind?: "check_in" | "check_out";
+    const { selfieDataUrl, targetUserId, kind, tenantId } = body as {
+      selfieDataUrl?: string; targetUserId?: string; kind?: "check_in" | "check_out"; tenantId?: string;
     };
     if (!selfieDataUrl || typeof selfieDataUrl !== "string") {
       return json({ error: "selfieDataUrl required" }, 400);
@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
     }
 
     const subjectUserId = isAssisted ? targetUserId! : caller.id;
+    const requestedTenantId = typeof tenantId === "string" && tenantId.trim() ? tenantId.trim() : null;
 
     // Look up active enrollment for the subject
     const { data: enrol } = await admin
@@ -192,14 +193,34 @@ Deno.serve(async (req) => {
         if (upErr) return json({ error: "upload_failed", detail: upErr.message }, 500);
         uploadedPath = objectPath;
 
-        // Resolve subject's tenant_id (service role bypasses RLS / JWT default)
-        const { data: tm } = await admin
-          .from("tenant_members")
-          .select("tenant_id")
-          .eq("user_id", subjectUserId)
-          .limit(1)
-          .maybeSingle();
-        const subjectTenantId = tm?.tenant_id || null;
+        // Resolve subject's tenant_id. Prefer the active tenant sent by the UI
+        // so assisted clock-out does not write Andre into an old workspace.
+        let subjectTenantId = requestedTenantId;
+        if (subjectTenantId) {
+          const { data: scopedMember } = await admin
+            .from("tenant_members")
+            .select("tenant_id")
+            .eq("tenant_id", subjectTenantId)
+            .eq("user_id", subjectUserId)
+            .maybeSingle();
+          const { data: scopedRole } = await admin
+            .from("user_roles")
+            .select("tenant_id")
+            .eq("tenant_id", subjectTenantId)
+            .eq("user_id", subjectUserId)
+            .maybeSingle();
+          if (!scopedMember && !scopedRole) subjectTenantId = null;
+        }
+        if (!subjectTenantId) {
+          const { data: tm } = await admin
+            .from("tenant_members")
+            .select("tenant_id")
+            .eq("user_id", subjectUserId)
+            .limit(1)
+            .maybeSingle();
+          subjectTenantId = tm?.tenant_id || null;
+        }
+        if (!subjectTenantId) return json({ error: "tenant_not_resolved", score, isMatch }, 400);
 
         const { data: rec, error: insErr } = await admin
           .from("attendance_records")
@@ -218,6 +239,7 @@ Deno.serve(async (req) => {
         recordId = rec.id;
 
         await admin.from("attendance_audit_log").insert({
+          tenant_id: subjectTenantId,
           attendance_id: recordId,
           target_user_id: subjectUserId,
           acted_by: caller.id,
@@ -231,6 +253,7 @@ Deno.serve(async (req) => {
       } else {
         // Failed assisted attempt — log it with no attendance record
         await admin.from("attendance_audit_log").insert({
+          tenant_id: requestedTenantId,
           attendance_id: null,
           target_user_id: subjectUserId,
           acted_by: caller.id,
