@@ -127,14 +127,17 @@ export function StaffCheckInPanel() {
     if (!captureMode) return;
     setBusy(true);
     try {
+      let res: any = null;
       if (captureMode.kind === "check_in" || captureMode.kind === "check_out") {
-        const res = await recordAttendance(captureMode.kind, dataUrl);
-        if (res) { setCaptureMode(null); await refetch(); }
+        res = await recordAttendance(captureMode.kind, dataUrl);
       } else if (captureMode.targetUserId) {
         const realKind = captureMode.kind === "assist_check_in" ? "check_in" : "check_out";
-        const res = await recordAttendanceFor(captureMode.targetUserId, realKind, dataUrl);
-        if (res) { setCaptureMode(null); await refetch(); }
+        res = await recordAttendanceFor(captureMode.targetUserId, realKind, dataUrl);
       }
+      // Always close the dialog so it never gets stuck; toast errors stay visible.
+      setCaptureMode(null);
+      await refetch();
+      return res;
     } finally { setBusy(false); }
   };
 

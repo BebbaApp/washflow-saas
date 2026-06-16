@@ -166,44 +166,70 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       return null;
     }
 
-    const { data: verify, error: vErr } = await supabase.functions.invoke("verify-attendance-face", {
-      body: { selfieDataUrl },
-    });
-    if (vErr) {
-      const msg = (vErr as any).message || String(vErr);
-      if (msg.includes("no_enrollment")) {
-        toast.error("No enrolled face. Ask an admin to enroll your face first.");
-      } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
-        toast.error("Face verification service is busy. Please try again in a few seconds.");
-      } else {
-        toast.error("Face verification failed: " + msg);
+    try {
+      const { data: verify, error: vErr } = await supabase.functions.invoke("verify-attendance-face", {
+        body: { selfieDataUrl },
+      });
+      if (vErr) {
+        const msg = (vErr as any).message || String(vErr);
+        console.error("[attendance] verify error", vErr);
+        if (msg.includes("no_enrollment")) {
+          toast.error("No enrolled face. Ask an admin to enroll your face first.");
+        } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
+          toast.error("Face verification service is busy. Please retake in a few seconds.");
+        } else {
+          toast.error("Face verification failed: " + msg);
+        }
+        return null;
       }
+
+      const { score = 0, isMatch = false, reason = "" } = (verify || {}) as any;
+      if (!isMatch) {
+        toast.error(`Face did not match (score ${score}). ${reason || "Please retake or ask admin for override."}`);
+        return null;
+      }
+
+      // Resolve tenant_id robustly: hook value first, then JWT claim, then membership lookup.
+      let activeTenantId: string | null = tenantId;
+      if (!activeTenantId) {
+        const claim = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
+        if (claim) activeTenantId = claim;
+      }
+      if (!activeTenantId) {
+        const { data: tm } = await supabase
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+        activeTenantId = (tm as any)?.tenant_id ?? null;
+      }
+
+      const path = await uploadDataUrl(user.id, kind, selfieDataUrl);
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .insert({
+          tenant_id: activeTenantId,
+          user_id: user.id,
+          kind,
+          selfie_url: path,
+          match_score: score,
+          status: "verified",
+        } as any)
+        .select()
+        .single();
+      if (error) {
+        console.error("[attendance] insert error", error);
+        toast.error("Could not save attendance: " + error.message);
+        return null;
+      }
+      toast.success(kind === "check_in" ? "Checked in" : "Checked out");
+      return data as AttendanceRecord;
+    } catch (e: any) {
+      console.error("[attendance] unexpected error", e);
+      toast.error("Attendance failed: " + (e?.message || String(e)));
       return null;
     }
-
-    const { score = 0, isMatch = false, reason = "" } = (verify || {}) as any;
-
-    if (!isMatch) {
-      toast.error(`Face did not match (score ${score}). ${reason || "Ask an admin for a manual override."}`);
-      return null;
-    }
-
-    const path = await uploadDataUrl(user.id, kind, selfieDataUrl);
-    const { data, error } = await supabase
-      .from("attendance_records")
-      .insert({
-        tenant_id: tenantId,
-        user_id: user.id,
-        kind,
-        selfie_url: path,
-        match_score: score,
-        status: "verified",
-      } as any)
-      .select()
-      .single();
-    if (error) { toast.error(error.message); return null; }
-    toast.success(kind === "check_in" ? "Checked in" : "Checked out");
-    return data as AttendanceRecord;
   }, [lastForUser, tenantId]);
 
   const recordAttendanceFor = useCallback(async (
