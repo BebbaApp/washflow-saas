@@ -224,10 +224,18 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
         return null;
       }
 
-      const { score = 0, isMatch = false, reason = "" } = (verify || {}) as any;
+      const { score = 0, isMatch = false, reason = "", record = null } = (verify || {}) as any;
       if (!isMatch) {
         toast.error(`Face did not match (score ${score}). ${reason || "Please retake or ask admin for override."}`);
         return null;
+      }
+
+      // Newer verify-attendance-face writes the clock event server-side and
+      // returns it. Cache immediately so the button flips to Check Out/In.
+      if (record?.id) {
+        await cacheAttendanceRecord(record);
+        toast.success(kind === "check_in" ? "Checked in" : "Checked out");
+        return record as AttendanceRecord;
       }
 
       const path = await uploadDataUrl(user.id, kind, selfieDataUrl);
