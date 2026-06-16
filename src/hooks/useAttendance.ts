@@ -263,7 +263,22 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     kind: "check_in" | "check_out",
     selfieDataUrl: string,
   ) => {
-    const last = lastForUser(targetUserId);
+    let last = lastForUser(targetUserId);
+    if (tenantId) {
+      const { data: freshLast, error: lastErr } = await supabase
+        .from("attendance_records")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastErr) console.warn("[attendance] assisted last record lookup failed", lastErr);
+      if (freshLast) {
+        await cacheAttendanceRecord(freshLast);
+        last = freshLast as any;
+      }
+    }
     if (kind === "check_in" && last?.kind === "check_in") {
       toast.error("Staff is already checked in. Check out first.");
       return null;
@@ -274,7 +289,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     }
 
     const { data, error } = await supabase.functions.invoke("verify-attendance-face", {
-      body: { selfieDataUrl, targetUserId, kind },
+      body: { selfieDataUrl, targetUserId, kind, tenantId },
     });
     if (error) {
       const msg = (error as any).message || String(error);
@@ -292,9 +307,10 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       toast.error(`Face did not match (score ${score}). ${reason || "Use manual override if needed."}`);
       return null;
     }
+    if (record) await cacheAttendanceRecord(record);
     toast.success(`${kind === "check_in" ? "Checked in" : "Checked out"} (score ${score})`);
     return record as AttendanceRecord;
-  }, [lastForUser]);
+  }, [lastForUser, tenantId]);
 
   const manualOverride = useCallback(async (params: {
     targetUserId: string;
