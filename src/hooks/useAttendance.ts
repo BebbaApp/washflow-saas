@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useLiveTable } from "@/offline/useLiveTable";
+import { db } from "@/offline/db";
 
 export interface AttendanceRecord {
   id: string;
+  tenant_id?: string;
   user_id: string;
   kind: "check_in" | "check_out";
   selfie_url: string | null;
@@ -39,6 +41,11 @@ export interface AuditEntry {
 }
 
 const BUCKET = "attendance-selfies";
+
+async function cacheAttendanceRecord(record: any) {
+  if (!record?.id || !record?.tenant_id) return;
+  await db.attendance_records.put({ ...record, _dirty: 0 });
+}
 
 async function uploadDataUrl(userId: string, kind: string, dataUrl: string): Promise<string> {
   const blob = await (await fetch(dataUrl)).blob();
