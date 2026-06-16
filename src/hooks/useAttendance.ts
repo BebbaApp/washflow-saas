@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useLiveTable } from "@/offline/useLiveTable";
+import { db } from "@/offline/db";
 
 export interface AttendanceRecord {
   id: string;
+  tenant_id?: string;
   user_id: string;
   kind: "check_in" | "check_out";
   selfie_url: string | null;
@@ -39,6 +41,11 @@ export interface AuditEntry {
 }
 
 const BUCKET = "attendance-selfies";
+
+async function cacheAttendanceRecord(record: any) {
+  if (!record?.id || !record?.tenant_id) return;
+  await db.attendance_records.put({ ...record, _dirty: 0 });
+}
 
 async function uploadDataUrl(userId: string, kind: string, dataUrl: string): Promise<string> {
   const blob = await (await fetch(dataUrl)).blob();
@@ -156,40 +163,9 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Not signed in"); return null; }
 
-    const last = lastForUser(user.id);
-    if (kind === "check_in" && last?.kind === "check_in") {
-      toast.error("You're already checked in. Check out first.");
-      return null;
-    }
-    if (kind === "check_out" && (!last || last.kind === "check_out")) {
-      toast.error("You haven't checked in yet.");
-      return null;
-    }
-
     try {
-      const { data: verify, error: vErr } = await supabase.functions.invoke("verify-attendance-face", {
-        body: { selfieDataUrl },
-      });
-      if (vErr) {
-        const msg = (vErr as any).message || String(vErr);
-        console.error("[attendance] verify error", vErr);
-        if (msg.includes("no_enrollment")) {
-          toast.error("No enrolled face. Ask an admin to enroll your face first.");
-        } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
-          toast.error("Face verification service is busy. Please retake in a few seconds.");
-        } else {
-          toast.error("Face verification failed: " + msg);
-        }
-        return null;
-      }
-
-      const { score = 0, isMatch = false, reason = "" } = (verify || {}) as any;
-      if (!isMatch) {
-        toast.error(`Face did not match (score ${score}). ${reason || "Please retake or ask admin for override."}`);
-        return null;
-      }
-
-      // Resolve tenant_id robustly: hook value first, then JWT claim, then membership lookup.
+      // Resolve tenant_id before checking the last record so a stale Dexie mirror
+      // cannot block the correct next action for staff like Andre after capture.
       let activeTenantId: string | null = tenantId;
       if (!activeTenantId) {
         const claim = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
@@ -207,6 +183,59 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       if (!activeTenantId) {
         toast.error("No active workspace selected. Open a tenant and try again.");
         return null;
+      }
+
+      const { data: freshLast, error: lastErr } = await supabase
+        .from("attendance_records")
+        .select("*")
+        .eq("tenant_id", activeTenantId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastErr) {
+        console.warn("[attendance] last record lookup failed", lastErr);
+      }
+      const last = (freshLast as any) ?? lastForUser(user.id);
+      if (kind === "check_in" && last?.kind === "check_in") {
+        toast.error("You're already checked in. Check out first.");
+        if (freshLast) await cacheAttendanceRecord(freshLast);
+        return null;
+      }
+      if (kind === "check_out" && (!last || last.kind === "check_out")) {
+        toast.error("You haven't checked in yet.");
+        if (freshLast) await cacheAttendanceRecord(freshLast);
+        return null;
+      }
+
+      const { data: verify, error: vErr } = await supabase.functions.invoke("verify-attendance-face", {
+        body: { selfieDataUrl, kind, tenantId: activeTenantId },
+      });
+      if (vErr) {
+        const msg = (vErr as any).message || String(vErr);
+        console.error("[attendance] verify error", vErr);
+        if (msg.includes("no_enrollment")) {
+          toast.error("No enrolled face. Ask an admin to enroll your face first.");
+        } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
+          toast.error("Face verification service is busy. Please retake in a few seconds.");
+        } else {
+          toast.error("Face verification failed: " + msg);
+        }
+        return null;
+      }
+
+      const { score = 0, isMatch = false, reason = "", record = null } = (verify || {}) as any;
+      if (!isMatch) {
+        toast.error(`Face did not match (score ${score}). ${reason || "Please retake or ask admin for override."}`);
+        return null;
+      }
+
+      // Newer verify-attendance-face writes the clock event server-side and
+      // returns it. Cache immediately so the button flips to Check Out/In.
+      if (record?.id) {
+        await cacheAttendanceRecord(record);
+        toast.success(kind === "check_in" ? "Checked in" : "Checked out");
+        return record as AttendanceRecord;
       }
 
       const path = await uploadDataUrl(user.id, kind, selfieDataUrl);
@@ -227,6 +256,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
         toast.error("Could not save attendance: " + error.message);
         return null;
       }
+      await cacheAttendanceRecord(data);
       toast.success(kind === "check_in" ? "Checked in" : "Checked out");
       return data as AttendanceRecord;
     } catch (e: any) {
@@ -241,7 +271,22 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     kind: "check_in" | "check_out",
     selfieDataUrl: string,
   ) => {
-    const last = lastForUser(targetUserId);
+    let last = lastForUser(targetUserId);
+    if (tenantId) {
+      const { data: freshLast, error: lastErr } = await supabase
+        .from("attendance_records")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastErr) console.warn("[attendance] assisted last record lookup failed", lastErr);
+      if (freshLast) {
+        await cacheAttendanceRecord(freshLast);
+        last = freshLast as any;
+      }
+    }
     if (kind === "check_in" && last?.kind === "check_in") {
       toast.error("Staff is already checked in. Check out first.");
       return null;
@@ -252,7 +297,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     }
 
     const { data, error } = await supabase.functions.invoke("verify-attendance-face", {
-      body: { selfieDataUrl, targetUserId, kind },
+      body: { selfieDataUrl, targetUserId, kind, tenantId },
     });
     if (error) {
       const msg = (error as any).message || String(error);
@@ -270,9 +315,10 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       toast.error(`Face did not match (score ${score}). ${reason || "Use manual override if needed."}`);
       return null;
     }
+    if (record) await cacheAttendanceRecord(record);
     toast.success(`${kind === "check_in" ? "Checked in" : "Checked out"} (score ${score})`);
     return record as AttendanceRecord;
-  }, [lastForUser]);
+  }, [lastForUser, tenantId]);
 
   const manualOverride = useCallback(async (params: {
     targetUserId: string;
