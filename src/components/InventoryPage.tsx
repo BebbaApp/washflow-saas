@@ -407,7 +407,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {
                           const unitLabel = item.unit ? ` ${item.unit}` : "";
-                          const fmtQty = (n: number) => `${n}${unitLabel}`;
+                          const fmtQty = (n: number) => `${Number(n).toFixed(2)}${unitLabel}`;
                           return (
                             <>
                               {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
