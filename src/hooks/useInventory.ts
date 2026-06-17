@@ -364,6 +364,14 @@ export function useInventory() {
   }, [items, tenantId, createRestockExpense]);
 
   const deleteItem = useCallback(async (id: string) => {
+    // Optimistically remove from the local Dexie mirror so the UI updates
+    // immediately. Realtime DELETE payloads often omit tenant_id (REPLICA
+    // IDENTITY DEFAULT only carries the primary key), which can prevent the
+    // central sync from applying the delete via its tenant_id filter.
+    try {
+      const { db } = await import("@/offline/db");
+      await db.inventory_items.delete(id);
+    } catch { /* ignore — server delete still authoritative */ }
     await supabase.from("inventory_items" as any).delete().eq("id", id);
   }, []);
 
