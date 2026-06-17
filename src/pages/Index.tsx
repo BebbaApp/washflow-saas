@@ -37,6 +37,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
+import { MobileBottomNav, type BottomNavItem } from "@/components/MobileBottomNav";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
@@ -237,12 +238,12 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border p-4">
+      <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border p-4">
         {renderSidebarBody()}
       </aside>
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between gap-2">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center overflow-hidden shrink-0">
             {logo ? (
@@ -270,7 +271,7 @@ const Index = () => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-card pt-16 px-4 pb-4 flex flex-col">
+        <div className="lg:hidden fixed inset-0 z-40 bg-card pt-16 px-4 pb-4 flex flex-col">
           {renderSidebarBody(() => setMobileMenuOpen(false))}
           {can("queue.create") && (
             <button
@@ -285,9 +286,9 @@ const Index = () => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 md:pt-0 pt-16 overflow-auto">
+      <main className="flex-1 lg:pt-0 pt-16 overflow-auto">
         {/* Top Nav Bar */}
-        <div className="hidden md:flex sticky top-0 z-30 h-14 items-center justify-between gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
+        <div className="hidden lg:flex sticky top-0 z-30 h-14 items-center justify-between gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-semibold text-foreground truncate" title={workspaceName}>{workspaceName}</span>
             {tenant?.status === "trialing" && daysUntilTrialEnd !== null && (
@@ -449,15 +450,27 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Mobile FAB */}
-      {can("queue.create") && (
-        <button
-          onClick={() => setNewOrderOpen(true)}
-          className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg"
-        >
-          <Plus className="w-6 h-6" />
-        </button>
-      )}
+      {/* Mobile + Tablet bottom navigation (iOS-style with center FAB) */}
+      {(() => {
+        const desiredPrimary = ["queue", "history", "loyalty", "staff"];
+        const primaryItems: BottomNavItem[] = desiredPrimary
+          .map((id) => navItems.find((n) => n.id === id))
+          .filter((n): n is typeof navItems[number] => !!n)
+          .map((n) => ({ id: n.id, label: n.label, icon: n.icon }));
+        const overflowItems: BottomNavItem[] = navItems
+          .filter((n) => !desiredPrimary.includes(n.id))
+          .map((n) => ({ id: n.id, label: n.label, icon: n.icon }));
+        return (
+          <MobileBottomNav
+            primary={primaryItems}
+            overflow={overflowItems}
+            activeId={activeTab}
+            onSelect={setActiveTab}
+            onNewOrder={() => setNewOrderOpen(true)}
+            showNewOrder={can("queue.create")}
+          />
+        );
+      })()}
 
       <NewOrderDialog open={newOrderOpen} onOpenChange={setNewOrderOpen} onSubmit={addOrder} />
 
