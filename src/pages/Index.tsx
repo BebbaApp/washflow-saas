@@ -37,6 +37,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
+import { MobileBottomNav, type BottomNavItem } from "@/components/MobileBottomNav";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
