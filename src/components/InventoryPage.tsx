@@ -407,7 +407,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {
                           const unitLabel = item.unit ? ` ${item.unit}` : "";
-                          const fmtQty = (n: number) => `${n}${unitLabel}`;
+                          const fmtQty = (n: number) => `${Number(n).toFixed(2)}${unitLabel}`;
                           return (
                             <>
                               {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
@@ -931,7 +931,7 @@ function TransactionLog({
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-foreground">Quantity over time</p>
             <p className="text-[11px] text-muted-foreground">
-              Current balance: <span className="font-mono text-foreground">{selectedItem.quantity}{itemUnit ? ` ${itemUnit}` : ""}</span>
+              Current balance: <span className="font-mono text-foreground">{Number(selectedItem.quantity).toFixed(2)}{itemUnit ? ` ${itemUnit}` : ""}</span>
             </p>
           </div>
           {chartData.length < 2 ? (
@@ -1159,7 +1159,7 @@ function ThresholdsDialog({
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 mt-2">
           <p className="text-xs text-muted-foreground">
-            Current stock: <span className="font-mono text-foreground">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
+            Current stock: <span className="font-mono text-foreground">{Number(item.quantity).toFixed(2)}{item.unit ? ` ${item.unit}` : ""}</span>
           </p>
           <div className="space-y-2">
             <Label className="text-sm text-secondary-foreground">Alert at (low-stock badge){item.unit ? ` (${item.unit})` : ""}</Label>
@@ -1366,7 +1366,7 @@ function AdjustStockDialog({
   const storageUnit = item?.unit ?? "";
   const altUnits = useMemo(() => (storageUnit ? compatibleUnits(storageUnit) : []), [storageUnit]);
   const hasUnitChoice = altUnits.length > 1;
-  const fmtQty = (n: number) => `${n}${storageUnit ? ` ${storageUnit}` : ""}`;
+  const fmtQty = (n: number) => `${Number(n).toFixed(2)}${storageUnit ? ` ${storageUnit}` : ""}`;
 
   const parsedEntry = Number(qty);
   const entryValid = Number.isFinite(parsedEntry) && parsedEntry > 0;
@@ -1392,7 +1392,7 @@ function AdjustStockDialog({
         : !notesValid
           ? `Notes must be ${NOTES_MAX} characters or fewer`
           : overRemoval
-            ? `Cannot remove more than current stock (${item!.quantity}${storageUnit ? ` ${storageUnit}` : ""})`
+            ? `Cannot remove more than current stock (${Number(item!.quantity).toFixed(2)}${storageUnit ? ` ${storageUnit}` : ""})`
             : null;
 
   const handlePrimary = (e: React.FormEvent) => {
@@ -1579,10 +1579,10 @@ function RecipeImpactPreview({
                   {r.item?.name ?? "Unknown item"}
                 </span>
                 <span className="font-mono text-muted-foreground shrink-0">
-                  −{r.total}{r.item?.unit ? ` ${r.item.unit}` : ""}
+                  −{Number(r.total).toFixed(2)}{r.item?.unit ? ` ${r.item.unit}` : ""}
                   {r.item && (
                     <span className={`ml-2 ${tone}`}>
-                      → {r.negative ? `${r.after}` : displayed}{r.item.unit ? ` ${r.item.unit}` : ""}
+                      → {Number(r.negative ? r.after : displayed).toFixed(2)}{r.item.unit ? ` ${r.item.unit}` : ""}
                       {r.negative && " ⚠"}
                     </span>
                   )}

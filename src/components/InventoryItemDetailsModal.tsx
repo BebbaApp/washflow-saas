@@ -63,23 +63,23 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Current</p>
               <p className={`text-2xl font-bold ${isLow ? "text-destructive" : "text-foreground"}`}>
-                {item.quantity}
+                {Number(item.quantity).toFixed(2)}
               </p>
               <p className="text-[11px] text-muted-foreground">{item.unit}</p>
             </div>
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Threshold</p>
-              <p className="text-2xl font-bold text-foreground">{item.threshold}</p>
+              <p className="text-2xl font-bold text-foreground">{Number(item.threshold).toFixed(2)}</p>
               <p className="text-[11px] text-muted-foreground">{item.unit}</p>
             </div>
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Consumed</p>
-              <p className="text-2xl font-bold text-foreground">{consumed}</p>
+              <p className="text-2xl font-bold text-foreground">{Number(consumed).toFixed(2)}</p>
               <p className="text-[11px] text-muted-foreground">all-time</p>
             </div>
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Restocked</p>
-              <p className="text-2xl font-bold text-foreground">{restocked}</p>
+              <p className="text-2xl font-bold text-foreground">{Number(restocked).toFixed(2)}</p>
               <p className="text-[11px] text-muted-foreground">{adjustments} adjustments</p>
             </div>
           </div>
@@ -100,7 +100,7 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                     <Tooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                      formatter={(v: number) => [`${v} ${item.unit}`, "Balance"]}
+                      formatter={(v: number) => [`${Number(v).toFixed(2)} ${item.unit}`, "Balance"]}
                     />
                     <ReferenceLine y={item.threshold} stroke="hsl(var(--destructive))" strokeDasharray="4 4" label={{ value: "Threshold", fill: "hsl(var(--destructive))", fontSize: 11, position: "insideTopLeft" }} />
                     <Line type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
@@ -147,9 +147,9 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                             {t.notes && <span className="text-muted-foreground"> · {t.notes}</span>}
                           </td>
                           <td className={`px-4 py-2 text-right font-semibold ${t.delta < 0 ? "text-destructive" : "text-success"}`}>
-                            {t.delta > 0 ? `+${t.delta}` : t.delta}
+                            {t.delta > 0 ? `+${Number(t.delta).toFixed(2)}` : Number(t.delta).toFixed(2)}
                           </td>
-                          <td className="px-4 py-2 text-right font-semibold text-foreground">{t.balance}</td>
+                          <td className="px-4 py-2 text-right font-semibold text-foreground">{Number(t.balance).toFixed(2)}</td>
                         </tr>
                       );
                     })}
