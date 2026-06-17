@@ -271,7 +271,7 @@ const Index = () => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-card pt-16 px-4 pb-4 flex flex-col">
+        <div className="lg:hidden fixed inset-0 z-40 bg-card pt-16 px-4 pb-4 flex flex-col">
           {renderSidebarBody(() => setMobileMenuOpen(false))}
           {can("queue.create") && (
             <button
