@@ -67,31 +67,31 @@ export function MobileBottomNav({
       <div className="lg:hidden h-24" aria-hidden />
 
       <nav
-        className="lg:hidden fixed bottom-3 left-3 right-3 z-40"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40"
         aria-label="Primary"
       >
-        <div className="relative mx-auto max-w-md rounded-2xl bg-card/95 backdrop-blur border border-border shadow-[0_8px_30px_rgba(0,0,0,0.12)] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative w-full bg-card/95 backdrop-blur border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.12)] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-end justify-between gap-1">
             <div className="flex flex-1 justify-around">
               {left.map(renderTab)}
             </div>
 
             {/* Center FAB slot */}
-            <div className="flex-shrink-0 w-16 flex justify-center">
+            <div className="flex-shrink-0 w-16 md:w-20 flex justify-center">
               {showNewOrder ? (
                 <button
                   onClick={onNewOrder}
                   aria-label="New Wash Order"
-                  className="-mt-7 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg ring-4 ring-background active:scale-95 transition-transform"
+                  className="-mt-7 md:-mt-8 w-14 h-14 md:w-16 md:h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg ring-4 ring-background active:scale-95 transition-transform"
                   style={{
                     backgroundImage:
                       "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.85) 100%)",
                   }}
                 >
-                  <Plus className="w-7 h-7" strokeWidth={2.5} />
+                  <Plus className="w-7 h-7 md:w-8 md:h-8" strokeWidth={2.5} />
                 </button>
               ) : (
-                <div className="w-14 h-14" />
+                <div className="w-14 h-14 md:w-16 md:h-16" />
               )}
             </div>
 
@@ -101,11 +101,11 @@ export function MobileBottomNav({
                 <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
                   <SheetTrigger asChild>
                     <button
-                      className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 py-1.5 md:py-2.5 text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="More"
                     >
-                      <MoreHorizontal className="w-5 h-5" />
-                      <span className="text-[10px] leading-none font-medium">More</span>
+                      <MoreHorizontal className="w-5 h-5 md:w-6 md:h-6" />
+                      <span className="text-[10px] md:text-xs leading-none font-medium">More</span>
                     </button>
                   </SheetTrigger>
                   <SheetContent side="bottom" className="rounded-t-2xl bg-card border-border">
