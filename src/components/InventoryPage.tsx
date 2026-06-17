@@ -915,11 +915,11 @@ function TransactionLog({
           <p className="text-[11px] text-muted-foreground">{summary.count} transactions</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <SummaryStat label="Added" value={`+${summary.added}${itemUnit ? ` ${itemUnit}` : ""}`} tone="success" />
-          <SummaryStat label="Removed" value={`−${summary.removed}${itemUnit ? ` ${itemUnit}` : ""}`} tone="destructive" />
+          <SummaryStat label="Added" value={`+${Number(summary.added).toFixed(2)}${itemUnit ? ` ${itemUnit}` : ""}`} tone="success" />
+          <SummaryStat label="Removed" value={`−${Number(summary.removed).toFixed(2)}${itemUnit ? ` ${itemUnit}` : ""}`} tone="destructive" />
           <SummaryStat
             label="Net change"
-            value={`${summary.net >= 0 ? "+" : ""}${summary.net}${itemUnit ? ` ${itemUnit}` : ""}`}
+            value={`${summary.net >= 0 ? "+" : ""}${Number(summary.net).toFixed(2)}${itemUnit ? ` ${itemUnit}` : ""}`}
             tone={summary.net >= 0 ? "success" : "destructive"}
           />
         </div>
