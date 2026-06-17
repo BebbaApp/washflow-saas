@@ -185,8 +185,8 @@ function WorkersSection() {
   const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
   const [togglingActive, setTogglingActive] = useState<string | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
-  type Compensation = { pay_type: "salary" | "wage" | "hourly"; base_rate: number; category_rates: Record<string, number> };
-  const emptyComp = (): Compensation => ({ pay_type: "salary", base_rate: 0, category_rates: {} });
+  type Compensation = { pay_type: "salary" | "wage" | "hourly"; base_rate: number; busy_day_rate: number; quiet_day_rate: number };
+  const emptyComp = (): Compensation => ({ pay_type: "salary", base_rate: 0, busy_day_rate: 0, quiet_day_rate: 0 });
   const [compMap, setCompMap] = useState<Record<string, Compensation>>({});
   const [savingComp, setSavingComp] = useState<string | null>(null);
 
@@ -285,16 +285,16 @@ function WorkersSection() {
     const m: Record<string, boolean> = {};
     (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
     setActiveMap(m);
-    // Load compensation settings
-    const { data: compRows } = await (supabase as any)
-      .from("staff_compensation")
-      .select("user_id,pay_type,base_rate,category_rates");
+    // Load compensation settings from the staff function so platform admins can
+    // manage the active workspace without requiring tenant_members rows.
+    const compRows = res.data.compensation_rows ?? [];
     const cm: Record<string, Compensation> = {};
     (compRows || []).forEach((r: any) => {
       cm[r.user_id] = {
         pay_type: (r.pay_type ?? "salary") as Compensation["pay_type"],
         base_rate: Number(r.base_rate ?? 0),
-        category_rates: (r.category_rates && typeof r.category_rates === "object") ? r.category_rates : {},
+        busy_day_rate: Number(r.busy_day_rate ?? 0),
+        quiet_day_rate: Number(r.quiet_day_rate ?? 0),
       };
     });
     setCompMap(cm);
@@ -304,37 +304,25 @@ function WorkersSection() {
   const updateCompLocal = (userId: string, patch: Partial<Compensation>) => {
     setCompMap((m) => ({ ...m, [userId]: { ...(m[userId] ?? emptyComp()), ...patch } }));
   };
-  const updateCategoryRate = (userId: string, category: string, value: number) => {
-    setCompMap((m) => {
-      const cur = m[userId] ?? emptyComp();
-      const rates = { ...cur.category_rates };
-      if (!Number.isFinite(value) || value === 0) delete rates[category];
-      else rates[category] = value;
-      return { ...m, [userId]: { ...cur, category_rates: rates } };
-    });
-  };
   const saveCompensation = async (u: StaffUser) => {
     if (!tenant?.id) return;
     setSavingComp(u.id);
     const cur = compMap[u.id] ?? emptyComp();
-    const { data: { user: caller } } = await supabase.auth.getUser();
-    const { error } = await (supabase as any)
-      .from("staff_compensation")
-      .upsert(
-        {
-          tenant_id: tenant.id,
-          user_id: u.id,
-          pay_type: cur.pay_type,
-          base_rate: cur.base_rate,
-          category_rates: cur.category_rates,
-          updated_at: new Date().toISOString(),
-          updated_by: caller?.id ?? null,
-        },
-        { onConflict: "tenant_id,user_id" }
-      );
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "save_compensation",
+        tenant_id: tenant.id,
+        user_id: u.id,
+        pay_type: cur.pay_type,
+        base_rate: cur.base_rate,
+        busy_day_rate: cur.busy_day_rate,
+        quiet_day_rate: cur.quiet_day_rate,
+      },
+    });
     setSavingComp(null);
-    if (error) {
-      toast({ title: "Could not save", description: error.message, variant: "destructive" });
+    if (res.error || res.data?.error) {
+      const info = await extractFnError(res);
+      toast({ title: "Could not save", description: fnErrorDescription(info), variant: "destructive" });
       return;
     }
     toast({ title: "Compensation saved" });
@@ -618,7 +606,7 @@ function WorkersSection() {
                         })}
                       </div>
 
-                      <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="grid sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">{payTypeLabel}</Label>
                           <Input
@@ -630,27 +618,31 @@ function WorkersSection() {
                             className="bg-secondary border-border"
                           />
                         </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Rate per vehicle category (for remuneration calculation)</Label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                          {VEHICLES.map((v) => (
-                            <div key={v} className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">{v}</Label>
-                              <Input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={comp.category_rates[v] ?? ""}
-                                placeholder="0"
-                                onChange={(e) => updateCategoryRate(u.id, v, parseFloat(e.target.value))}
-                                className="bg-secondary border-border h-9"
-                              />
-                            </div>
-                          ))}
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Busy-day bonus (≥ 20 vehicles/day)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={comp.busy_day_rate}
+                            onChange={(e) => updateCompLocal(u.id, { busy_day_rate: parseFloat(e.target.value) || 0 })}
+                            className="bg-secondary border-border"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Quiet-day adjustment (&lt; 10 vehicles/day)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={comp.quiet_day_rate}
+                            onChange={(e) => updateCompLocal(u.id, { quiet_day_rate: parseFloat(e.target.value) || 0 })}
+                            className="bg-secondary border-border"
+                          />
                         </div>
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Busy/quiet adjustments are added per qualifying day on top of salary, daily wage, or hourly pay.
+                      </p>
+
 
                       <div className="flex justify-end">
                         <button

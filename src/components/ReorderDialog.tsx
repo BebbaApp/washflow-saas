@@ -77,7 +77,7 @@ export function ReorderDialog({ item, onOpenChange }: Props) {
   };
 
   const unitLabel = item.unit ? ` ${item.unit}` : "";
-  const fmtQty = (n: number) => `${n}${unitLabel}`;
+  const fmtQty = (n: number) => `${Number(n).toFixed(2)}${unitLabel}`;
 
   return (
     <Dialog open={!!item} onOpenChange={onOpenChange}>

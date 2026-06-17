@@ -3,12 +3,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-rebuilt-2026-05-29-global-admin-precedence";
+const FUNCTION_VERSION = "manage-staff-2026-06-05-face-enroll-service-upload";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "delete", "resend_verification"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,6 +55,10 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     set_role: "update_role",
     change_role: "update_role",
 
+    save_compensation: "save_compensation",
+    set_compensation: "save_compensation",
+    upsert_compensation: "save_compensation",
+
     delete: "delete",
     delete_user: "delete",
     remove_user: "delete",
@@ -63,12 +67,25 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     send_verification: "resend_verification",
     resend_confirmation: "resend_verification",
     send_confirmation_email: "resend_verification",
+
+    enroll_face: "enroll_face",
+    face_enroll: "enroll_face",
+    save_face: "enroll_face",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
   if (body?.user_id && body?.pin) return "set_pin";
   if (body?.user_id && body?.role && !body?.pin) return "update_role";
   return "";
+}
+
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; contentType: string } {
+  const match = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) throw new Error("Invalid enrollment image");
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return { bytes, contentType: match[1] || "image/jpeg" };
 }
 
 async function resolveCallerTenantId(
@@ -169,13 +186,14 @@ Deno.serve(async (req) => {
       const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (error) return reply({ error: error.message }, 500);
       const ids = list.users.map((u) => u.id);
-      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }, { data: compensationRows }] = await Promise.all([
         admin.from("profiles").select("user_id,name").in("user_id", ids),
         admin.from("user_roles").select("user_id,role").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("staff_pins").select("user_id,phone").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("platform_admins").select("user_id").in("user_id", ids),
         admin.from("super_admins").select("user_id").in("user_id", ids),
+        admin.from("staff_compensation").select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate").eq("tenant_id", tenantId),
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
@@ -233,7 +251,7 @@ Deno.serve(async (req) => {
           created_at: u.created_at,
         };
       });
-      return reply({ users });
+      return reply({ users, compensation_rows: compensationRows ?? [] });
     }
 
     if (action === "set_pin") {
@@ -288,6 +306,78 @@ Deno.serve(async (req) => {
       const { error } = await admin
         .from("user_roles")
         .insert({ user_id, role, tenant_id: tenantId });
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
+    }
+
+    if (action === "save_compensation") {
+      const { user_id } = body ?? {};
+      const payType = String(body?.pay_type ?? "salary");
+      if (!user_id || !["salary", "wage", "hourly"].includes(payType)) {
+        return reply({ error: "Invalid compensation input" }, 400);
+      }
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+      const amount = (value: unknown) => {
+        const n = Number(value ?? 0);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const { error } = await admin
+        .from("staff_compensation")
+        .upsert(
+          {
+            tenant_id: tenantId,
+            user_id,
+            pay_type: payType,
+            base_rate: amount(body?.base_rate),
+            busy_day_rate: amount(body?.busy_day_rate),
+            quiet_day_rate: amount(body?.quiet_day_rate),
+            updated_at: new Date().toISOString(),
+            updated_by: callerId,
+          },
+          { onConflict: "tenant_id,user_id" },
+        );
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
+    }
+
+    if (action === "enroll_face") {
+      const { target_user_id } = body ?? {};
+      const imageDataUrl = body?.image_data_url;
+      if (!target_user_id || !imageDataUrl) {
+        return reply({ error: "Missing target_user_id or image_data_url" }, 400);
+      }
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", target_user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+      const { bytes, contentType } = dataUrlToBytes(String(imageDataUrl));
+      const ext = contentType.includes("png") ? "png" : "jpg";
+      const image_url = `${target_user_id}/enroll-${Date.now()}.${ext}`;
+      const { error: uploadError } = await admin.storage
+        .from("attendance-selfies")
+        .upload(image_url, bytes, { contentType, upsert: false });
+      if (uploadError) return reply({ error: uploadError.message }, 500);
+      await admin
+        .from("staff_face_enrollments")
+        .update({ is_active: false })
+        .eq("user_id", target_user_id)
+        .eq("tenant_id", tenantId);
+      const { error } = await admin.from("staff_face_enrollments").insert({
+        tenant_id: tenantId,
+        user_id: target_user_id,
+        image_url,
+        enrolled_by: callerId,
+        is_active: true,
+      });
       if (error) return reply({ error: error.message }, 500);
       return reply({ success: true });
     }

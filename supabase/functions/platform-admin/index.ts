@@ -65,6 +65,15 @@ const ActionSchema = z.discriminatedUnion("action", [
     from: z.string().optional(),
     to: z.string().optional(),
     tenant_id: z.string().uuid().optional() }),
+  z.object({ action: z.literal("history_orders"),
+    tenant_id: z.string().uuid(),
+    status: z.enum(["all", "completed", "cancelled"]).default("all"),
+    cancelled_reason: z.enum(["all", "with", "without"]).default("all"),
+    query: z.string().max(120).optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    offset: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(100).default(50) }),
   z.object({ action: z.literal("list_plans") }),
   z.object({ action: z.literal("upsert_plan"),
     id: z.string().uuid().optional(),
@@ -401,8 +410,10 @@ Deno.serve(async (req) => {
       }
 
       case "platform_overview": {
-        const from = body.from ? new Date(body.from).toISOString() : new Date(Date.now() - 30 * 86_400_000).toISOString();
-        const to = body.to ? new Date(body.to).toISOString() : new Date().toISOString();
+        const fromDate = body.from ? new Date(`${body.from}T00:00:00.000Z`) : new Date(Date.now() - 30 * 86_400_000);
+        const toDate = body.to ? new Date(`${body.to}T23:59:59.999Z`) : new Date();
+        const from = fromDate.toISOString();
+        const to = toDate.toISOString();
 
         let ordersQ = admin.from("orders")
           .select("id, tenant_id, service, service_price, status, created_at, completed_at")
@@ -416,11 +427,20 @@ Deno.serve(async (req) => {
           .gte("date", from).lte("date", to).limit(10000);
         if (body.tenant_id) expensesQ = expensesQ.eq("tenant_id", body.tenant_id);
 
+        let membersQ = admin.from("tenant_members").select("*", { count: "exact", head: true });
+        let tenantsQ = admin.from("tenants").select("*", { count: "exact", head: true });
+        let invoicesQ = admin.from("invoices").select("tenant_id, amount_cents, currency, status, paid_at, created_at")
+          .gte("created_at", from).lte("created_at", to).limit(10000);
+        if (body.tenant_id) {
+          membersQ = membersQ.eq("tenant_id", body.tenant_id);
+          tenantsQ = tenantsQ.eq("id", body.tenant_id);
+          invoicesQ = invoicesQ.eq("tenant_id", body.tenant_id);
+        }
+
         const [{ count: memberCount }, { count: tenantCount }, { data: invoices }, { data: expenses }] = await Promise.all([
-          admin.from("tenant_members").select("*", { count: "exact", head: true }),
-          admin.from("tenants").select("*", { count: "exact", head: true }),
-          admin.from("invoices").select("tenant_id, amount_cents, currency, status, paid_at, created_at")
-            .gte("created_at", from).lte("created_at", to).limit(10000),
+          membersQ,
+          tenantsQ,
+          invoicesQ,
           expensesQ,
         ]);
 
@@ -488,6 +508,26 @@ Deno.serve(async (req) => {
           expense_categories,
           series,
         });
+      }
+
+      case "history_orders": {
+        let q = admin.from("orders").select("*", { count: "exact" }).eq("tenant_id", body.tenant_id);
+        if (body.status === "all") q = q.in("status", ["completed", "cancelled"]);
+        else q = q.eq("status", body.status);
+        if (body.status === "cancelled" && body.cancelled_reason !== "all") {
+          if (body.cancelled_reason === "with") q = q.ilike("notes", "%[CANCELLED%");
+          else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
+        }
+        if (body.from) q = q.gte("created_at", new Date(`${body.from}T00:00:00.000Z`).toISOString());
+        if (body.to) q = q.lte("created_at", new Date(`${body.to}T23:59:59.999Z`).toISOString());
+        const term = (body.query ?? "").trim().replace(/[%,()]/g, " ").trim();
+        if (term) {
+          const like = `%${term}%`;
+          q = q.or(`customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`);
+        }
+        const { data, error, count } = await q.order("created_at", { ascending: false }).range(body.offset, body.offset + body.limit - 1);
+        if (error) return json({ error: error.message }, 500);
+        return json({ orders: data ?? [], count: count ?? 0 });
       }
 
       case "list_plans": {

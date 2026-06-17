@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getDefaultReceiptSettings, type ReceiptSettings } from "@/lib/thermalPrinter";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-
-const STORAGE_PREFIX = "aquawash-receipt-settings"; // per-tenant local cache
+import { useLiveTable } from "@/offline/useLiveTable";
 
 type Row = {
   tenant_id: string;
@@ -21,100 +20,39 @@ function rowToSettings(row: Row): ReceiptSettings {
   };
 }
 
-function cacheKey(tenantId: string | null) {
-  return tenantId ? `${STORAGE_PREFIX}:${tenantId}` : null;
-}
-
-function loadCache(tenantId: string | null): ReceiptSettings {
-  const key = cacheKey(tenantId);
-  if (!key) return getDefaultReceiptSettings();
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return getDefaultReceiptSettings();
-    return { ...getDefaultReceiptSettings(), ...JSON.parse(raw) };
-  } catch {
-    return getDefaultReceiptSettings();
-  }
-}
-
-function writeCache(tenantId: string | null, s: ReceiptSettings) {
-  const key = cacheKey(tenantId);
-  if (!key) return;
-  try { localStorage.setItem(key, JSON.stringify(s)); } catch {}
-}
-
 /**
- * Per-tenant receipt settings (`public.receipt_settings`, PK tenant_id).
- * LocalStorage mirrors the active-tenant value for instant render and
- * offline tolerance. Realtime updates broadcast to other tabs/devices.
+ * Per-tenant receipt settings. Reads from the Dexie mirror so the form
+ * renders instantly and stays in sync with realtime updates from other
+ * tabs/devices. Writes go through Supabase; the sync engine reflects them
+ * back into Dexie.
  */
 export function useReceiptSettings() {
   const { tenant } = useTenant();
   const tenantId = tenant?.id ?? null;
+  const rows = useLiveTable<Row & { id: string }>(tenantId, "receipt_settings");
 
-  const [settings, setSettings] = useState<ReceiptSettings>(() => loadCache(tenantId));
-  const [status, setStatus] = useState<"idle" | "loading" | "saving" | "error">("loading");
+  const fromMirror = useMemo<ReceiptSettings>(() => {
+    const row = (rows ?? [])[0];
+    return row ? rowToSettings(row) : getDefaultReceiptSettings();
+  }, [rows]);
+
+  const [settings, setSettings] = useState<ReceiptSettings>(fromMirror);
+  const [status, setStatus] = useState<"idle" | "loading" | "saving" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingPatch = useRef<Partial<ReceiptSettings>>({});
+  const dirty = useRef(false);
 
-  // Re-hydrate cache + fetch when active tenant changes
+  // Adopt the latest mirrored value whenever we don't have unflushed local edits.
   useEffect(() => {
-    setSettings(loadCache(tenantId));
-    if (!tenantId) { setStatus("idle"); return; }
-    let cancelled = false;
-    setStatus("loading");
-    (async () => {
-      try {
-        const { data, error: err } = await (supabase as any)
-          .from("receipt_settings")
-          .select("tenant_id, business_name, business_line2, footer, updated_at")
-          .eq("tenant_id", tenantId)
-          .maybeSingle();
-        if (cancelled) return;
-        if (err) throw err;
-        if (data) {
-          const next = rowToSettings(data as Row);
-          setSettings(next);
-          writeCache(tenantId, next);
-        }
-        setStatus("idle");
-        setError(null);
-      } catch (e: any) {
-        if (!cancelled) {
-          setStatus("error");
-          setError(e?.message || "Could not load receipt settings");
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [tenantId]);
-
-  // Realtime subscription (per tenant)
-  useEffect(() => {
-    if (!tenantId) return;
-    const chanName = `receipt_settings_${tenantId}_${Math.random().toString(36).slice(2, 8)}`;
-    const ch = (supabase as any)
-      .channel(chanName)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "receipt_settings", filter: `tenant_id=eq.${tenantId}` },
-        (payload: any) => {
-          const row = payload?.new as Row | undefined;
-          if (!row) return;
-          const next = rowToSettings(row);
-          setSettings(next);
-          writeCache(tenantId, next);
-        },
-      )
-      .subscribe();
-    return () => { (supabase as any).removeChannel(ch); };
-  }, [tenantId]);
+    if (!dirty.current) setSettings(fromMirror);
+  }, [fromMirror]);
 
   const flush = useCallback(async () => {
     if (!tenantId) return;
     const patch = pendingPatch.current;
     pendingPatch.current = {};
+    dirty.current = false;
     if (Object.keys(patch).length === 0) return;
     setStatus("saving");
     try {
@@ -135,24 +73,21 @@ export function useReceiptSettings() {
   }, [tenantId]);
 
   const update = useCallback((patch: Partial<ReceiptSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      writeCache(tenantId, next);
-      return next;
-    });
+    dirty.current = true;
+    setSettings((prev) => ({ ...prev, ...patch }));
     pendingPatch.current = { ...pendingPatch.current, ...patch };
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => { flush(); }, 600);
-  }, [flush, tenantId]);
+  }, [flush]);
 
   const reset = useCallback(async () => {
     const def = getDefaultReceiptSettings();
+    dirty.current = true;
     setSettings(def);
-    writeCache(tenantId, def);
     pendingPatch.current = { ...def };
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     await flush();
-  }, [flush, tenantId]);
+  }, [flush]);
 
   return { settings, update, reset, status, error };
 }

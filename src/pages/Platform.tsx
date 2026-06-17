@@ -12,6 +12,7 @@ import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import { ConsolePlans } from "@/components/platform/ConsolePlans";
 import { UserMenu } from "@/components/UserMenu";
 import { HeaderClock } from "@/components/HeaderClock";
+import { SyncStatusPill } from "@/components/SyncStatusPill";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
@@ -108,6 +109,7 @@ export default function Platform() {
           <header className="sticky top-0 z-30 h-14 bg-card/80 backdrop-blur border-b border-border flex items-center gap-3 px-4">
             <SidebarTrigger />
             <h1 className="text-sm font-semibold text-foreground">{activeLabel}</h1>
+            <SyncStatusPill className="hidden sm:inline-flex" />
             <div className="flex-1" />
             <UserMenu showAppLink />
             <HeaderClock />

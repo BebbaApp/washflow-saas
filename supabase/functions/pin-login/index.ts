@@ -61,17 +61,23 @@ Deno.serve(async (req) => {
     let rec: { user_id: string; pin_hash: string } | null = null;
 
     if (isEmail) {
-      // Find the auth user by email, then look up their PIN row.
-      // listUsers paginates; we search exhaustively across the first few pages.
+      // Look up the auth user directly via the auth schema (service role bypasses RLS).
+      // This is far more reliable than paginating listUsers across thousands of users.
       const target = rawId.toLowerCase();
-      let foundUserId: string | null = null;
-      for (let page = 1; page <= 10 && !foundUserId; page++) {
-        const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-        if (error) break;
-        const hit = data.users.find((u) => (u.email ?? "").toLowerCase() === target);
-        if (hit) foundUserId = hit.id;
-        if (data.users.length < 200) break;
+      const authAdmin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        { db: { schema: "auth" as any } }
+      );
+      const { data: userRow, error: userErr } = await authAdmin
+        .from("users" as any)
+        .select("id, email")
+        .ilike("email", target)
+        .maybeSingle();
+      if (userErr) {
+        console.error("pin-login: auth.users lookup failed", userErr);
       }
+      const foundUserId = (userRow as any)?.id ?? null;
       if (foundUserId) {
         const { data } = await admin
           .from("staff_pins")

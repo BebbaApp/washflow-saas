@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { useLiveTable } from "@/offline/useLiveTable";
 import { CONCENTRATES, WATER, matchVehicle } from "@/lib/vehicleUsage";
 import { convertUnits, canConvert } from "@/lib/unitConversions";
+
 
 export const INVENTORY_CATEGORIES = ["Soap", "Wax", "Towels", "Chemicals", "Tools", "Other"] as const;
 export type InventoryCategory = string;
@@ -123,9 +125,27 @@ export function useInventory() {
   const { user } = useAuth();
   const tenantId = tenant?.id ?? null;
 
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Items + transactions come from the Dexie mirror (kept in sync by the
+  // central sync engine), so screens render instantly and work offline.
+  const itemRows = useLiveTable<any>(tenantId, "inventory_items");
+  const txRows = useLiveTable<any>(tenantId, "inventory_transactions");
+
+  const items = useMemo<InventoryItem[]>(() => {
+    const list = (itemRows ?? []).map(rowToItem);
+    const sortKey = new Map((itemRows ?? []).map((r: any) => [r.id, r?.created_at ?? r?.id ?? ""]));
+    list.sort((a, b) => {
+      const ka = sortKey.get(a.id) ?? "";
+      const kb = sortKey.get(b.id) ?? "";
+      return ka < kb ? 1 : -1;
+    });
+    return list;
+  }, [itemRows]);
+
+  const transactions = useMemo<InventoryTransaction[]>(() => {
+    const list = (txRows ?? []).map(rowToTx);
+    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return list.slice(0, 1000);
+  }, [txRows]);
 
   // localStorage-only state (still client-side for this pass)
   const [recipes, setRecipes] = useState<RecipeMap>(() => lsLoad(RECIPE_KEY, {} as RecipeMap));
@@ -137,19 +157,19 @@ export function useInventory() {
   // ---- Defaults: inventory category -> expense category ----
   const [categoryDefaults, setCategoryDefaults] = useState<Record<string, string>>({});
 
+  const [auxLoading, setAuxLoading] = useState(true);
+  const loading = auxLoading || itemRows === undefined || txRows === undefined;
+
   const WATER_KEY = "__water__";
 
+  // Defaults + vehicle map aren't in the local mirror yet — keep fetching them.
   const fetchAll = useCallback(async () => {
-    if (!tenantId) { setItems([]); setTransactions([]); setLoading(false); return; }
-    setLoading(true);
-    const [itemsRes, txRes, defRes, mapRes] = await Promise.all([
-      supabase.from("inventory_items" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
-      supabase.from("inventory_transactions" as any).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(1000),
+    if (!tenantId) { setAuxLoading(false); return; }
+    setAuxLoading(true);
+    const [defRes, mapRes] = await Promise.all([
       supabase.from("inventory_category_defaults" as any).select("category, expense_category").eq("tenant_id", tenantId),
       supabase.from("inventory_vehicle_map" as any).select("key, item_id").eq("tenant_id", tenantId),
     ]);
-    setItems(((itemsRes.data as any[]) ?? []).map(rowToItem));
-    setTransactions(((txRes.data as any[]) ?? []).map(rowToTx));
     const defs: Record<string, string> = {};
     for (const d of (defRes.data as any[]) ?? []) defs[d.category] = d.expense_category;
     setCategoryDefaults(defs);
@@ -163,7 +183,7 @@ export function useInventory() {
     setWaterItemIdState(water);
     lsSave(VEHICLE_MAP_KEY, map);
     lsSave(WATER_ITEM_KEY, water);
-    setLoading(false);
+    setAuxLoading(false);
   }, [tenantId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -171,9 +191,7 @@ export function useInventory() {
   useEffect(() => {
     if (!tenantId) return;
     const ch = supabase
-      .channel(`inventory_${tenantId}_${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_items", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_transactions", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
+      .channel(`inventory_aux_${tenantId}_${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_category_defaults", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_vehicle_map", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
       .subscribe();
@@ -346,6 +364,14 @@ export function useInventory() {
   }, [items, tenantId, createRestockExpense]);
 
   const deleteItem = useCallback(async (id: string) => {
+    // Optimistically remove from the local Dexie mirror so the UI updates
+    // immediately. Realtime DELETE payloads often omit tenant_id (REPLICA
+    // IDENTITY DEFAULT only carries the primary key), which can prevent the
+    // central sync from applying the delete via its tenant_id filter.
+    try {
+      const { db } = await import("@/offline/db");
+      await db.inventory_items.delete(id);
+    } catch { /* ignore — server delete still authoritative */ }
     await supabase.from("inventory_items" as any).delete().eq("id", id);
   }, []);
 

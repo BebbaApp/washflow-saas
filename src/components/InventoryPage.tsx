@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw } from "lucide-react";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -407,7 +407,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {(() => {
                           const unitLabel = item.unit ? ` ${item.unit}` : "";
-                          const fmtQty = (n: number) => `${n}${unitLabel}`;
+                          const fmtQty = (n: number) => `${Number(n).toFixed(2)}${unitLabel}`;
                           return (
                             <>
                               {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
@@ -768,6 +768,8 @@ function TransactionLog({
 }) {
   const [range, setRange] = useState<HistoryRange>("30d");
   const [orderQuery, setOrderQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 8;
   const startTs = rangeStart(range);
 
   const inRange = useMemo(
@@ -782,6 +784,14 @@ function TransactionLog({
     }),
     [transactions, startTs, orderQuery]
   );
+
+  const totalPages = Math.max(1, Math.ceil(inRange.length / PAGE_SIZE));
+  const paged = useMemo(
+    () => inRange.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [inRange, page]
+  );
+
+  useEffect(() => { setPage(1); }, [range, itemFilter, orderQuery]);
 
   const selectedItem = itemFilter === "all" ? null : items.find((i) => i.id === itemFilter) ?? null;
   const itemUnit = selectedItem?.unit ?? "";
@@ -905,11 +915,11 @@ function TransactionLog({
           <p className="text-[11px] text-muted-foreground">{summary.count} transactions</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <SummaryStat label="Added" value={`+${summary.added}${itemUnit ? ` ${itemUnit}` : ""}`} tone="success" />
-          <SummaryStat label="Removed" value={`−${summary.removed}${itemUnit ? ` ${itemUnit}` : ""}`} tone="destructive" />
+          <SummaryStat label="Added" value={`+${Number(summary.added).toFixed(2)}${itemUnit ? ` ${itemUnit}` : ""}`} tone="success" />
+          <SummaryStat label="Removed" value={`−${Number(summary.removed).toFixed(2)}${itemUnit ? ` ${itemUnit}` : ""}`} tone="destructive" />
           <SummaryStat
             label="Net change"
-            value={`${summary.net >= 0 ? "+" : ""}${summary.net}${itemUnit ? ` ${itemUnit}` : ""}`}
+            value={`${summary.net >= 0 ? "+" : ""}${Number(summary.net).toFixed(2)}${itemUnit ? ` ${itemUnit}` : ""}`}
             tone={summary.net >= 0 ? "success" : "destructive"}
           />
         </div>
@@ -921,7 +931,7 @@ function TransactionLog({
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-foreground">Quantity over time</p>
             <p className="text-[11px] text-muted-foreground">
-              Current balance: <span className="font-mono text-foreground">{selectedItem.quantity}{itemUnit ? ` ${itemUnit}` : ""}</span>
+              Current balance: <span className="font-mono text-foreground">{Number(selectedItem.quantity).toFixed(2)}{itemUnit ? ` ${itemUnit}` : ""}</span>
             </p>
           </div>
           {chartData.length < 2 ? (
@@ -1000,52 +1010,79 @@ function TransactionLog({
           </p>
         </div>
       ) : (
-        <div className="glass-card divide-y divide-border">
-          {inRange.map((t) => {
-            const positive = t.delta > 0;
-            const tone = positive ? "text-success" : "text-destructive";
-            const bg = positive ? "bg-success/10" : "bg-destructive/10";
-            const rowItem = items.find((i) => i.id === t.itemId);
-            return (
-              <div key={t.id} className="flex items-center gap-4 p-4">
-                <div className={`w-10 h-10 rounded-lg ${bg} ${tone} flex items-center justify-center shrink-0 font-mono font-bold text-sm`}>
-                  {positive ? "+" : "−"}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-foreground truncate">{t.itemName}</p>
-                    <span className="text-xs text-muted-foreground">· {t.source}</span>
-                    <FlowBadge flow={t.flow} />
+        <div className="space-y-2">
+          <div className="glass-card divide-y divide-border">
+            {paged.map((t) => {
+              const positive = t.delta > 0;
+              const tone = positive ? "text-success" : "text-destructive";
+              const bg = positive ? "bg-success/10" : "bg-destructive/10";
+              const rowItem = items.find((i) => i.id === t.itemId);
+              return (
+                <div key={t.id} className="flex items-center gap-4 p-4">
+                  <div className={`w-10 h-10 rounded-lg ${bg} ${tone} flex items-center justify-center shrink-0 font-mono font-bold text-sm`}>
+                    {positive ? "+" : "−"}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(t.createdAt).toLocaleString()} · balance {t.balance}
-                    {t.notes ? ` · ${t.notes}` : ""}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-foreground truncate">{t.itemName}</p>
+                      <span className="text-xs text-muted-foreground">· {t.source}</span>
+                      <FlowBadge flow={t.flow} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(t.createdAt).toLocaleString()} · balance {t.balance}
+                      {t.notes ? ` · ${t.notes}` : ""}
+                    </p>
+                  </div>
+                  <p className={`text-sm font-mono font-semibold ${tone} shrink-0`}>
+                    {positive ? "+" : ""}{t.delta}
                   </p>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => rowItem && onAdjust(rowItem, "add")}
+                      disabled={!rowItem}
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Add stock to this item"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => rowItem && onAdjust(rowItem, "remove")}
+                      disabled={!rowItem || rowItem.quantity <= 0}
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Remove stock from this item"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <p className={`text-sm font-mono font-semibold ${tone} shrink-0`}>
-                  {positive ? "+" : ""}{t.delta}
-                </p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => rowItem && onAdjust(rowItem, "add")}
-                    disabled={!rowItem}
-                    className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Add stock to this item"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => rowItem && onAdjust(rowItem, "remove")}
-                    disabled={!rowItem || rowItem.quantity <= 0}
-                    className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Remove stock from this item"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              );
+            })}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-1">
+              <p className="text-xs text-muted-foreground">
+                Page {page} of {totalPages} · {inRange.length} transactions
+              </p>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1122,7 +1159,7 @@ function ThresholdsDialog({
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 mt-2">
           <p className="text-xs text-muted-foreground">
-            Current stock: <span className="font-mono text-foreground">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
+            Current stock: <span className="font-mono text-foreground">{Number(item.quantity).toFixed(2)}{item.unit ? ` ${item.unit}` : ""}</span>
           </p>
           <div className="space-y-2">
             <Label className="text-sm text-secondary-foreground">Alert at (low-stock badge){item.unit ? ` (${item.unit})` : ""}</Label>
@@ -1329,7 +1366,7 @@ function AdjustStockDialog({
   const storageUnit = item?.unit ?? "";
   const altUnits = useMemo(() => (storageUnit ? compatibleUnits(storageUnit) : []), [storageUnit]);
   const hasUnitChoice = altUnits.length > 1;
-  const fmtQty = (n: number) => `${n}${storageUnit ? ` ${storageUnit}` : ""}`;
+  const fmtQty = (n: number) => `${Number(n).toFixed(2)}${storageUnit ? ` ${storageUnit}` : ""}`;
 
   const parsedEntry = Number(qty);
   const entryValid = Number.isFinite(parsedEntry) && parsedEntry > 0;
@@ -1355,7 +1392,7 @@ function AdjustStockDialog({
         : !notesValid
           ? `Notes must be ${NOTES_MAX} characters or fewer`
           : overRemoval
-            ? `Cannot remove more than current stock (${item!.quantity}${storageUnit ? ` ${storageUnit}` : ""})`
+            ? `Cannot remove more than current stock (${Number(item!.quantity).toFixed(2)}${storageUnit ? ` ${storageUnit}` : ""})`
             : null;
 
   const handlePrimary = (e: React.FormEvent) => {
@@ -1542,10 +1579,10 @@ function RecipeImpactPreview({
                   {r.item?.name ?? "Unknown item"}
                 </span>
                 <span className="font-mono text-muted-foreground shrink-0">
-                  −{r.total}{r.item?.unit ? ` ${r.item.unit}` : ""}
+                  −{Number(r.total).toFixed(2)}{r.item?.unit ? ` ${r.item.unit}` : ""}
                   {r.item && (
                     <span className={`ml-2 ${tone}`}>
-                      → {r.negative ? `${r.after}` : displayed}{r.item.unit ? ` ${r.item.unit}` : ""}
+                      → {Number(r.negative ? r.after : displayed).toFixed(2)}{r.item.unit ? ` ${r.item.unit}` : ""}
                       {r.negative && " ⚠"}
                     </span>
                   )}

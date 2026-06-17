@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, DollarSign, ShoppingCart, Users, Building2, Download, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ export function ConsoleDashboard() {
   const [to, setTo] = useState(isoDate(new Date()));
   const [tenantId, setTenantId] = useState<string>("all");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const body: any = { action: "platform_overview", from, to };
     if (tenantId !== "all") body.tenant_id = tenantId;
@@ -53,7 +53,7 @@ export function ConsoleDashboard() {
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
     else setData(res as Overview);
     setLoading(false);
-  };
+  }, [from, to, tenantId, toast]);
 
   useEffect(() => {
     supabase.from("tenants" as any).select("id, name").order("name")
@@ -63,9 +63,31 @@ export function ConsoleDashboard() {
         const c = (data as any)?.settings?.currency;
         if (c) setCurrency(c);
       });
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-refresh: re-run the platform overview when filters change, when the
+  // tab regains focus, and on a 60s heartbeat so the console reflects new
+  // data captured by tenants without requiring a manual reload.
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    const id = setInterval(load, 30_000);
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(id); };
+  }, [load]);
+
+  useEffect(() => {
+    const tables = ["orders", "expenses", "invoices", "tenant_members", "tenants"];
+    const ch = supabase.channel(`platform-console-live-${crypto.randomUUID()}`);
+    tables.forEach((table) => {
+      ch.on("postgres_changes", { event: "*", schema: "public", table }, () => load());
+    });
+    ch.subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [load]);
 
   // Load configured categories for the selected tenant (used to enrich the breakdown).
   useEffect(() => {

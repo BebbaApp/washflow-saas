@@ -1,30 +1,12 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.aumsoft.washflow',
-  appName: 'Washflow',
+  appId: 'app.lovable.56a6b51363a94eb0b33f9062db90a8bc',
+  appName: 'Washflow Saas',
   webDir: 'dist',
-  // No server.url = uses bundled dist/ assets (offline-first UI)
-  // Supabase API calls still go online as normal
-  plugins: {
-    SplashScreen: {
-      launchShowDuration: 2000,
-      backgroundColor: '#0f1319',
-      showSpinner: false,
-    },
-    StatusBar: {
-      style: 'Dark',
-      backgroundColor: '#0f1319',
-    },
-  },
-  android: {
-    allowMixedContent: true,
-    captureInput: true,
-    webContentsDebuggingEnabled: false,
-  },
-  ios: {
-    contentInset: 'automatic',
-    scrollEnabled: true,
+  server: {
+    url: 'https://56a6b513-63a9-4eb0-b33f-9062db90a8bc.lovableproject.com?forceHideBadge=true',
+    cleartext: true,
   },
 };
 

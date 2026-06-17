@@ -15,6 +15,14 @@ interface DashboardOverviewProps {
 }
 
 type TabKey = "overview" | "inventory";
+type RangeKey = "today" | "week" | "month" | "custom";
+
+const RANGE_OPTIONS: { id: RangeKey; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "week", label: "This Week" },
+  { id: "month", label: "This Month" },
+  { id: "custom", label: "Custom" },
+];
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -22,55 +30,104 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
   const { formatPrice } = useCurrency();
   const { eligibleOrderIds } = useRewardEligibility(orders);
   const [tab, setTab] = useState<TabKey>("overview");
+  const [range, setRange] = useState<RangeKey>("today");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
+  const { rangeStart, rangeEnd, rangeLabel } = useMemo(() => {
+    const now = new Date();
+    const end = now.getTime();
+    if (range === "today") {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      return { rangeStart: s, rangeEnd: end, rangeLabel: "Today" };
+    }
+    if (range === "week") {
+      const d = new Date(now);
+      const day = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - day);
+      d.setHours(0, 0, 0, 0);
+      return { rangeStart: d.getTime(), rangeEnd: end, rangeLabel: "This week" };
+    }
+    if (range === "month") {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      return { rangeStart: s, rangeEnd: end, rangeLabel: "This month" };
+    }
+    const s = customStart ? new Date(customStart + "T00:00:00").getTime() : 0;
+    const e = customEnd ? new Date(customEnd + "T23:59:59").getTime() : end;
+    return { rangeStart: s, rangeEnd: e, rangeLabel: "Custom" };
+  }, [range, customStart, customEnd]);
 
-  const todayOrders = orders.filter((o) => new Date(o.createdAt) >= today);
-  const todayCompleted = todayOrders.filter((o) => o.status === "completed");
-  const todayRevenue = todayCompleted.reduce((s, o) => s + o.servicePrice, 0);
+  const rangeOrders = orders.filter((o) => {
+    const t = new Date(o.createdAt).getTime();
+    return t >= rangeStart && t <= rangeEnd;
+  });
+  const rangeCompleted = rangeOrders.filter((o) => o.status === "completed");
+  const rangeRevenue = rangeCompleted.reduce((s, o) => s + o.servicePrice, 0);
   const inQueue = orders.filter((o) => o.status === "waiting").length;
   const activeNow = orders.filter((o) => o.status === "in-progress");
   const activeJobs = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
 
-  const revenueLast7Days = useMemo(() => {
+  const { revenueSeries, chartTitle } = useMemo(() => {
+    const completed = orders.filter((o) => o.status === "completed");
+    const spanMs = Math.max(0, rangeEnd - rangeStart);
+    const dayMs = 86_400_000;
+    if (range === "today") {
+      const buckets: { day: string; revenue: number }[] = [];
+      for (let h = 7; h <= 18; h++) {
+        const start = new Date(rangeStart);
+        start.setHours(h, 0, 0, 0);
+        const end = new Date(start);
+        end.setHours(h + 1, 0, 0, 0);
+        const rev = completed
+          .filter((o) => {
+            const t = new Date(o.completedAt ?? o.createdAt).getTime();
+            return t >= start.getTime() && t < end.getTime();
+          })
+          .reduce((s, o) => s + o.servicePrice, 0);
+        buckets.push({ day: `${(h % 12) || 12}${h >= 12 ? "p" : "a"}`, revenue: rev });
+      }
+      return { revenueSeries: buckets, chartTitle: "Revenue (Today, hourly)" };
+    }
+    const start = new Date(rangeStart);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(rangeEnd);
+    end.setHours(0, 0, 0, 0);
     const buckets: { day: string; revenue: number }[] = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      d.setHours(0, 0, 0, 0);
-      const next = new Date(d);
-      next.setDate(d.getDate() + 1);
-      const dayRevenue = orders
-        .filter((o) => o.status === "completed")
+    const cursor = new Date(start);
+    let safety = 0;
+    while (cursor.getTime() <= end.getTime() && safety < 400) {
+      const next = new Date(cursor);
+      next.setDate(cursor.getDate() + 1);
+      const rev = completed
         .filter((o) => {
-          const od = new Date(o.completedAt ?? o.createdAt);
-          return od >= d && od < next;
+          const t = new Date(o.completedAt ?? o.createdAt).getTime();
+          return t >= cursor.getTime() && t < next.getTime();
         })
         .reduce((s, o) => s + o.servicePrice, 0);
-      buckets.push({ day: DAYS[d.getDay()], revenue: dayRevenue });
+      const label = spanMs > 31 * dayMs
+        ? cursor.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        : `${DAYS[cursor.getDay()]} ${cursor.getDate()}`;
+      buckets.push({ day: label, revenue: rev });
+      cursor.setDate(cursor.getDate() + 1);
+      safety++;
     }
-    return buckets;
-  }, [orders]);
+    return { revenueSeries: buckets, chartTitle: `Revenue (${rangeLabel})` };
+  }, [orders, rangeStart, rangeEnd, range, rangeLabel]);
 
   const stats = [
     {
-      label: "Today's Washes",
-      value: String(todayOrders.length),
-      sub: `${todayCompleted.length} completed`,
+      label: `Washes (${rangeLabel})`,
+      value: String(rangeOrders.length),
+      sub: `${rangeCompleted.length} completed`,
       icon: Car,
       iconBg: "bg-info/10",
       iconColor: "text-info",
     },
     {
-      label: "Revenue Today",
-      value: formatPrice(todayRevenue),
-      sub: `${todayCompleted.length} paid jobs`,
+      label: `Revenue (${rangeLabel})`,
+      value: formatPrice(rangeRevenue),
+      sub: `${rangeCompleted.length} paid jobs`,
       icon: DollarSign,
       iconBg: "bg-success/10",
       iconColor: "text-success",
@@ -122,6 +179,42 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
         <InventoryTrendsPanel />
       ) : (
         <>
+      {/* Range filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border">
+          {RANGE_OPTIONS.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setRange(r.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                range === r.id
+                  ? "bg-card text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        {range === "custom" && (
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+            />
+            <span className="text-muted-foreground text-xs">to</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="px-2 py-1 rounded-md bg-secondary border border-border text-foreground text-xs"
+            />
+          </div>
+        )}
+      </div>
+
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {stats.map((s) => (
@@ -141,10 +234,10 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
       {/* Chart + active jobs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="glass-card p-6 lg:col-span-2">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Revenue (Last 7 Days)</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-4">{chartTitle}</h3>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueLast7Days} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <AreaChart data={revenueSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
