@@ -48,13 +48,13 @@ export function MobileBottomNav({
       <button
         key={item.id}
         onClick={() => onSelect(item.id)}
-        className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 py-1.5 transition-colors ${
+        className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 py-1.5 md:py-2.5 transition-colors ${
           isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
         }`}
         aria-label={item.label}
       >
-        <item.icon className={`w-5 h-5 ${isActive ? "stroke-[2.5]" : ""}`} />
-        <span className={`text-[10px] leading-none truncate max-w-full ${isActive ? "font-semibold" : "font-medium"}`}>
+        <item.icon className={`w-5 h-5 md:w-6 md:h-6 ${isActive ? "stroke-[2.5]" : ""}`} />
+        <span className={`text-[10px] md:text-xs leading-none truncate max-w-full ${isActive ? "font-semibold" : "font-medium"}`}>
           {item.label}
         </span>
       </button>
