@@ -1,11 +1,19 @@
 const { app, BrowserWindow, Menu, Tray, shell, nativeImage } = require('electron');
 const path = require('path');
 
+// Fix ICU data path for packaged Windows app
+if (process.platform === 'win32') {
+  try {
+    const icuPath = path.join(process.resourcesPath, 'icudtl.dat');
+    app.commandLine.appendSwitch('icu-data-dir', path.dirname(icuPath));
+  } catch (e) {
+    // ignore if not packaged
+  }
+}
+
 let mainWindow;
 let tray;
 
-// In a packaged app, __dirname points inside the asar archive.
-// app.getAppPath() gives the correct root in both dev and packaged.
 const appRoot = app.getAppPath();
 const appIcon = path.join(appRoot, 'public', 'favicon.ico');
 const indexPath = path.join(appRoot, 'dist', 'index.html');
@@ -30,7 +38,6 @@ function createWindow() {
 
   mainWindow.loadFile(indexPath);
 
-  // Always reload index.html on any failed navigation (handles React Router)
   mainWindow.webContents.on('did-fail-load', () => {
     mainWindow.loadFile(indexPath);
   });

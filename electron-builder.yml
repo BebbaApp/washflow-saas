@@ -12,6 +12,12 @@ files:
   - public/favicon.ico
   - package.json
 
+asarUnpack:
+  - "**/*.{node,dll}"
+  - "**/icudtl.dat"
+  - "**/snapshot_blob.bin"
+  - "**/v8_context_snapshot.bin"
+
 extraMetadata:
   main: electron/main.cjs
 
@@ -23,6 +29,8 @@ win:
         - x64
   publisherName: Aumsoft Technology (Pty) Ltd
   artifactName: Washflow-Setup-${version}.exe
+  electronLanguages:
+    - en-US
 
 nsis:
   oneClick: false
