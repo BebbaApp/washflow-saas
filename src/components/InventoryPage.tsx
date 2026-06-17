@@ -1392,7 +1392,7 @@ function AdjustStockDialog({
         : !notesValid
           ? `Notes must be ${NOTES_MAX} characters or fewer`
           : overRemoval
-            ? `Cannot remove more than current stock (${item!.quantity}${storageUnit ? ` ${storageUnit}` : ""})`
+            ? `Cannot remove more than current stock (${Number(item!.quantity).toFixed(2)}${storageUnit ? ` ${storageUnit}` : ""})`
             : null;
 
   const handlePrimary = (e: React.FormEvent) => {
