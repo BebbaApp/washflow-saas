@@ -1579,10 +1579,10 @@ function RecipeImpactPreview({
                   {r.item?.name ?? "Unknown item"}
                 </span>
                 <span className="font-mono text-muted-foreground shrink-0">
-                  −{r.total}{r.item?.unit ? ` ${r.item.unit}` : ""}
+                  −{Number(r.total).toFixed(2)}{r.item?.unit ? ` ${r.item.unit}` : ""}
                   {r.item && (
                     <span className={`ml-2 ${tone}`}>
-                      → {r.negative ? `${r.after}` : displayed}{r.item.unit ? ` ${r.item.unit}` : ""}
+                      → {Number(r.negative ? r.after : displayed).toFixed(2)}{r.item.unit ? ` ${r.item.unit}` : ""}
                       {r.negative && " ⚠"}
                     </span>
                   )}
