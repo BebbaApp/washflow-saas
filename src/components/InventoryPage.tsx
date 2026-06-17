@@ -1366,7 +1366,7 @@ function AdjustStockDialog({
   const storageUnit = item?.unit ?? "";
   const altUnits = useMemo(() => (storageUnit ? compatibleUnits(storageUnit) : []), [storageUnit]);
   const hasUnitChoice = altUnits.length > 1;
-  const fmtQty = (n: number) => `${n}${storageUnit ? ` ${storageUnit}` : ""}`;
+  const fmtQty = (n: number) => `${Number(n).toFixed(2)}${storageUnit ? ` ${storageUnit}` : ""}`;
 
   const parsedEntry = Number(qty);
   const entryValid = Number.isFinite(parsedEntry) && parsedEntry > 0;
