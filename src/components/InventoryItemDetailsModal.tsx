@@ -147,9 +147,9 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                             {t.notes && <span className="text-muted-foreground"> · {t.notes}</span>}
                           </td>
                           <td className={`px-4 py-2 text-right font-semibold ${t.delta < 0 ? "text-destructive" : "text-success"}`}>
-                            {t.delta > 0 ? `+${t.delta}` : t.delta}
+                            {t.delta > 0 ? `+${Number(t.delta).toFixed(2)}` : Number(t.delta).toFixed(2)}
                           </td>
-                          <td className="px-4 py-2 text-right font-semibold text-foreground">{t.balance}</td>
+                          <td className="px-4 py-2 text-right font-semibold text-foreground">{Number(t.balance).toFixed(2)}</td>
                         </tr>
                       );
                     })}
