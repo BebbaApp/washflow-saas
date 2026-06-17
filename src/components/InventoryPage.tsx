@@ -931,7 +931,7 @@ function TransactionLog({
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-foreground">Quantity over time</p>
             <p className="text-[11px] text-muted-foreground">
-              Current balance: <span className="font-mono text-foreground">{selectedItem.quantity}{itemUnit ? ` ${itemUnit}` : ""}</span>
+              Current balance: <span className="font-mono text-foreground">{Number(selectedItem.quantity).toFixed(2)}{itemUnit ? ` ${itemUnit}` : ""}</span>
             </p>
           </div>
           {chartData.length < 2 ? (
