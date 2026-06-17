@@ -86,11 +86,32 @@ const Index = () => {
     if (orders.length > 0) processCompletedOrders(orders);
   }, [orders, processCompletedOrders]);
 
-  // Read active tab from URL query param on mount
+  // Read active tab from URL query param first, then fall back to the last
+  // tab the user was browsing (persisted in localStorage) so a refresh keeps
+  // them on the same page.
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab) setActiveTab(tab);
+    if (tab) {
+      setActiveTab(tab);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem("washflow:lastTab");
+      if (saved) setActiveTab(saved);
+    } catch {}
   }, [searchParams]);
+
+  // Persist the active tab + reflect it in the URL so refresh / deep-link work.
+  useEffect(() => {
+    if (!activeTab) return;
+    try { localStorage.setItem("washflow:lastTab", activeTab); } catch {}
+    const current = new URLSearchParams(window.location.search);
+    if (current.get("tab") !== activeTab) {
+      current.set("tab", activeTab);
+      const qs = current.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}?${qs}`);
+    }
+  }, [activeTab]);
 
   // Intercept the wash START transition to deduct inventory up front
   // (service recipe + vehicle-type usage). Completion is then a plain status change.
