@@ -450,15 +450,27 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Mobile FAB */}
-      {can("queue.create") && (
-        <button
-          onClick={() => setNewOrderOpen(true)}
-          className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg"
-        >
-          <Plus className="w-6 h-6" />
-        </button>
-      )}
+      {/* Mobile + Tablet bottom navigation (iOS-style with center FAB) */}
+      {(() => {
+        const desiredPrimary = ["queue", "history", "loyalty", "staff"];
+        const primaryItems: BottomNavItem[] = desiredPrimary
+          .map((id) => navItems.find((n) => n.id === id))
+          .filter((n): n is typeof navItems[number] => !!n)
+          .map((n) => ({ id: n.id, label: n.label, icon: n.icon }));
+        const overflowItems: BottomNavItem[] = navItems
+          .filter((n) => !desiredPrimary.includes(n.id))
+          .map((n) => ({ id: n.id, label: n.label, icon: n.icon }));
+        return (
+          <MobileBottomNav
+            primary={primaryItems}
+            overflow={overflowItems}
+            activeId={activeTab}
+            onSelect={setActiveTab}
+            onNewOrder={() => setNewOrderOpen(true)}
+            showNewOrder={can("queue.create")}
+          />
+        );
+      })()}
 
       <NewOrderDialog open={newOrderOpen} onOpenChange={setNewOrderOpen} onSubmit={addOrder} />
 
