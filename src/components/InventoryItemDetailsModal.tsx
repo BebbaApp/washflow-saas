@@ -100,7 +100,7 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                     <Tooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                      formatter={(v: number) => [`${v} ${item.unit}`, "Balance"]}
+                      formatter={(v: number) => [`${Number(v).toFixed(2)} ${item.unit}`, "Balance"]}
                     />
                     <ReferenceLine y={item.threshold} stroke="hsl(var(--destructive))" strokeDasharray="4 4" label={{ value: "Threshold", fill: "hsl(var(--destructive))", fontSize: 11, position: "insideTopLeft" }} />
                     <Line type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
