@@ -63,23 +63,23 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Current</p>
               <p className={`text-2xl font-bold ${isLow ? "text-destructive" : "text-foreground"}`}>
-                {item.quantity}
+                {Number(item.quantity).toFixed(2)}
               </p>
               <p className="text-[11px] text-muted-foreground">{item.unit}</p>
             </div>
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Threshold</p>
-              <p className="text-2xl font-bold text-foreground">{item.threshold}</p>
+              <p className="text-2xl font-bold text-foreground">{Number(item.threshold).toFixed(2)}</p>
               <p className="text-[11px] text-muted-foreground">{item.unit}</p>
             </div>
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Consumed</p>
-              <p className="text-2xl font-bold text-foreground">{consumed}</p>
+              <p className="text-2xl font-bold text-foreground">{Number(consumed).toFixed(2)}</p>
               <p className="text-[11px] text-muted-foreground">all-time</p>
             </div>
             <div className="glass-card p-3 text-center">
               <p className="text-xs text-muted-foreground">Restocked</p>
-              <p className="text-2xl font-bold text-foreground">{restocked}</p>
+              <p className="text-2xl font-bold text-foreground">{Number(restocked).toFixed(2)}</p>
               <p className="text-[11px] text-muted-foreground">{adjustments} adjustments</p>
             </div>
           </div>
