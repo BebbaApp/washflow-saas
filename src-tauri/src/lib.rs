@@ -10,7 +10,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
 
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_autostart::init(
@@ -26,6 +27,16 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 window.show().ok();
             }
+
+            // Check for updates on launch (desktop only)
+            #[cfg(desktop)]
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    check_for_updates(handle).await;
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -51,4 +62,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("Error while running Washflow");
+}
+
+#[cfg(desktop)]
+async fn check_for_updates(app: tauri::AppHandle) {
+    use tauri_plugin_updater::UpdaterExt;
+
+    match app.updater() {
+        Ok(updater) => {
+            match updater.check().await {
+                Ok(Some(update)) => {
+                    println!("[Updater] New version available: {}", update.version);
+                    let _ = update.download_and_install(|_, _| {}, || {}).await;
+                }
+                Ok(None) => println!("[Updater] App is up to date"),
+                Err(e) => println!("[Updater] Check failed: {}", e),
+            }
+        }
+        Err(e) => println!("[Updater] Updater not available: {}", e),
+    }
 }
