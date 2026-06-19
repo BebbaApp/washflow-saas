@@ -1,20 +1,118 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Lock, Loader2 } from "lucide-react";
+import { AlertTriangle, Lock, Loader2, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+const OFFLINE_TENANT_KEY = "wf_last_known_tenant";
+const OFFLINE_LICENSE_KEY = "wf_last_known_license";
+
 /**
  * Wraps the app. Blocks UI when the tenant license is not active.
- * Shows a banner during trial countdown and past_due grace period.
+ * When OFFLINE — always allows access using the last known license state.
+ * This means staff can work without internet as long as they've logged in before.
  */
 export function LicenseGate({ children }: { children: ReactNode }) {
   const { tenant, loading, licenseActive, daysUntilTrialEnd } = useTenant();
   const { logout } = useAuth();
   const [portalLoading, setPortalLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Track online/offline state
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Cache the last known good license state when online
+  useEffect(() => {
+    if (isOnline && tenant && licenseActive) {
+      try {
+        localStorage.setItem(OFFLINE_TENANT_KEY, JSON.stringify(tenant));
+        localStorage.setItem(OFFLINE_LICENSE_KEY, "true");
+      } catch { /* ignore */ }
+    }
+  }, [isOnline, tenant, licenseActive]);
+
+  // When offline — use cached license state
+  const offlineTenant = (() => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_TENANT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  })();
+  const offlineLicenseActive = localStorage.getItem(OFFLINE_LICENSE_KEY) === "true";
+
+  // Still loading — show spinner but timeout quickly when offline
+  if (loading && isOnline) {
+    return (
+      <div className="flex h-screen items-center justify-center text-muted-foreground">
+        Loading workspace…
+      </div>
+    );
+  }
+
+  // OFFLINE MODE — use cached state
+  if (!isOnline) {
+    if (offlineTenant && offlineLicenseActive) {
+      // Allow full access offline using cached license
+      return (
+        <div className="flex min-h-screen flex-col">
+          <div className="bg-amber-500/15 text-amber-900 dark:text-amber-200 px-4 py-2 text-sm flex items-center gap-2 justify-center">
+            <WifiOff className="h-4 w-4" />
+            Working offline — all changes will sync when reconnected
+          </div>
+          <div className="flex-1">{children}</div>
+        </div>
+      );
+    }
+    // Never logged in before offline — can't proceed
+    return (
+      <div className="flex h-screen items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <WifiOff className="h-5 w-5" />
+              No internet connection
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Please connect to the internet to log in for the first time.
+              Once logged in, the app will work offline.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ONLINE — normal license checks
+  if (!tenant) {
+    return (
+      <div className="flex h-screen items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardHeader><CardTitle>No workspace found</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Your account is not linked to any workspace. Ask your administrator to invite you,
+              or contact support.
+            </p>
+            <Button variant="outline" onClick={() => logout()}>Sign out</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const openBillingPortal = async () => {
     setPortalLoading(true);
@@ -37,27 +135,6 @@ export function LicenseGate({ children }: { children: ReactNode }) {
       setPortalLoading(false);
     }
   };
-
-  if (loading) {
-    return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading workspace…</div>;
-  }
-
-  if (!tenant) {
-    return (
-      <div className="flex h-screen items-center justify-center p-6">
-        <Card className="max-w-md w-full">
-          <CardHeader><CardTitle>No workspace found</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Your account is not linked to any workspace. Ask your administrator to invite you,
-              or contact support.
-            </p>
-            <Button variant="outline" onClick={() => logout()}>Sign out</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (!licenseActive) {
     const isCancelled = tenant.status === "cancelled";
