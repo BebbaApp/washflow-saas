@@ -1,15 +1,14 @@
-// src-tauri/src/tray.rs
-use tauri::{
-    menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, Runtime,
-};
+#[cfg(desktop)]
+pub fn setup_tray<R: tauri::Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
+    use tauri::{
+        menu::{Menu, MenuItem},
+        tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+        Manager,
+    };
 
-pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Washflow", true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-
     let menu = Menu::with_items(app, &[&open, &separator, &quit])?;
 
     let _tray = TrayIconBuilder::new()
@@ -23,9 +22,7 @@ pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
                     window.set_focus().ok();
                 }
             }
-            "quit" => {
-                app.exit(0);
-            }
+            "quit" => app.exit(0),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -49,4 +46,9 @@ pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+#[cfg(mobile)]
+pub fn setup_tray<R: tauri::Runtime>(_app: &tauri::App<R>) -> tauri::Result<()> {
+    Ok(()) // No tray on mobile
 }
