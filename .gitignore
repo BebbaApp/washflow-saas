@@ -30,3 +30,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+src-tauri/gen/
+src-tauri/target/
+package-lock.json
