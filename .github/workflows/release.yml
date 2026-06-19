@@ -52,4 +52,6 @@ jobs:
           releaseBody: 'New version of Washflow. The app will update automatically.'
           releaseDraft: false
           prerelease: false
+          updaterJsonKeepUniversal: true
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
