@@ -58,7 +58,7 @@
       "providerShortName": null,
       "entitlements": null,
       "minimumSystemVersion": "10.13",
-      "infoPlist": "Info.plist"
+      "infoPlist": {}
     },
     "linux": {
       "deb": {
