@@ -40,18 +40,26 @@ jobs:
       - name: Install frontend deps
         run: npm install
 
-      - name: Write signing key to file
-        shell: bash
+      - name: Write signing key (Mac)
+        if: matrix.platform == 'macos-latest'
         run: |
           mkdir -p ~/.tauri
           echo "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" > ~/.tauri/washflow.key
-          echo "Key file written"
+          chmod 600 ~/.tauri/washflow.key
 
-      - name: Build Tauri app
+      - name: Write signing key (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.tauri"
+          "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" | Out-File -FilePath "$env:USERPROFILE\.tauri\washflow.key" -Encoding utf8
+
+      - name: Build Tauri app (Mac)
+        if: matrix.platform == 'macos-latest'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY_PATH: /home/runner/.tauri/washflow.key
+          TAURI_SIGNING_PRIVATE_KEY_PATH: /Users/runner/.tauri/washflow.key
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
@@ -59,4 +67,21 @@ jobs:
           releaseBody: 'New version of Washflow. The app will update automatically.'
           releaseDraft: false
           prerelease: false
+          tauriScript: npm run tauri
+          args: ${{ matrix.args }}
+
+      - name: Build Tauri app (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY_PATH: ${{ github.workspace }}\.tauri\washflow.key
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Washflow ${{ github.ref_name }}'
+          releaseBody: 'New version of Washflow. The app will update automatically.'
+          releaseDraft: false
+          prerelease: false
+          tauriScript: npm run tauri
           args: ${{ matrix.args }}
