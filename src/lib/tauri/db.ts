@@ -21,7 +21,8 @@ let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unkno
 async function getInvoke() {
   if (tauriInvoke) return tauriInvoke;
   if (!isTauri) return null;
-  const tauri = await import('@tauri-apps/api/core');
+  const modName = '@tauri-apps/api/core';
+  const tauri: any = await import(/* @vite-ignore */ modName);
   tauriInvoke = tauri.invoke;
   return tauriInvoke;
 }
