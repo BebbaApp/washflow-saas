@@ -220,17 +220,6 @@ const Index = () => {
         })}
       </nav>
 
-      <div className="mt-4 space-y-2 border-t border-border pt-4">
-        <div className="flex items-center justify-end px-2">
-          <button
-            onClick={() => { logout(); onNavigate?.(); }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Sign out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
 
     </>
   );
@@ -317,13 +306,6 @@ const Index = () => {
             <span className="hidden md:inline-flex items-center text-[11px] text-muted-foreground">
               Washflow Saas v{__APP_VERSION__}
             </span>
-            <button
-              onClick={toggleMode}
-              className="hidden md:inline-flex w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title={mode === "dark" ? "Switch to light" : "Switch to dark"}
-            >
-              {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -349,10 +331,6 @@ const Index = () => {
                   <SettingsIcon className="w-4 h-4 mr-2" /> Settings
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={toggleMode}>
-                {mode === "dark" ? <Sun className="w-4 h-4 mr-2" /> : <Moon className="w-4 h-4 mr-2" />}
-                {mode === "dark" ? "Light mode" : "Dark mode"}
-              </DropdownMenuItem>
               {isSuperAdmin && (
                 <>
                   <DropdownMenuSeparator />
@@ -367,6 +345,13 @@ const Index = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <button
+            onClick={toggleMode}
+            className="hidden md:inline-flex w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            title={mode === "dark" ? "Switch to light" : "Switch to dark"}
+          >
+            {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           <HeaderClock />
           </div>
         </div>
