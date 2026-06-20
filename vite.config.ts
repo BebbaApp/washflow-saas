@@ -1,11 +1,29 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import fs from "fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Read the version from tauri.conf.json so the in-app label matches whatever the
+// GitHub release / Tauri auto-updater ships. Falls back to package.json, then "dev".
+function readAppVersion(): string {
+  try {
+    const tauri = JSON.parse(fs.readFileSync(path.resolve(__dirname, "src-tauri/tauri.conf.json"), "utf-8"));
+    if (tauri?.version) return String(tauri.version);
+  } catch {}
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
+    if (pkg?.version && pkg.version !== "0.0.0") return String(pkg.version);
+  } catch {}
+  return "dev";
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(readAppVersion()),
+  },
   server: {
     host: "::",
     port: 8080,
@@ -13,6 +31,7 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+
   plugins: [
     react(),
     mode === "development" && componentTagger(),
