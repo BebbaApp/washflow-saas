@@ -272,7 +272,7 @@ export const db = {
     }
     const { data, error } = await supabase
       .from('expenses')
-      .insert({ ...expense, tenant_id: tenantId })
+      .insert({ ...expense, tenant_id: tenantId } as any)
       .select()
       .single();
     if (error) throw error;
