@@ -235,7 +235,7 @@ export const db = {
       .eq('tenant_id', tenantId)
       .order('sort_order');
     if (error) throw error;
-    return (data ?? []) as DbService[];
+    return (data ?? []) as unknown as DbService[];
   },
 
   async upsertService(tenantId: string, service: Record<string, unknown>): Promise<DbService> {
