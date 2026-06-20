@@ -221,26 +221,17 @@ const Index = () => {
       </nav>
 
       <div className="mt-4 space-y-2 border-t border-border pt-4">
-        <div className="flex items-center justify-between px-2">
-          <p className="text-xs text-muted-foreground">Washflow Saas v1.0</p>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={toggleMode}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title={mode === "dark" ? "Switch to light" : "Switch to dark"}
-            >
-              {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={() => { logout(); onNavigate?.(); }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title="Sign out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+        <div className="flex items-center justify-end px-2">
+          <button
+            onClick={() => { logout(); onNavigate?.(); }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
+
     </>
   );
 
