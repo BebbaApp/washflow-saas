@@ -244,11 +244,11 @@ export const db = {
     }
     const { data, error } = await supabase
       .from('services')
-      .upsert({ ...service, tenant_id: tenantId })
+      .upsert({ ...service, tenant_id: tenantId } as any)
       .select()
       .single();
     if (error) throw error;
-    return data as DbService;
+    return data as unknown as DbService;
   },
 
   // ── Expenses ─────────────────────────────────────────────────────────────────
