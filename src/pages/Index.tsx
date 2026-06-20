@@ -314,7 +314,18 @@ const Index = () => {
               </span>
             )}
             <SyncStatusPill className="hidden sm:inline-flex" />
+            <span className="hidden md:inline-flex items-center text-[11px] text-muted-foreground">
+              Washflow Saas v{__APP_VERSION__}
+            </span>
+            <button
+              onClick={toggleMode}
+              className="hidden md:inline-flex w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title={mode === "dark" ? "Switch to light" : "Switch to dark"}
+            >
+              {mode === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
+
           <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary transition-colors text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
