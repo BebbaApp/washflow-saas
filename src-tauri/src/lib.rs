@@ -27,8 +27,6 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 window.show().ok();
             }
-
-            // Check for updates on launch (desktop only)
             #[cfg(desktop)]
             {
                 let handle = app.handle().clone();
@@ -36,7 +34,6 @@ pub fn run() {
                     check_for_updates(handle).await;
                 });
             }
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -67,18 +64,47 @@ pub fn run() {
 #[cfg(desktop)]
 async fn check_for_updates(app: tauri::AppHandle) {
     use tauri_plugin_updater::UpdaterExt;
+    use tauri_plugin_dialog::DialogExt;
 
     match app.updater() {
         Ok(updater) => {
             match updater.check().await {
                 Ok(Some(update)) => {
                     println!("[Updater] New version available: {}", update.version);
-                    let _ = update.download_and_install(|_, _| {}, || {}).await;
+
+                    let msg = format!(
+                        "Washflow {} is available!\nYou are running {}.\nWould you like to update now?",
+                        update.version,
+                        update.current_version
+                    );
+
+                    // Use confirm dialog (returns bool)
+                    let should_update = app.dialog()
+                        .message(msg)
+                        .title("Update Available")
+                        .blocking_show();
+
+                    if should_update {
+                        println!("[Updater] Downloading update...");
+                        match update.download_and_install(
+                            |downloaded, total| {
+                                if let Some(t) = total {
+                                    println!("[Updater] {}/{} bytes", downloaded, t);
+                                }
+                            },
+                            || println!("[Updater] Update installed, restarting..."),
+                        ).await {
+                            Ok(_) => println!("[Updater] Done"),
+                            Err(e) => println!("[Updater] Install error: {}", e),
+                        }
+                    } else {
+                        println!("[Updater] User postponed update");
+                    }
                 }
                 Ok(None) => println!("[Updater] App is up to date"),
                 Err(e) => println!("[Updater] Check failed: {}", e),
             }
         }
-        Err(e) => println!("[Updater] Updater not available: {}", e),
+        Err(e) => println!("[Updater] Not available: {}", e),
     }
 }
