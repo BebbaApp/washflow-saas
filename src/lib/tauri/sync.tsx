@@ -73,7 +73,7 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
           continue;
         }
         if (data && data.length > 0) {
-          await db.bulkUpsert(table, data as Record<string, unknown>[]);
+          await db.bulkUpsert(table, data as unknown as Record<string, unknown>[]);
           console.log(`[TauriSync] ${table}: pulled ${data.length} records`);
         }
       } catch (err) {

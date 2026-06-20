@@ -21,7 +21,8 @@ let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unkno
 async function getInvoke() {
   if (tauriInvoke) return tauriInvoke;
   if (!isTauri) return null;
-  const tauri = await import('@tauri-apps/api/core');
+  const modName = '@tauri-apps/api/core';
+  const tauri: any = await import(/* @vite-ignore */ modName);
   tauriInvoke = tauri.invoke;
   return tauriInvoke;
 }
@@ -178,7 +179,7 @@ export const db = {
     if (status === 'completed') {
       updates.completed_at = new Date().toISOString();
     }
-    const { error } = await supabase.from('orders').update(updates).eq('id', id);
+    const { error } = await supabase.from('orders').update(updates as any).eq('id', id);
     if (error) throw error;
   },
 
@@ -234,7 +235,7 @@ export const db = {
       .eq('tenant_id', tenantId)
       .order('sort_order');
     if (error) throw error;
-    return (data ?? []) as DbService[];
+    return (data ?? []) as unknown as DbService[];
   },
 
   async upsertService(tenantId: string, service: Record<string, unknown>): Promise<DbService> {
@@ -243,11 +244,11 @@ export const db = {
     }
     const { data, error } = await supabase
       .from('services')
-      .upsert({ ...service, tenant_id: tenantId })
+      .upsert({ ...service, tenant_id: tenantId } as any)
       .select()
       .single();
     if (error) throw error;
-    return data as DbService;
+    return data as unknown as DbService;
   },
 
   // ── Expenses ─────────────────────────────────────────────────────────────────
@@ -271,7 +272,7 @@ export const db = {
     }
     const { data, error } = await supabase
       .from('expenses')
-      .insert({ ...expense, tenant_id: tenantId })
+      .insert({ ...expense, tenant_id: tenantId } as any)
       .select()
       .single();
     if (error) throw error;
