@@ -40,42 +40,22 @@ jobs:
       - name: Install frontend deps
         run: npm install
 
-      - name: Write signing key (Mac)
-        if: matrix.platform == 'macos-latest'
+      - name: Debug - check signing key is available
         run: |
-          mkdir -p ~/.tauri
-          echo "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" > ~/.tauri/washflow.key
-          chmod 600 ~/.tauri/washflow.key
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "ERROR: TAURI_SIGNING_PRIVATE_KEY is empty!"
+          else
+            echo "OK: TAURI_SIGNING_PRIVATE_KEY is set (length: ${#TAURI_SIGNING_PRIVATE_KEY})"
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: bash
 
-      - name: Write signing key (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.tauri"
-          "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" | Out-File -FilePath "$env:USERPROFILE\.tauri\washflow.key" -Encoding utf8
-
-      - name: Build Tauri app (Mac)
-        if: matrix.platform == 'macos-latest'
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY_PATH: /Users/runner/.tauri/washflow.key
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Washflow ${{ github.ref_name }}'
-          releaseBody: 'New version of Washflow. The app will update automatically.'
-          releaseDraft: false
-          prerelease: false
-          tauriScript: npm run tauri
-          args: ${{ matrix.args }}
-
-      - name: Build Tauri app (Windows)
-        if: matrix.platform == 'windows-latest'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY_PATH: ${{ github.workspace }}\.tauri\washflow.key
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
