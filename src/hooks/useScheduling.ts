@@ -12,7 +12,7 @@ import { db } from "@/offline/db";
 import { offlineInsert, offlineUpdate, offlineDelete } from "@/offline/offlineWrite";
 import { supabase } from "@/integrations/supabase/client";
 
-export interface StaffMember { id: string; name: string; email: string; role: string; }
+export interface StaffMember { id: string; name: string; email: string; role: string; createdAt?: string; }
 export interface Shift {
   id: string; staffUserId: string; staffName: string;
   shiftDate: string; startTime: string; endTime: string;
