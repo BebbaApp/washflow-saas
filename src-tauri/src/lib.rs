@@ -70,134 +70,149 @@ async fn check_for_updates(app: tauri::AppHandle) {
     use tauri_plugin_updater::UpdaterExt;
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-    // Retry up to 3 times in case of network issues
+    // Try to find an update (retry the *check* a couple times for transient network errors).
+    let mut update_opt = None;
     for attempt in 1..=3 {
         println!("[Updater] Check attempt {}/3", attempt);
         match app.updater() {
-            Ok(updater) => {
-                match updater.check().await {
-                    Ok(Some(update)) => {
-                        println!("[Updater] New version available: {}", update.version);
+            Ok(updater) => match updater.check().await {
+                Ok(Some(u)) => { update_opt = Some(u); break; }
+                Ok(None) => { println!("[Updater] App is up to date"); return; }
+                Err(e) => {
+                    println!("[Updater] Check failed on attempt {}: {}", attempt, e);
+                    if attempt < 3 { tokio::time::sleep(std::time::Duration::from_secs(3)).await; }
+                }
+            },
+            Err(e) => { println!("[Updater] Not available: {}", e); return; }
+        }
+    }
+    let update = match update_opt {
+        Some(u) => u,
+        None => return,
+    };
 
-                        let msg = format!(
-                            "Washflow {} is available!\nYou are running {}.\n\nClick Yes to download and install. The app will restart automatically.",
-                            update.version, update.current_version
+    println!("[Updater] New version available: {}", update.version);
+    let prompt = format!(
+        "Washflow {} is available!\nYou are running {}.\n\nClick Yes to download and install. The app will restart automatically.",
+        update.version, update.current_version
+    );
+    if let Some(win) = app.get_webview_window("main") { let _ = win.set_focus(); }
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+    let should_update = app.dialog()
+        .message(prompt)
+        .title("Update Available")
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom("Yes, update".to_string(), "Not now".to_string()))
+        .blocking_show();
+    if !should_update { println!("[Updater] User declined"); return; }
+
+    // Retry loop: every failure shows the full error and offers a Retry button.
+    let mut attempt: u32 = 0;
+    loop {
+        attempt += 1;
+        if let Some(win) = app.get_webview_window("main") {
+            let msg = if attempt == 1 { "Downloading update… 0%".to_string() }
+                      else { format!("Retrying update (attempt {})… 0%", attempt) };
+            let js = format!(r#"
+                (function(){{
+                  try {{
+                    var b = document.getElementById('wf-update-banner');
+                    if (!b) {{
+                      b = document.createElement('div');
+                      b.id = 'wf-update-banner';
+                      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0cd4c4;color:#0d1b2a;text-align:center;padding:12px;font-weight:600;font-size:14px;font-family:system-ui;';
+                      document.body.appendChild(b);
+                    }}
+                    b.style.background = '#0cd4c4';
+                    b.style.color = '#0d1b2a';
+                    b.textContent = {};
+                  }} catch(e) {{}}
+                }})();
+            "#, serde_json::to_string(&msg).unwrap_or_else(|_| "\"Downloading…\"".to_string()));
+            let _ = win.eval(&js);
+        }
+
+        println!("[Updater] Starting download (attempt {})...", attempt);
+        let app_handle = app.clone();
+        let mut downloaded_total: usize = 0;
+
+        let result = update.clone().download_and_install(
+            |chunk, total| {
+                downloaded_total += chunk;
+                if let Some(t) = total {
+                    let pct = ((downloaded_total as u64 * 100) / t).min(100);
+                    if let Some(win) = app_handle.get_webview_window("main") {
+                        let js = format!(
+                            "(function(){{var b=document.getElementById('wf-update-banner');if(b)b.textContent='Downloading update… {}%';}})();",
+                            pct
                         );
-
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.set_focus();
-                        }
-                        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-
-                        // OkCancel ensures we actually receive a real boolean from the user.
-                        let should_update = app.dialog()
-                            .message(msg)
-                            .title("Update Available")
-                            .kind(MessageDialogKind::Info)
-                            .buttons(MessageDialogButtons::OkCancelCustom("Yes, update".to_string(), "Not now".to_string()))
-                            .blocking_show();
-
-                        if !should_update {
-                            println!("[Updater] User declined");
-                            return;
-                        }
-
-                        // Drive progress through a Tauri event the frontend can subscribe to,
-                        // plus a fallback DOM banner if the listener isn't wired yet.
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.eval(r#"
-                                (function(){
-                                  try {
-                                    var b = document.getElementById('wf-update-banner');
-                                    if (!b) {
-                                      b = document.createElement('div');
-                                      b.id = 'wf-update-banner';
-                                      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0cd4c4;color:#0d1b2a;text-align:center;padding:12px;font-weight:600;font-size:14px;font-family:system-ui;';
-                                      document.body.appendChild(b);
-                                    }
-                                    b.textContent = 'Downloading update… 0%';
-                                  } catch(e) {}
-                                })();
-                            "#);
-                        }
-
-                        println!("[Updater] Starting download (attempt {})...", attempt);
-                        let app_handle = app.clone();
-                        let mut downloaded_total: usize = 0;
-
-                        let result = update.download_and_install(
-                            |chunk, total| {
-                                downloaded_total += chunk;
-                                if let Some(t) = total {
-                                    let pct = ((downloaded_total as u64 * 100) / t).min(100);
-                                    if let Some(win) = app_handle.get_webview_window("main") {
-                                        let js = format!(
-                                            "(function(){{var b=document.getElementById('wf-update-banner');if(b)b.textContent='Downloading update… {}%';}})();",
-                                            pct
-                                        );
-                                        let _ = win.eval(&js);
-                                    }
-                                }
-                            },
-                            || {
-                                println!("[Updater] Extraction complete, restarting...");
-                                if let Some(win) = app_handle.get_webview_window("main") {
-                                    let _ = win.eval("(function(){var b=document.getElementById('wf-update-banner');if(b)b.textContent='Installing update… app will restart.';})();");
-                                }
-                            },
-                        ).await;
-
-                        match result {
-                            Ok(_) => {
-                                println!("[Updater] Update successful! Restarting...");
-                                app.restart();
-                            }
-                            Err(e) => {
-                                let err_msg = format!("{}", e);
-                                println!("[Updater] Download/install error on attempt {}: {}", attempt, err_msg);
-                                if attempt < 3 && (err_msg.contains("network") || err_msg.contains("timed out") || err_msg.contains("connection")) {
-                                    if let Some(win) = app.get_webview_window("main") {
-                                        let _ = win.eval(&format!(
-                                            "(function(){{var b=document.getElementById('wf-update-banner');if(b)b.textContent='Download interrupted, retrying… (attempt {}/3)';}})();",
-                                            attempt + 1
-                                        ));
-                                    }
-                                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                                    continue;
-                                }
-
-                                // Surface the real error so the user can act on it instead of
-                                // seeing a silent failure. Common cause on macOS is the bundle
-                                // being unsigned/un-notarized; on Windows it's UAC cancellation.
-                                if let Some(win) = app.get_webview_window("main") {
-                                    let _ = win.eval(r#"
-                                        (function(){var b=document.getElementById('wf-update-banner');if(b){b.style.background='#ef4444';b.style.color='white';b.textContent='Update failed. Opening download page…';}})();
-                                    "#);
-                                }
-                                let _ = app.dialog()
-                                    .message(format!("Update failed:\n\n{}\n\nWe'll open the releases page so you can install manually.", err_msg))
-                                    .title("Update Error")
-                                    .kind(MessageDialogKind::Error)
-                                    .buttons(MessageDialogButtons::Ok)
-                                    .blocking_show();
-                                let _ = open::that("https://github.com/BebbaApp/washflow-saas/releases/latest");
-                                return;
-                            }
-                        }
-                        return;
-                    }
-                    Ok(None) => {
-                        println!("[Updater] App is up to date");
-                        return;
-                    }
-                    Err(e) => {
-                        println!("[Updater] Check failed on attempt {}: {}", attempt, e);
-                        if attempt < 3 {
-                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                            continue;
-                        }
+                        let _ = win.eval(&js);
                     }
                 }
+            },
+            || {
+                println!("[Updater] Extraction complete, restarting...");
+                if let Some(win) = app_handle.get_webview_window("main") {
+                    let _ = win.eval("(function(){var b=document.getElementById('wf-update-banner');if(b)b.textContent='Installing update… app will restart.';})();");
+                }
+            },
+        ).await;
+
+        match result {
+            Ok(_) => {
+                println!("[Updater] Update successful! Restarting...");
+                app.restart();
+            }
+            Err(e) => {
+                let err_msg = format!("{:?}", e);
+                let err_short = format!("{}", e);
+                println!("[Updater] Download/install error on attempt {}: {}", attempt, err_msg);
+
+                if let Some(win) = app.get_webview_window("main") {
+                    let banner = format!(
+                        "Update failed (attempt {}): {}",
+                        attempt,
+                        err_short.replace('\n', " ").chars().take(180).collect::<String>()
+                    );
+                    let js = format!(r#"
+                        (function(){{
+                          var b=document.getElementById('wf-update-banner');
+                          if(b){{
+                            b.style.background='#ef4444';
+                            b.style.color='white';
+                            b.textContent={};
+                          }}
+                        }})();
+                    "#, serde_json::to_string(&banner).unwrap_or_else(|_| "\"Update failed\"".to_string()));
+                    let _ = win.eval(&js);
+                }
+
+                // Surface the FULL error and let the user choose Retry vs Open Releases.
+                let full_msg = format!(
+                    "Washflow couldn't install the update on attempt {}.\n\nError details:\n{}\n\nClick Retry to try the install again, or Open Releases to download manually.",
+                    attempt, err_msg
+                );
+                let retry = app.dialog()
+                    .message(full_msg)
+                    .title("Update Error")
+                    .kind(MessageDialogKind::Error)
+                    .buttons(MessageDialogButtons::OkCancelCustom("Retry".to_string(), "Open Releases".to_string()))
+                    .blocking_show();
+
+                if retry {
+                    // Loop and try again.
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                } else {
+                    let _ = open::that("https://github.com/BebbaApp/washflow-saas/releases/latest");
+                    return;
+                }
+            }
+        }
+    }
+}
+
             }
             Err(e) => {
                 println!("[Updater] Not available: {}", e);
