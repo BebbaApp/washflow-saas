@@ -71,10 +71,11 @@ function writeCachedMemberships(list: TenantMembership[]) {
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, authedEmail, authedUserId } = useAuth();
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [memberships, setMemberships] = useState<TenantMembership[]>([]);
+  const [tenant, setTenant] = useState<Tenant | null>(() => readCachedTenant());
+  const [memberships, setMemberships] = useState<TenantMembership[]>(() => readCachedMemberships());
   const [myRole, setMyRole] = useState<TenantRole | null>(null);
-  const [loading, setLoading] = useState(true);
+  // If we have a cached tenant we don't need a loading flash on boot.
+  const [loading, setLoading] = useState(() => !readCachedTenant());
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
