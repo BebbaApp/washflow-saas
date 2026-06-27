@@ -1,266 +1,145 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+/**
+ * useScheduling — offline-first replacement
+ * Reads from Dexie (useLiveTable), writes via offlineWrite helpers.
+ * Supabase edge-function calls (manage-staff list) fall back to Dexie when offline.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
 import { useLiveTable } from "@/offline/useLiveTable";
+import { db } from "@/offline/db";
+import { offlineInsert, offlineUpdate, offlineDelete } from "@/offline/offlineWrite";
+import { supabase } from "@/integrations/supabase/client";
 
-export interface ShiftTemplate {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  color: string;
-}
-
+export interface StaffMember { id: string; name: string; email: string; role: string; }
 export interface Shift {
-  id: string;
-  staffUserId: string;
-  templateId: string | null;
-  shiftDate: string;
-  startTime: string;
-  endTime: string;
-  notes: string | null;
-  staffName?: string;
+  id: string; staffUserId: string; staffName: string;
+  shiftDate: string; startTime: string; endTime: string;
+  templateId?: string; notes?: string;
+}
+export interface ShiftTemplate {
+  id: string; name: string; startTime: string; endTime: string; daysOfWeek: number[];
+}
+export interface TimeOffRequest {
+  id: string; userId: string; staffName: string;
+  startDate: string; endDate: string; reason: string;
+  status: "pending" | "approved" | "rejected"; createdAt: string;
 }
 
-export interface TimeOffRequest {
-  id: string;
-  staffUserId: string;
-  startDate: string;
-  endDate: string;
-  reason: string | null;
-  status: "pending" | "approved" | "denied";
-  staffName?: string;
-  createdAt: string;
+function mapShift(r: any): Shift {
+  return {
+    id: r.id, staffUserId: r.staff_user_id, staffName: r.staff_name ?? "",
+    shiftDate: r.shift_date, startTime: r.start_time, endTime: r.end_time,
+    templateId: r.template_id ?? undefined, notes: r.notes ?? undefined,
+  };
+}
+function mapTemplate(r: any): ShiftTemplate {
+  return {
+    id: r.id, name: r.name, startTime: r.start_time, endTime: r.end_time,
+    daysOfWeek: r.days_of_week ?? [],
+  };
+}
+function mapTimeOff(r: any): TimeOffRequest {
+  return {
+    id: r.id, userId: r.user_id, staffName: r.staff_name ?? "",
+    startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
+    status: r.status ?? "pending", createdAt: r.created_at,
+  };
 }
 
 export function useScheduling() {
   const { tenant } = useTenant();
-  const tenantId = tenant?.id ?? null;
+  const { user } = useAuth();
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
 
-  const templateRows = useLiveTable<any>(tenantId, "shift_templates");
-  const shiftRows = useLiveTable<any>(tenantId, "shifts");
-  const timeOffRows = useLiveTable<any>(tenantId, "time_off_requests");
+  const shiftRows = useLiveTable<any>(tenant?.id, "shifts");
+  const templateRows = useLiveTable<any>(tenant?.id, "shift_templates");
+  const timeOffRows = useLiveTable<any>(tenant?.id, "time_off_requests");
 
-  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string; createdAt?: string }[]>([]);
-  const [staffLoading, setStaffLoading] = useState(true);
+  const shifts = useMemo(() => (shiftRows ?? []).map(mapShift), [shiftRows]);
+  const shiftTemplates = useMemo(() => (templateRows ?? []).map(mapTemplate), [templateRows]);
+  const timeOffRequests = useMemo(() => (timeOffRows ?? []).map(mapTimeOff), [timeOffRows]);
+  const loading = shiftRows === undefined;
 
-  // Staff list still comes from the manage-staff edge function (auth.users-backed),
-  // since profiles aren't tenant-scoped in the local mirror.
+  // Load staff — from Supabase when online, from local Dexie when offline
   useEffect(() => {
-    if (!tenantId) { setStaffMembers([]); setStaffLoading(false); return; }
-    let active = true;
-    (async () => {
-      setStaffLoading(true);
-      const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenantId } });
-      if (!active) return;
-      const list = ((data as any)?.users ?? [])
-        .filter((u: any) => !!u.role)
-        .map((u: any) => ({ id: u.id, name: u.name || u.email || "Staff", createdAt: u.created_at }));
-      setStaffMembers(list);
-      setStaffLoading(false);
-    })();
-    return () => { active = false; };
-  }, [tenantId]);
+    if (!tenant?.id) return;
+    const load = async () => {
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase.functions.invoke("manage-staff", {
+            body: { action: "list", tenant_id: tenant.id },
+          });
+          if (data?.users) { setStaffMembers(data.users); return; }
+        } catch { /* fall through to offline */ }
+      }
+      // Offline: read from local tenant_members + profiles
+      const members = await (db as any).tenant_members
+        .where("tenant_id").equals(tenant.id).toArray();
+      setStaffMembers(members.map((m: any) => ({
+        id: m.user_id, name: m.name ?? m.user_id, email: m.email ?? "", role: m.tenant_role ?? "member",
+      })));
+    };
+    load();
+  }, [tenant?.id]);
 
-  const profileMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const s of staffMembers) m[s.id] = s.name;
-    return m;
-  }, [staffMembers]);
-
-  const templates = useMemo<ShiftTemplate[]>(() => {
-    const list = (templateRows ?? []).map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      startTime: t.start_time,
-      endTime: t.end_time,
-      color: t.color,
-    }));
-    list.sort((a, b) => a.startTime.localeCompare(b.startTime));
-    return list;
-  }, [templateRows]);
-
-  const shifts = useMemo<Shift[]>(() => {
-    const list = (shiftRows ?? []).map((s: any) => ({
-      id: s.id,
-      staffUserId: s.staff_user_id,
-      templateId: s.template_id,
-      shiftDate: s.shift_date,
-      startTime: s.start_time,
-      endTime: s.end_time,
-      notes: s.notes,
-      staffName: profileMap[s.staff_user_id] || "Unknown",
-    }));
-    list.sort((a, b) => a.shiftDate.localeCompare(b.shiftDate));
-    return list;
-  }, [shiftRows, profileMap]);
-
-  const timeOffRequests = useMemo<TimeOffRequest[]>(() => {
-    const list = (timeOffRows ?? []).map((r: any) => ({
-      id: r.id,
-      staffUserId: r.staff_user_id,
-      startDate: r.start_date,
-      endDate: r.end_date,
-      reason: r.reason,
-      status: r.status,
-      staffName: profileMap[r.staff_user_id] || "Unknown",
-      createdAt: r.created_at,
-    }));
-    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-    return list;
-  }, [timeOffRows, profileMap]);
-
-  const loading =
-    staffLoading || templateRows === undefined || shiftRows === undefined || timeOffRows === undefined;
-
-  const findConflict = useCallback(
-    (data: { staffUserId: string; shiftDate: string; startTime: string; endTime: string; ignoreShiftId?: string }) => {
-      return shifts.find((s) => {
-        if (s.id === data.ignoreShiftId) return false;
-        if (s.staffUserId !== data.staffUserId) return false;
-        if (s.shiftDate !== data.shiftDate) return false;
-        return data.startTime < s.endTime && data.endTime > s.startTime;
-      }) || null;
-    },
-    [shifts]
-  );
-
-  const addShift = useCallback(async (data: {
-    staffUserId: string;
-    templateId?: string;
-    shiftDate: string;
-    startTime: string;
-    endTime: string;
-    notes?: string;
-  }): Promise<{ ok: boolean; error?: string }> => {
-    if (!tenantId) return { ok: false, error: "No workspace selected" };
-    if (data.endTime <= data.startTime) {
-      return { ok: false, error: "End time must be after start time" };
-    }
-    const conflict = findConflict(data);
-    if (conflict) {
-      return {
-        ok: false,
-        error: `Conflicts with ${conflict.staffName}'s shift ${conflict.startTime.slice(0, 5)}–${conflict.endTime.slice(0, 5)}`,
-      };
-    }
-
-    const { error } = await supabase.from("shifts").insert({
-      tenant_id: tenantId,
+  const addShift = useCallback(async (data: Omit<Shift, "id" | "staffName">) => {
+    if (!tenant?.id) return;
+    const staff = staffMembers.find((s) => s.id === data.staffUserId);
+    await offlineInsert("shifts", tenant.id, {
       staff_user_id: data.staffUserId,
-      template_id: data.templateId || null,
+      staff_name: staff?.name ?? "",
       shift_date: data.shiftDate,
       start_time: data.startTime,
       end_time: data.endTime,
-      notes: data.notes || null,
-    } as any);
-
-    if (error) {
-      toast.error("Failed to add shift: " + error.message);
-      return { ok: false, error: error.message };
-    }
-    toast.success("Shift scheduled");
-    return { ok: true };
-  }, [findConflict, tenantId]);
-
-  const updateShift = useCallback(async (
-    shiftId: string,
-    data: {
-      staffUserId: string;
-      templateId?: string | null;
-      shiftDate: string;
-      startTime: string;
-      endTime: string;
-      notes?: string | null;
-    }
-  ): Promise<{ ok: boolean; error?: string }> => {
-    if (data.endTime <= data.startTime) {
-      return { ok: false, error: "End time must be after start time" };
-    }
-    const conflict = findConflict({ ...data, ignoreShiftId: shiftId });
-    if (conflict) {
-      return {
-        ok: false,
-        error: `Conflicts with ${conflict.staffName}'s shift ${conflict.startTime.slice(0, 5)}–${conflict.endTime.slice(0, 5)}`,
-      };
-    }
-
-    const { error } = await supabase.from("shifts").update({
-      staff_user_id: data.staffUserId,
       template_id: data.templateId ?? null,
-      shift_date: data.shiftDate,
-      start_time: data.startTime,
-      end_time: data.endTime,
       notes: data.notes ?? null,
-    }).eq("id", shiftId);
+    });
+    toast.success("Shift added");
+  }, [tenant?.id, staffMembers]);
 
-    if (error) {
-      toast.error("Failed to update shift: " + error.message);
-      return { ok: false, error: error.message };
-    }
+  const updateShift = useCallback(async (shiftId: string, data: Partial<Shift>) => {
+    if (!tenant?.id) return;
+    const patch: Record<string, unknown> = {};
+    if (data.shiftDate) patch.shift_date = data.shiftDate;
+    if (data.startTime) patch.start_time = data.startTime;
+    if (data.endTime) patch.end_time = data.endTime;
+    if (data.notes !== undefined) patch.notes = data.notes ?? null;
+    await offlineUpdate("shifts", tenant.id, shiftId, patch);
     toast.success("Shift updated");
-    return { ok: true };
-  }, [findConflict]);
+  }, [tenant?.id]);
 
   const deleteShift = useCallback(async (shiftId: string) => {
-    const { error } = await supabase.from("shifts").delete().eq("id", shiftId);
-    if (error) {
-      toast.error("Failed to cancel shift: " + error.message);
-      return false;
-    }
-    toast.success("Shift cancelled");
-    return true;
-  }, []);
+    if (!tenant?.id) return;
+    await offlineDelete("shifts", tenant.id, shiftId);
+    toast.success("Shift deleted");
+  }, [tenant?.id]);
 
-  const requestTimeOff = useCallback(async (data: {
-    startDate: string;
-    endDate: string;
-    reason?: string;
+  const submitTimeOffRequest = useCallback(async (data: {
+    startDate: string; endDate: string; reason: string;
   }) => {
-    if (!tenantId) return;
-    const { data: session } = await supabase.auth.getSession();
-    if (!session.session) return;
-
-    const { error } = await supabase.from("time_off_requests").insert({
-      tenant_id: tenantId,
-      staff_user_id: session.session.user.id,
+    if (!tenant?.id || !user?.id) return;
+    const staff = staffMembers.find((s) => s.id === user.id);
+    await offlineInsert("time_off_requests", tenant.id, {
+      user_id: user.id,
+      staff_name: staff?.name ?? user.email ?? "",
       start_date: data.startDate,
       end_date: data.endDate,
-      reason: data.reason || null,
-    } as any);
+      reason: data.reason,
+      status: "pending",
+    });
+    toast.success("Time-off request submitted");
+  }, [tenant?.id, user, staffMembers]);
 
-    if (error) {
-      toast.error("Failed to submit request: " + error.message);
-      return;
-    }
-    toast.success("Time off request submitted");
-  }, [tenantId]);
-
-  const updateTimeOffStatus = useCallback(async (requestId: string, status: "approved" | "denied") => {
-    const { error } = await supabase.from("time_off_requests").update({ status }).eq("id", requestId);
-
-    if (error) {
-      toast.error("Failed to update request: " + error.message);
-      return;
-    }
+  const updateTimeOffStatus = useCallback(async (requestId: string, status: "approved" | "rejected") => {
+    if (!tenant?.id) return;
+    await offlineUpdate("time_off_requests", tenant.id, requestId, { status });
     toast.success(`Request ${status}`);
-  }, []);
-
-  const refetch = useCallback(async () => { /* sync engine handles it */ }, []);
+  }, [tenant?.id]);
 
   return {
-    templates,
-    shifts,
-    timeOffRequests,
-    staffMembers,
-    loading,
-    addShift,
-    updateShift,
-    deleteShift,
-    findConflict,
-    requestTimeOff,
-    updateTimeOffStatus,
-    refetch,
+    shifts, shiftTemplates, timeOffRequests, staffMembers, loading,
+    addShift, updateShift, deleteShift, submitTimeOffRequest, updateTimeOffStatus,
   };
 }

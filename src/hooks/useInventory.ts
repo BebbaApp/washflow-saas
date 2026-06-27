@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { useLiveTable } from "@/offline/useLiveTable";
+import { db } from "@/offline/db";
+import { enqueueOutbox } from "@/offline/sync";
+import { offlineInsert, offlineUpdate, offlineDelete } from "@/offline/offlineWrite";
 import { CONCENTRATES, WATER, matchVehicle } from "@/lib/vehicleUsage";
 import { convertUnits, canConvert } from "@/lib/unitConversions";
-
 
 export const INVENTORY_CATEGORIES = ["Soap", "Wax", "Towels", "Chemicals", "Tools", "Other"] as const;
 export type InventoryCategory = string;
@@ -21,13 +23,9 @@ export interface InventoryItem {
   subtype?: string;
   recommendedMin?: number;
   recommendedMax?: number;
-  /** Unit cost used to auto-log expenses on capture / restock. */
   unitCost: number;
-  /** Override the inventory-category default expense category. */
   expenseCategory?: string;
-  /** Supplier reference. */
   supplierId?: string;
-  /** Pack size — how much each counted unit contains (e.g. 5 for a 5L bottle). */
   packSize?: number;
 }
 
@@ -51,12 +49,13 @@ export interface InventoryTransaction {
 
 export type RecipeMap = Record<string, { itemId: string; qty: number }[]>;
 
-// ---------- localStorage-only state (recipes, vehicle map, idempotency) -----
+// ---------- localStorage state ----------
 const RECIPE_KEY = "aquawash.inventory.recipes.v1";
 const PROCESSED_KEY = "aquawash.inventory.processedOrders.v1";
 const VEHICLE_MAP_KEY = "aquawash.inventory.vehicleMap.v1";
 const WATER_ITEM_KEY = "aquawash.inventory.waterItem.v1";
 const VEHICLE_PROCESSED_KEY = "aquawash.inventory.vehicleProcessed.v1";
+const CATEGORY_DEFAULTS_KEY = "aquawash.inventory.categoryDefaults.v1";
 
 function lsLoad<T>(key: string, fallback: T): T {
   try {
@@ -69,30 +68,20 @@ function lsSave(key: string, val: unknown) {
 }
 
 function mlToItemUnit(mL: number, itemUnit: string): number {
-  if (canConvert("mL", itemUnit)) {
-    const v = convertUnits(mL, "mL", itemUnit);
-    return v ?? mL;
-  }
+  if (canConvert("mL", itemUnit)) { const v = convertUnits(mL, "mL", itemUnit); return v ?? mL; }
   return mL;
 }
 function lToItemUnit(L: number, itemUnit: string): number {
-  if (canConvert("L", itemUnit)) {
-    const v = convertUnits(L, "L", itemUnit);
-    return v ?? L;
-  }
+  if (canConvert("L", itemUnit)) { const v = convertUnits(L, "L", itemUnit); return v ?? L; }
   return L;
 }
 
 function rowToItem(r: any): InventoryItem {
   return {
-    id: r.id,
-    name: r.name,
-    category: r.category,
-    quantity: Number(r.quantity),
-    unit: r.unit ?? "",
+    id: r.id, name: r.name, category: r.category,
+    quantity: Number(r.quantity), unit: r.unit ?? "",
     threshold: Number(r.threshold ?? 0),
-    presetId: r.preset_id ?? undefined,
-    subtype: r.subtype ?? undefined,
+    presetId: r.preset_id ?? undefined, subtype: r.subtype ?? undefined,
     recommendedMin: r.recommended_min != null ? Number(r.recommended_min) : undefined,
     recommendedMax: r.recommended_max != null ? Number(r.recommended_max) : undefined,
     unitCost: Number(r.unit_cost ?? 0),
@@ -104,19 +93,13 @@ function rowToItem(r: any): InventoryItem {
 
 function rowToTx(r: any): InventoryTransaction {
   return {
-    id: r.id,
-    itemId: r.item_id,
-    itemName: r.item_name,
-    delta: Number(r.delta),
-    balance: Number(r.balance),
-    type: r.type,
-    source: r.source,
-    notes: r.notes ?? undefined,
+    id: r.id, itemId: r.item_id, itemName: r.item_name,
+    delta: Number(r.delta), balance: Number(r.balance),
+    type: r.type, source: r.source, notes: r.notes ?? undefined,
     flow: r.flow ?? undefined,
     unitCost: r.unit_cost != null ? Number(r.unit_cost) : undefined,
     totalCost: r.total_cost != null ? Number(r.total_cost) : undefined,
-    expenseId: r.expense_id ?? undefined,
-    createdAt: r.created_at,
+    expenseId: r.expense_id ?? undefined, createdAt: r.created_at,
   };
 }
 
@@ -125,19 +108,14 @@ export function useInventory() {
   const { user } = useAuth();
   const tenantId = tenant?.id ?? null;
 
-  // Items + transactions come from the Dexie mirror (kept in sync by the
-  // central sync engine), so screens render instantly and work offline.
+  // Reads from Dexie mirror — instant, offline-first
   const itemRows = useLiveTable<any>(tenantId, "inventory_items");
   const txRows = useLiveTable<any>(tenantId, "inventory_transactions");
 
   const items = useMemo<InventoryItem[]>(() => {
     const list = (itemRows ?? []).map(rowToItem);
     const sortKey = new Map((itemRows ?? []).map((r: any) => [r.id, r?.created_at ?? r?.id ?? ""]));
-    list.sort((a, b) => {
-      const ka = sortKey.get(a.id) ?? "";
-      const kb = sortKey.get(b.id) ?? "";
-      return ka < kb ? 1 : -1;
-    });
+    list.sort((a, b) => { const ka = sortKey.get(a.id) ?? ""; const kb = sortKey.get(b.id) ?? ""; return ka < kb ? 1 : -1; });
     return list;
   }, [itemRows]);
 
@@ -147,76 +125,87 @@ export function useInventory() {
     return list.slice(0, 1000);
   }, [txRows]);
 
-  // localStorage-only state (still client-side for this pass)
   const [recipes, setRecipes] = useState<RecipeMap>(() => lsLoad(RECIPE_KEY, {} as RecipeMap));
   const [vehicleMap, setVehicleMap] = useState<Record<string, string>>(() => lsLoad(VEHICLE_MAP_KEY, {}));
   const [waterItemId, setWaterItemIdState] = useState<string | null>(() => lsLoad<string | null>(WATER_ITEM_KEY, null));
   const processedRef = useRef<Set<string>>(new Set(lsLoad<string[]>(PROCESSED_KEY, [])));
   const vehicleProcessedRef = useRef<Set<string>>(new Set(lsLoad<string[]>(VEHICLE_PROCESSED_KEY, [])));
-
-  // ---- Defaults: inventory category -> expense category ----
-  const [categoryDefaults, setCategoryDefaults] = useState<Record<string, string>>({});
-
+  const [categoryDefaults, setCategoryDefaults] = useState<Record<string, string>>(
+    () => lsLoad(CATEGORY_DEFAULTS_KEY, {})
+  );
   const [auxLoading, setAuxLoading] = useState(true);
   const loading = auxLoading || itemRows === undefined || txRows === undefined;
-
   const WATER_KEY = "__water__";
 
-  // Defaults + vehicle map aren't in the local mirror yet — keep fetching them.
-  const fetchAll = useCallback(async () => {
+  // Load category defaults + vehicle map — from Supabase when online, from localStorage when offline
+  const fetchAux = useCallback(async () => {
     if (!tenantId) { setAuxLoading(false); return; }
     setAuxLoading(true);
-    const [defRes, mapRes] = await Promise.all([
-      supabase.from("inventory_category_defaults" as any).select("category, expense_category").eq("tenant_id", tenantId),
-      supabase.from("inventory_vehicle_map" as any).select("key, item_id").eq("tenant_id", tenantId),
-    ]);
-    const defs: Record<string, string> = {};
-    for (const d of (defRes.data as any[]) ?? []) defs[d.category] = d.expense_category;
-    setCategoryDefaults(defs);
-    const map: Record<string, string> = {};
-    let water: string | null = null;
-    for (const row of (mapRes.data as any[]) ?? []) {
-      if (row.key === WATER_KEY) water = row.item_id;
-      else map[row.key] = row.item_id;
+
+    if (navigator.onLine) {
+      try {
+        const [defRes, mapRes] = await Promise.all([
+          supabase.from("inventory_category_defaults" as any).select("category, expense_category").eq("tenant_id", tenantId),
+          supabase.from("inventory_vehicle_map" as any).select("key, item_id").eq("tenant_id", tenantId),
+        ]);
+        const defs: Record<string, string> = {};
+        for (const d of (defRes.data as any[]) ?? []) defs[d.category] = d.expense_category;
+        setCategoryDefaults(defs);
+        lsSave(CATEGORY_DEFAULTS_KEY, defs);
+
+        const map: Record<string, string> = {};
+        let water: string | null = null;
+        for (const row of (mapRes.data as any[]) ?? []) {
+          if (row.key === WATER_KEY) water = row.item_id;
+          else map[row.key] = row.item_id;
+        }
+        setVehicleMap(map);
+        setWaterItemIdState(water);
+        lsSave(VEHICLE_MAP_KEY, map);
+        lsSave(WATER_ITEM_KEY, water);
+      } catch { /* use cached values */ }
     }
-    setVehicleMap(map);
-    setWaterItemIdState(water);
-    lsSave(VEHICLE_MAP_KEY, map);
-    lsSave(WATER_ITEM_KEY, water);
+    // Offline: already loaded from localStorage in useState initializers
     setAuxLoading(false);
   }, [tenantId]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { fetchAux(); }, [fetchAux]);
 
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId || !navigator.onLine) return;
     const ch = supabase
       .channel(`inventory_aux_${tenantId}_${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_category_defaults", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_vehicle_map", filter: `tenant_id=eq.${tenantId}` }, () => fetchAll())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_category_defaults", filter: `tenant_id=eq.${tenantId}` }, () => fetchAux())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "inventory_vehicle_map", filter: `tenant_id=eq.${tenantId}` }, () => fetchAux())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tenantId, fetchAll]);
+  }, [tenantId, fetchAux]);
 
-  // -------- Resolve expense category for an item --------
   const resolveExpenseCategory = useCallback((item: InventoryItem): string => {
-    if (item.expenseCategory && item.expenseCategory.trim()) return item.expenseCategory;
+    if (item.expenseCategory?.trim()) return item.expenseCategory;
     if (categoryDefaults[item.category]) return categoryDefaults[item.category];
     return "Supplies";
   }, [categoryDefaults]);
 
-  // -------- Lookup supplier name (lazy fetch when needed) --------
+  // Lookup supplier name — from Dexie when offline, Supabase when online
   const lookupSupplierName = useCallback(async (supplierId: string | null | undefined): Promise<string | null> => {
     if (!supplierId) return null;
-    const { data } = await supabase.from("suppliers" as any).select("name").eq("id", supplierId).maybeSingle();
-    return (data as any)?.name ?? null;
+    // Try local Dexie first
+    try {
+      const local = await (db as any).suppliers.get(supplierId);
+      if (local?.name) return local.name;
+    } catch { /* ignore */ }
+    // Fall back to Supabase if online
+    if (navigator.onLine) {
+      const { data } = await supabase.from("suppliers" as any).select("name").eq("id", supplierId).maybeSingle();
+      return (data as any)?.name ?? null;
+    }
+    return null;
   }, []);
 
-  // -------- Create expense for a restock --------
+  // Create expense for a restock — offline-first via Dexie + outbox
   const createRestockExpense = useCallback(async (
-    item: InventoryItem,
-    qty: number,
-    notes?: string,
+    item: InventoryItem, qty: number, notes?: string,
   ): Promise<string | null> => {
     if (!tenantId || qty <= 0) return null;
     const total = +(item.unitCost * qty).toFixed(2);
@@ -225,98 +214,63 @@ export function useInventory() {
     const category = resolveExpenseCategory(item);
     const qtyLabel = `${qty}${item.unit ? ` ${item.unit}` : ""}`;
     const description = `Restock: ${item.name} (${qtyLabel})`;
-    const { data, error } = await supabase
-      .from("expenses" as any)
-      .insert({
-        tenant_id: tenantId,
-        description,
-        amount: total,
-        category,
-        vendor: vendor ?? null,
-        notes: notes ?? null,
-        date: new Date().toISOString(),
-        created_by: user?.id ?? null,
-      })
-      .select("id")
-      .single();
-    if (error || !data) return null;
-    return (data as any).id;
+    const row = await offlineInsert("expenses", tenantId, {
+      description, amount: total, category,
+      vendor: vendor ?? null, notes: notes ?? null,
+      date: new Date().toISOString().slice(0, 10),
+      created_by: user?.id ?? null,
+    });
+    return row.id as string;
   }, [tenantId, user?.id, lookupSupplierName, resolveExpenseCategory]);
 
-  // -------- Apply a delta + record a transaction (no expense logic here) --------
+  // Core: apply delta to item + log transaction — all offline-first
   const applyDeltaAndLog = useCallback(async (
-    item: InventoryItem,
-    delta: number,
+    item: InventoryItem, delta: number,
     entry: {
       type: "restock" | "consume" | "adjust";
-      source: string;
-      notes?: string;
-      flow?: InventoryFlow;
-      unitCost?: number;
-      totalCost?: number;
-      expenseId?: string | null;
+      source: string; notes?: string; flow?: InventoryFlow;
+      unitCost?: number; totalCost?: number; expenseId?: string | null;
     }
   ): Promise<number> => {
+    if (!tenantId) return item.quantity;
     const newBalance = Math.max(0, item.quantity + delta);
-    await supabase.from("inventory_items" as any).update({ quantity: newBalance }).eq("id", item.id);
-    await supabase.from("inventory_transactions" as any).insert({
-      tenant_id: tenantId,
-      item_id: item.id,
-      item_name: item.name,
-      delta,
-      balance: newBalance,
-      type: entry.type,
-      source: entry.source,
-      notes: entry.notes ?? null,
-      flow: entry.flow ?? null,
-      unit_cost: entry.unitCost ?? null,
-      total_cost: entry.totalCost ?? null,
+
+    // Update item quantity in Dexie
+    await offlineUpdate("inventory_items", tenantId, item.id, { quantity: newBalance });
+
+    // Log transaction in Dexie
+    await offlineInsert("inventory_transactions", tenantId, {
+      item_id: item.id, item_name: item.name,
+      delta, balance: newBalance, type: entry.type, source: entry.source,
+      notes: entry.notes ?? null, flow: entry.flow ?? null,
+      unit_cost: entry.unitCost ?? null, total_cost: entry.totalCost ?? null,
       expense_id: entry.expenseId ?? null,
     });
+
     return newBalance;
   }, [tenantId]);
 
-  // ============== Public mutations ==============
+  // ============== Public mutations — all offline-first ==============
 
   const addItem = useCallback(async (data: Omit<InventoryItem, "id" | "unitCost"> & { unitCost?: number }) => {
     if (!tenantId) return null;
     const unitCost = data.unitCost ?? 0;
-    const { data: row, error } = await supabase
-      .from("inventory_items" as any)
-      .insert({
-        tenant_id: tenantId,
-        name: data.name,
-        category: data.category,
-        subtype: data.subtype ?? null,
-        preset_id: data.presetId ?? null,
-        unit: data.unit ?? "",
-        quantity: data.quantity,
-        threshold: data.threshold,
-        recommended_min: data.recommendedMin ?? null,
-        recommended_max: data.recommendedMax ?? null,
-        unit_cost: unitCost,
-        expense_category: data.expenseCategory ?? null,
-        supplier_id: data.supplierId ?? null,
-        pack_size: data.packSize ?? null,
-      })
-      .select("*")
-      .single();
-    if (error || !row) return null;
+    const row = await offlineInsert("inventory_items", tenantId, {
+      name: data.name, category: data.category,
+      subtype: data.subtype ?? null, preset_id: data.presetId ?? null,
+      unit: data.unit ?? "", quantity: data.quantity, threshold: data.threshold,
+      recommended_min: data.recommendedMin ?? null, recommended_max: data.recommendedMax ?? null,
+      unit_cost: unitCost, expense_category: data.expenseCategory ?? null,
+      supplier_id: data.supplierId ?? null, pack_size: data.packSize ?? null,
+    });
     const item = rowToItem(row);
 
     if (item.quantity > 0) {
       const expenseId = await createRestockExpense(item, item.quantity, "Initial stock");
       await applyDeltaAndLog(
-        { ...item, quantity: 0 }, // log starts from 0; balance becomes item.quantity
-        item.quantity,
-        {
-          type: "restock",
-          source: "Initial stock",
-          flow: "manual",
-          unitCost: item.unitCost,
-          totalCost: +(item.unitCost * item.quantity).toFixed(2),
-          expenseId,
-        }
+        { ...item, quantity: 0 }, item.quantity,
+        { type: "restock", source: "Initial stock", flow: "manual",
+          unitCost: item.unitCost, totalCost: +(item.unitCost * item.quantity).toFixed(2), expenseId },
       );
     }
     return item;
@@ -324,7 +278,7 @@ export function useInventory() {
 
   const updateItem = useCallback(async (id: string, patch: Partial<Omit<InventoryItem, "id">>) => {
     const prev = items.find((i) => i.id === id);
-    if (!prev) return;
+    if (!prev || !tenantId) return;
     const update: Record<string, unknown> = {};
     if (patch.name !== undefined) update.name = patch.name;
     if (patch.category !== undefined) update.category = patch.category;
@@ -339,101 +293,64 @@ export function useInventory() {
     if (patch.expenseCategory !== undefined) update.expense_category = patch.expenseCategory ?? null;
     if (patch.supplierId !== undefined) update.supplier_id = patch.supplierId ?? null;
     if (patch.packSize !== undefined) update.pack_size = patch.packSize ?? null;
-    await supabase.from("inventory_items" as any).update(update).eq("id", id);
 
-    // Log a manual adjust transaction for qty edits — but NEVER create an expense here.
-    // Restocks must go through Reorder or Add Stock (adjustStock), which own expense creation.
+    await offlineUpdate("inventory_items", tenantId, id, update);
+
     if (patch.quantity !== undefined && patch.quantity !== prev.quantity) {
       const delta = patch.quantity - prev.quantity;
       const newItem = { ...prev, ...patch } as InventoryItem;
-      await supabase.from("inventory_transactions" as any).insert({
-        tenant_id: tenantId,
-        item_id: id,
-        item_name: newItem.name,
-        delta,
-        balance: patch.quantity,
-        type: "adjust",
-        source: "Manual edit",
+      await offlineInsert("inventory_transactions", tenantId, {
+        item_id: id, item_name: newItem.name, delta, balance: patch.quantity,
+        type: "adjust", source: "Manual edit",
         notes: "Edited via item form — no expense logged",
-        flow: "manual",
-        unit_cost: null,
-        total_cost: null,
-        expense_id: null,
+        flow: "manual", unit_cost: null, total_cost: null, expense_id: null,
       });
     }
-  }, [items, tenantId, createRestockExpense]);
+  }, [items, tenantId]);
 
   const deleteItem = useCallback(async (id: string) => {
-    // Optimistically remove from the local Dexie mirror so the UI updates
-    // immediately. Realtime DELETE payloads often omit tenant_id (REPLICA
-    // IDENTITY DEFAULT only carries the primary key), which can prevent the
-    // central sync from applying the delete via its tenant_id filter.
-    try {
-      const { db } = await import("@/offline/db");
-      await db.inventory_items.delete(id);
-    } catch { /* ignore — server delete still authoritative */ }
-    await supabase.from("inventory_items" as any).delete().eq("id", id);
-  }, []);
+    if (!tenantId) return;
+    await offlineDelete("inventory_items", tenantId, id);
+  }, [tenantId]);
 
   const adjustStock = useCallback(async (itemId: string, delta: number, notes?: string, source = "Manual") => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
     let expenseId: string | null = null;
-    if (delta > 0 && item.unitCost > 0) {
-      expenseId = await createRestockExpense(item, delta, notes);
-    }
+    if (delta > 0 && item.unitCost > 0) expenseId = await createRestockExpense(item, delta, notes);
     await applyDeltaAndLog(item, delta, {
-      type: delta >= 0 ? "restock" : "consume",
-      source,
-      notes,
-      flow: "manual",
+      type: delta >= 0 ? "restock" : "consume", source, notes, flow: "manual",
       unitCost: delta > 0 ? item.unitCost : undefined,
       totalCost: delta > 0 ? +(item.unitCost * delta).toFixed(2) : undefined,
       expenseId,
     });
   }, [items, applyDeltaAndLog, createRestockExpense]);
 
-  /** Reorder = positive restock that also updates supplier/unit cost on the item. */
   const reorderItem = useCallback(async (args: {
-    itemId: string;
-    quantity: number;
-    unitCost: number;
-    supplierId?: string | null;
-    notes?: string;
+    itemId: string; quantity: number; unitCost: number;
+    supplierId?: string | null; notes?: string;
   }) => {
+    if (!tenantId) return { ok: false as const, reason: "No workspace" };
     const prev = items.find((i) => i.id === args.itemId);
     if (!prev) return { ok: false as const, reason: "Item not found" };
     if (args.quantity <= 0) return { ok: false as const, reason: "Quantity must be > 0" };
 
-    // Update item's unit cost & supplier first so subsequent expense uses fresh values.
-    const updatedItem: InventoryItem = {
-      ...prev,
-      unitCost: args.unitCost,
-      supplierId: args.supplierId ?? undefined,
-    };
-    await supabase.from("inventory_items" as any).update({
-      unit_cost: args.unitCost,
-      supplier_id: args.supplierId ?? null,
-    }).eq("id", args.itemId);
+    const updatedItem: InventoryItem = { ...prev, unitCost: args.unitCost, supplierId: args.supplierId ?? undefined };
+    await offlineUpdate("inventory_items", tenantId, args.itemId, {
+      unit_cost: args.unitCost, supplier_id: args.supplierId ?? null,
+    });
 
     const total = +(args.unitCost * args.quantity).toFixed(2);
     let expenseId: string | null = null;
-    if (total > 0) {
-      expenseId = await createRestockExpense(updatedItem, args.quantity, args.notes ?? "Reorder");
-    }
+    if (total > 0) expenseId = await createRestockExpense(updatedItem, args.quantity, args.notes ?? "Reorder");
     await applyDeltaAndLog(updatedItem, args.quantity, {
-      type: "restock",
-      source: "Reorder",
-      notes: args.notes,
-      flow: "manual",
-      unitCost: args.unitCost,
-      totalCost: total,
-      expenseId,
+      type: "restock", source: "Reorder", notes: args.notes, flow: "manual",
+      unitCost: args.unitCost, totalCost: total, expenseId,
     });
     return { ok: true as const };
-  }, [items, applyDeltaAndLog, createRestockExpense]);
+  }, [items, tenantId, applyDeltaAndLog, createRestockExpense]);
 
-  // ----- Recipes (still localStorage) -----
+  // ----- Recipes (localStorage) -----
   const setRecipe = useCallback((serviceName: string, lines: { itemId: string; qty: number }[]) => {
     const cleaned = lines.filter((l) => l.itemId && l.qty > 0);
     setRecipes((prev) => {
@@ -472,13 +389,10 @@ export function useInventory() {
       const item = items.find((i) => i.id === line.itemId);
       if (!item) continue;
       const baseNote = order.service;
-      const note = opts.override && opts.overrideNote
-        ? `${baseNote} · Override: ${opts.overrideNote}`
+      const note = opts.override && opts.overrideNote ? `${baseNote} · Override: ${opts.overrideNote}`
         : opts.override ? `${baseNote} · Override (negative stock)` : baseNote;
       await applyDeltaAndLog(item, -line.qty, {
-        type: "consume",
-        source: `Order ${order.orderNumber}`,
-        notes: note,
+        type: "consume", source: `Order ${order.orderNumber}`, notes: note,
         flow: opts.override ? "override" : "confirmed",
       });
     }
@@ -492,16 +406,16 @@ export function useInventory() {
     const item = items.find((i) => i.id === last.itemId);
     if (!item) return { ok: false, reason: "Item no longer exists" };
     await applyDeltaAndLog(item, -last.delta, {
-      type: "adjust",
-      source: "Undo",
+      type: "adjust", source: "Undo",
       notes: `Undo of ${last.source}${last.notes ? ` (${last.notes})` : ""}`,
       flow: "undo",
     });
     return { ok: true };
   }, [transactions, items, applyDeltaAndLog]);
 
-  // ----- Vehicle map (Supabase, tenant-wide; localStorage mirror for fast paint) -----
+  // ----- Vehicle map — localStorage + Supabase when online -----
   const setVehicleMapping = useCallback(async (concentrateKey: string, itemId: string | null) => {
+    if (!tenantId) return;
     setVehicleMap((prev) => {
       const next = { ...prev };
       if (itemId) next[concentrateKey] = itemId;
@@ -509,30 +423,34 @@ export function useInventory() {
       lsSave(VEHICLE_MAP_KEY, next);
       return next;
     });
-    if (!tenantId) return;
-    if (itemId) {
-      await supabase.from("inventory_vehicle_map" as any).upsert(
-        { tenant_id: tenantId, key: concentrateKey, item_id: itemId },
-        { onConflict: "tenant_id,key" },
-      );
-    } else {
-      await supabase.from("inventory_vehicle_map" as any)
-        .delete().eq("tenant_id", tenantId).eq("key", concentrateKey);
+    // Sync to Supabase when online (non-blocking)
+    if (navigator.onLine) {
+      if (itemId) {
+        supabase.from("inventory_vehicle_map" as any).upsert(
+          { tenant_id: tenantId, key: concentrateKey, item_id: itemId },
+          { onConflict: "tenant_id,key" },
+        ).then(() => {});
+      } else {
+        supabase.from("inventory_vehicle_map" as any)
+          .delete().eq("tenant_id", tenantId).eq("key", concentrateKey).then(() => {});
+      }
     }
   }, [tenantId]);
 
   const setWaterItem = useCallback(async (itemId: string | null) => {
+    if (!tenantId) return;
     setWaterItemIdState(itemId);
     lsSave(WATER_ITEM_KEY, itemId);
-    if (!tenantId) return;
-    if (itemId) {
-      await supabase.from("inventory_vehicle_map" as any).upsert(
-        { tenant_id: tenantId, key: WATER_KEY, item_id: itemId },
-        { onConflict: "tenant_id,key" },
-      );
-    } else {
-      await supabase.from("inventory_vehicle_map" as any)
-        .delete().eq("tenant_id", tenantId).eq("key", WATER_KEY);
+    if (navigator.onLine) {
+      if (itemId) {
+        supabase.from("inventory_vehicle_map" as any).upsert(
+          { tenant_id: tenantId, key: WATER_KEY, item_id: itemId },
+          { onConflict: "tenant_id,key" },
+        ).then(() => {});
+      } else {
+        supabase.from("inventory_vehicle_map" as any)
+          .delete().eq("tenant_id", tenantId).eq("key", WATER_KEY).then(() => {});
+      }
     }
   }, [tenantId]);
 
@@ -571,10 +489,7 @@ export function useInventory() {
 
   const consumeForWash = useCallback(async (
     args: {
-      orderId?: string;
-      orderNumber?: string;
-      vehicleInput: string;
-      source?: string;
+      orderId?: string; orderNumber?: string; vehicleInput: string; source?: string;
       extras?: { itemId: string; qty: number; note?: string }[];
     },
     opts: { override?: boolean; overrideNote?: string } = {}
@@ -606,26 +521,18 @@ export function useInventory() {
       lsSave(VEHICLE_PROCESSED_KEY, Array.from(vehicleProcessedRef.current));
     }
     const source = args.source ?? (args.orderNumber ? `Order ${args.orderNumber}` : "Wash");
-
     for (const r of baseRows) {
       const baseNote = `${vehicle} wash`;
       const note = opts.override
         ? `${baseNote} · Override${opts.overrideNote ? `: ${opts.overrideNote}` : " (negative stock)"}`
         : baseNote;
-      await applyDeltaAndLog(r.item!, -r.qty, {
-        type: "consume", source, notes: note,
-        flow: opts.override ? "override" : "auto",
-      });
+      await applyDeltaAndLog(r.item!, -r.qty, { type: "consume", source, notes: note, flow: opts.override ? "override" : "auto" });
     }
     for (const r of extraRows) {
       const baseNote = `Extra${vehicle ? ` (${vehicle})` : ""}${r.note ? `: ${r.note}` : ""}`;
       const note = opts.override
-        ? `${baseNote} · Override${opts.overrideNote ? `: ${opts.overrideNote}` : ""}`
-        : baseNote;
-      await applyDeltaAndLog(r.item!, -r.qty, {
-        type: "consume", source, notes: note,
-        flow: opts.override ? "override" : "manual",
-      });
+        ? `${baseNote} · Override${opts.overrideNote ? `: ${opts.overrideNote}` : ""}` : baseNote;
+      await applyDeltaAndLog(r.item!, -r.qty, { type: "consume", source, notes: note, flow: opts.override ? "override" : "manual" });
     }
     return { ok: true, negativeItems: [] };
   }, [items, previewVehicleConsumption, applyDeltaAndLog]);
@@ -644,10 +551,8 @@ export function useInventory() {
             lsSave(VEHICLE_PROCESSED_KEY, Array.from(vehicleProcessedRef.current));
             for (const r of rows) {
               await applyDeltaAndLog(r.item!, -r.qty, {
-                type: "consume",
-                source: `Order ${o.orderNumber}`,
-                notes: `${matchVehicle(o.vehicle) ?? o.vehicle} wash`,
-                flow: "auto",
+                type: "consume", source: `Order ${o.orderNumber}`,
+                notes: `${matchVehicle(o.vehicle) ?? o.vehicle} wash`, flow: "auto",
               });
             }
           }
@@ -668,18 +573,9 @@ export function useInventory() {
     }
   }, [items, recipes, previewVehicleConsumption, applyDeltaAndLog]);
 
-  /**
-   * Unified wash deduction. Takes already-merged rows (one entry per item with
-   * summed qty across service recipe + vehicle map + extras) and writes a single
-   * consume transaction per item. Idempotent per orderId; also marks the legacy
-   * processed sets so completion-time fallback won't re-fire.
-   */
   const commitWashConsumption = useCallback(async (
     args: {
-      orderId: string;
-      orderNumber: string;
-      service: string;
-      vehicleInput?: string;
+      orderId: string; orderNumber: string; service: string; vehicleInput?: string;
       rows: { itemId: string; qty: number; source: "service" | "vehicle" | "extra"; note?: string }[];
     },
     opts: { override?: boolean; overrideNote?: string } = {}
@@ -712,7 +608,6 @@ export function useInventory() {
     }
     if (negativeItems.length > 0 && !opts.override) return { ok: false, negativeItems };
 
-    // Mark BEFORE writes to block concurrent re-fires.
     processedRef.current.add(args.orderId);
     vehicleProcessedRef.current.add(`wash:${args.orderId}`);
     lsSave(PROCESSED_KEY, Array.from(processedRef.current));
@@ -726,13 +621,9 @@ export function useInventory() {
       if (vehicleLabel && agg.sources.has("vehicle")) parts.push(`${vehicleLabel} usage`);
       if (agg.notes.length > 0) parts.push(agg.notes.join("; "));
       let note = parts.filter(Boolean).join(" · ");
-      if (opts.override) {
-        note += ` · Override${opts.overrideNote ? `: ${opts.overrideNote}` : " (negative stock)"}`;
-      }
+      if (opts.override) note += ` · Override${opts.overrideNote ? `: ${opts.overrideNote}` : " (negative stock)"}`;
       await applyDeltaAndLog(item, -agg.qty, {
-        type: "consume",
-        source: `Order ${args.orderNumber}`,
-        notes: note,
+        type: "consume", source: `Order ${args.orderNumber}`, notes: note,
         flow: opts.override ? "override" : "auto",
       });
     }
@@ -740,28 +631,11 @@ export function useInventory() {
   }, [items, applyDeltaAndLog]);
 
   return {
-    items,
-    transactions,
-    recipes,
-    vehicleMap,
-    waterItemId,
-    categoryDefaults,
-    loading,
-    addItem,
-    updateItem,
-    deleteItem,
-    adjustStock,
-    reorderItem,
-    setRecipe,
-    previewConsumption,
-    confirmConsumption,
-    undoLastTransaction,
-    processCompletedOrders,
-    setVehicleMapping,
-    setWaterItem,
-    previewVehicleConsumption,
-    consumeForWash,
-    commitWashConsumption,
+    items, transactions, recipes, vehicleMap, waterItemId, categoryDefaults, loading,
+    addItem, updateItem, deleteItem, adjustStock, reorderItem,
+    setRecipe, previewConsumption, confirmConsumption, undoLastTransaction,
+    processCompletedOrders, setVehicleMapping, setWaterItem,
+    previewVehicleConsumption, consumeForWash, commitWashConsumption,
     resolveExpenseCategory,
   };
 }
