@@ -80,6 +80,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const tenantRef = useRef<Tenant | null>(tenant);
+  useEffect(() => { tenantRef.current = tenant; }, [tenant]);
+
 
   const load = useCallback(async (preferredTenantId?: string) => {
     // Wait for auth to settle before resolving tenant state. This prevents the
