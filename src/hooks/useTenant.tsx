@@ -163,59 +163,72 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       list[0].id;
     const activeRow = list.find((m) => m.id === activeId) ?? list[0];
     writeStoredTenant(activeRow.id);
-
-    // Super admins are not tenant_members; without an explicit JWT claim,
-    // current_tenant_id() returns null and RLS-scoped reads (orders, history,
-    // etc.) return nothing. Ensure the JWT claim matches the active tenant.
-    if (superAdmin && jwtId !== activeRow.id) {
-      try {
-        await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
-        await supabase.auth.refreshSession();
-      } catch (e) {
-        console.warn("super-admin tenant sync failed", e);
-      }
-    }
-
-    // If a URL slug picked a tenant different from the current JWT claim, sync
-    // the server-side active tenant so RLS-scoped queries hit the right workspace.
-    if (urlMatchId && urlMatchId !== jwtId) {
-      try {
-        await supabase.functions.invoke("switch-tenant", { body: { tenant_id: urlMatchId } });
-        await supabase.auth.refreshSession();
-      } catch (e) {
-        console.warn("URL tenant switch failed", e);
-      }
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("tenant");
-        window.history.replaceState({}, "", url.toString());
-      } catch { /* ignore */ }
-    }
-
-    const { data } = await supabase
-      .from("tenants" as any)
-      .select("*")
-      .eq("id", activeRow.id)
-      .maybeSingle();
-    const tenantRow = ((data as any) ?? null) as Tenant | null;
-    setTenant(tenantRow);
     setMyRole(activeRow.tenant_role);
 
-    // Load plan features (jsonb) for the active tenant
-    if (tenantRow?.plan_id) {
-      const { data: planRow } = await supabase
-        .from("plans" as any)
-        .select("features")
-        .eq("id", tenantRow.plan_id)
-        .maybeSingle();
-      const raw = (planRow as any)?.features;
-      setPlanFeatures(raw && typeof raw === "object" ? (raw as Record<string, boolean>) : {});
-    } else {
-      setPlanFeatures(null);
+    // If we already have a cached tenant for this id, surface it immediately
+    // so all data hooks unblock; otherwise paint as much as we can from the
+    // membership row while the full tenant record loads.
+    if (!tenant || tenant.id !== activeRow.id) {
+      const stub: Tenant = {
+        id: activeRow.id,
+        name: activeRow.name,
+        slug: activeRow.slug,
+        status: (tenant?.status ?? "active") as TenantStatus,
+        trial_ends_at: tenant?.trial_ends_at ?? new Date().toISOString(),
+        current_period_end: tenant?.current_period_end ?? null,
+        grace_period_ends_at: tenant?.grace_period_ends_at ?? null,
+        plan_id: tenant?.plan_id ?? null,
+      };
+      setTenant(stub);
     }
-
     setLoading(false);
-  }, [user, authLoading, authedEmail, authedUserId]);
+
+    // ---- Background revalidation (does not block the UI) ----
+    void (async () => {
+      // Sync server-side active tenant when JWT claim is out of date.
+      const needsClaimSync =
+        (superAdmin && jwtId !== activeRow.id) ||
+        (urlMatchId && urlMatchId !== jwtId);
+      if (needsClaimSync) {
+        try {
+          await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
+          await supabase.auth.refreshSession();
+        } catch (e) {
+          console.warn("tenant claim sync failed", e);
+        }
+      }
+      if (urlMatchId) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("tenant");
+          window.history.replaceState({}, "", url.toString());
+        } catch { /* ignore */ }
+      }
+
+      const { data } = await supabase
+        .from("tenants" as any)
+        .select("*")
+        .eq("id", activeRow.id)
+        .maybeSingle();
+      const tenantRow = ((data as any) ?? null) as Tenant | null;
+      if (tenantRow) {
+        setTenant(tenantRow);
+        writeCachedTenant(tenantRow);
+      }
+
+      if (tenantRow?.plan_id) {
+        const { data: planRow } = await supabase
+          .from("plans" as any)
+          .select("features")
+          .eq("id", tenantRow.plan_id)
+          .maybeSingle();
+        const raw = (planRow as any)?.features;
+        setPlanFeatures(raw && typeof raw === "object" ? (raw as Record<string, boolean>) : {});
+      } else {
+        setPlanFeatures(null);
+      }
+    })();
+  }, [user, authLoading, authedEmail, authedUserId, tenant]);
 
   useEffect(() => { load(); }, [load]);
 
