@@ -192,7 +192,7 @@ async fn check_for_updates(app: tauri::AppHandle) {
                     .blocking_pick_folder();
 
                 let target_dir = match picked {
-                    Some(fp) => fp.into_path().unwrap_or(default_dir.clone()),
+                    Some(fp) => fp.into_path().ok().unwrap_or_else(|| default_dir.clone()),
                     None => default_dir.clone(),
                 };
                 let target_path = target_dir.join(&filename);
