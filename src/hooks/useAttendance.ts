@@ -105,7 +105,7 @@ async function drainSelfieQueue() {
         .eq("id", item.attendanceRecordId);
       // Update local Dexie record too
       const local = await db.attendance_records.get(item.attendanceRecordId);
-      if (local) await db.attendance_records.put({ ...local, selfie_url: path });
+      if (local) await db.attendance_records.put({ ...local, selfie_url: path } as any);
     } catch {
       remaining.push(item); // keep for retry
     }
