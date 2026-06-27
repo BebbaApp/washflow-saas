@@ -237,9 +237,9 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border p-4">
+      <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border p-4 h-full overflow-y-auto">
         {renderSidebarBody()}
       </aside>
 
