@@ -112,12 +112,12 @@ async fn check_for_updates(app: tauri::AppHandle) {
 
                         println!("[Updater] Starting download (attempt {})...", attempt);
                         let app_handle = app.clone();
-                        let mut last_pct = 0u64;
+                        let mut last_pct = 0usize;
 
                         let result = update.download_and_install(
                             |downloaded, total| {
                                 if let Some(t) = total {
-                                    let pct = (downloaded * 100) / t;
+                                    let pct = (downloaded * 100) / t as usize;
                                     if pct != last_pct && pct % 10 == 0 {
                                         last_pct = pct;
                                         println!("[Updater] {}% ({}/{})", pct, downloaded, t);
