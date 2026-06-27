@@ -188,36 +188,108 @@ async fn check_for_updates(app: tauri::AppHandle) {
                     let _ = win.eval(&js);
                 }
 
-                // Surface the FULL error and let the user choose Retry vs Open Releases.
+                // Surface the FULL error and let the user choose Retry vs Save installer to disk.
                 let full_msg = format!(
-                    "Washflow couldn't install the update on attempt {}.\n\nError details:\n{}\n\nClick Retry to try the install again, or Open Releases to download manually.",
+                    "Washflow couldn't install the update on attempt {}.\n\nError details:\n{}\n\nClick Retry to try the install again, or Save Installer to download the installer file to your Downloads folder so you can run it manually.",
                     attempt, err_msg
                 );
                 let retry = app.dialog()
                     .message(full_msg)
                     .title("Update Error")
                     .kind(MessageDialogKind::Error)
-                    .buttons(MessageDialogButtons::OkCancelCustom("Retry".to_string(), "Open Releases".to_string()))
+                    .buttons(MessageDialogButtons::OkCancelCustom("Retry".to_string(), "Save Installer".to_string()))
                     .blocking_show();
 
                 if retry {
-                    // Loop and try again.
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     continue;
-                } else {
-                    let _ = open::that("https://github.com/BebbaApp/washflow-saas/releases/latest");
-                    return;
+                }
+
+                // ---- Save installer to disk fallback ----
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.eval("(function(){var b=document.getElementById('wf-update-banner');if(b){b.style.background='#0cd4c4';b.style.color='#0d1b2a';b.textContent='Downloading installer to your Downloads folder… 0%';}})();");
+                }
+
+                let download_url = format!("{}", update.download_url);
+                let filename = download_url
+                    .rsplit('/')
+                    .next()
+                    .map(|s| s.split('?').next().unwrap_or(s).to_string())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| format!("washflow-{}-installer", update.version));
+
+                let download_dir = app.path().download_dir()
+                    .or_else(|_| app.path().home_dir())
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                let target_path = download_dir.join(&filename);
+
+                let app_handle2 = app.clone();
+                let mut got_bytes: usize = 0;
+                let bytes_result = update.clone().download(
+                    move |chunk, total| {
+                        got_bytes += chunk;
+                        if let Some(t) = total {
+                            let pct = ((got_bytes as u64 * 100) / t).min(100);
+                            if let Some(win) = app_handle2.get_webview_window("main") {
+                                let js = format!(
+                                    "(function(){{var b=document.getElementById('wf-update-banner');if(b)b.textContent='Downloading installer… {}%';}})();",
+                                    pct
+                                );
+                                let _ = win.eval(&js);
+                            }
+                        }
+                    },
+                    || { println!("[Updater] Installer download finished"); },
+                ).await;
+
+                match bytes_result {
+                    Ok(bytes) => {
+                        match std::fs::write(&target_path, &bytes) {
+                            Ok(_) => {
+                                println!("[Updater] Installer saved to {:?}", target_path);
+                                if let Some(win) = app.get_webview_window("main") {
+                                    let banner = format!("Installer saved to {}. Opening folder…", target_path.display());
+                                    let js = format!(r#"(function(){{var b=document.getElementById('wf-update-banner');if(b){{b.style.background='#0cd4c4';b.style.color='#0d1b2a';b.textContent={};}}}})();"#,
+                                        serde_json::to_string(&banner).unwrap_or_else(|_| "\"Installer saved.\"".to_string()));
+                                    let _ = win.eval(&js);
+                                }
+                                // Reveal in OS file manager
+                                let _ = open::that(download_dir.as_path());
+                                let _ = app.dialog()
+                                    .message(format!("Installer saved to:\n{}\n\nOpen the file from your Downloads folder to install the update.", target_path.display()))
+                                    .title("Installer Downloaded")
+                                    .kind(MessageDialogKind::Info)
+                                    .buttons(MessageDialogButtons::Ok)
+                                    .blocking_show();
+                                return;
+                            }
+                            Err(e) => {
+                                println!("[Updater] Failed to write installer: {}", e);
+                                let _ = app.dialog()
+                                    .message(format!("Failed to save installer to {}:\n\n{}\n\nWe'll open the releases page instead.", target_path.display(), e))
+                                    .title("Save Failed")
+                                    .kind(MessageDialogKind::Error)
+                                    .buttons(MessageDialogButtons::Ok)
+                                    .blocking_show();
+                                let _ = open::that("https://github.com/BebbaApp/washflow-saas/releases/latest");
+                                return;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("[Updater] Installer download failed: {:?}", e);
+                        let _ = app.dialog()
+                            .message(format!("Couldn't download installer:\n\n{:?}\n\nWe'll open the releases page so you can download manually.", e))
+                            .title("Download Failed")
+                            .kind(MessageDialogKind::Error)
+                            .buttons(MessageDialogButtons::Ok)
+                            .blocking_show();
+                        let _ = open::that("https://github.com/BebbaApp/washflow-saas/releases/latest");
+                        return;
+                    }
                 }
             }
         }
     }
 }
 
-            }
-            Err(e) => {
-                println!("[Updater] Not available: {}", e);
-                return;
-            }
-        }
-    }
-}
