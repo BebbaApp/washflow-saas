@@ -234,7 +234,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         setPlanFeatures(null);
       }
     })();
-  }, [user, authLoading, authedEmail, authedUserId, tenant]);
+  }, [user, authLoading, authedEmail, authedUserId]);
 
   useEffect(() => { load(); }, [load]);
 
