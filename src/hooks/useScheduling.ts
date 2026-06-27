@@ -19,7 +19,7 @@ export interface Shift {
   templateId?: string; notes?: string;
 }
 export interface ShiftTemplate {
-  id: string; name: string; startTime: string; endTime: string; daysOfWeek: number[];
+  id: string; name: string; startTime: string; endTime: string; daysOfWeek: number[]; color?: string;
 }
 export interface TimeOffRequest {
   id: string; userId: string; staffName: string;
