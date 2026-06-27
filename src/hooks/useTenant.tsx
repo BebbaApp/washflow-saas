@@ -173,16 +173,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     // If we already have a cached tenant for this id, surface it immediately
     // so all data hooks unblock; otherwise paint as much as we can from the
     // membership row while the full tenant record loads.
-    if (!tenant || tenant.id !== activeRow.id) {
+    const cached = tenantRef.current;
+    if (!cached || cached.id !== activeRow.id) {
       const stub: Tenant = {
         id: activeRow.id,
         name: activeRow.name,
         slug: activeRow.slug,
-        status: (tenant?.status ?? "active") as TenantStatus,
-        trial_ends_at: tenant?.trial_ends_at ?? new Date().toISOString(),
-        current_period_end: tenant?.current_period_end ?? null,
-        grace_period_ends_at: tenant?.grace_period_ends_at ?? null,
-        plan_id: tenant?.plan_id ?? null,
+        status: (cached?.status ?? "active") as TenantStatus,
+        trial_ends_at: cached?.trial_ends_at ?? new Date().toISOString(),
+        current_period_end: cached?.current_period_end ?? null,
+        grace_period_ends_at: cached?.grace_period_ends_at ?? null,
+        plan_id: cached?.plan_id ?? null,
       };
       setTenant(stub);
     }
