@@ -99,7 +99,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
     // Don't toggle loading=true if we already have a cached tenant — keep
     // the UI populated while we revalidate in the background.
-    if (!tenant) setLoading(true);
+    if (!tenantRef.current) setLoading(true);
+
+
 
     // Super-admin status must be resolved before tenant membership checks so
     // global admins can reach /platform even if they are not members of a tenant.
