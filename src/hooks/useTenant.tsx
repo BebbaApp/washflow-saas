@@ -47,12 +47,26 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 const LS_KEY = "lovable.active_tenant_id";
+const LS_TENANT_CACHE = "lovable.active_tenant_cache";
+const LS_MEMBERSHIPS_CACHE = "lovable.memberships_cache";
 
 function readStoredTenant(): string | null {
   try { return localStorage.getItem(LS_KEY); } catch { return null; }
 }
 function writeStoredTenant(id: string | null) {
   try { id ? localStorage.setItem(LS_KEY, id) : localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+}
+function readCachedTenant(): Tenant | null {
+  try { const raw = localStorage.getItem(LS_TENANT_CACHE); return raw ? JSON.parse(raw) as Tenant : null; } catch { return null; }
+}
+function writeCachedTenant(t: Tenant | null) {
+  try { t ? localStorage.setItem(LS_TENANT_CACHE, JSON.stringify(t)) : localStorage.removeItem(LS_TENANT_CACHE); } catch { /* ignore */ }
+}
+function readCachedMemberships(): TenantMembership[] {
+  try { const raw = localStorage.getItem(LS_MEMBERSHIPS_CACHE); return raw ? JSON.parse(raw) as TenantMembership[] : []; } catch { return []; }
+}
+function writeCachedMemberships(list: TenantMembership[]) {
+  try { localStorage.setItem(LS_MEMBERSHIPS_CACHE, JSON.stringify(list)); } catch { /* ignore */ }
 }
 
 export function TenantProvider({ children }: { children: ReactNode }) {
