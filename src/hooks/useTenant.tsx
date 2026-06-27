@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { perfMark } from "@/lib/perf";
+
 
 export type TenantStatus = "trialing" | "active" | "past_due" | "suspended" | "cancelled";
 export type TenantRole = "owner" | "admin" | "member";
@@ -85,6 +87,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
 
   const load = useCallback(async (preferredTenantId?: string) => {
+    const loadStart = performance.now();
+    perfMark("tenant:load:start");
     // Wait for auth to settle before resolving tenant state. This prevents the
     // "No workspace found" flash on every refresh while the session is being restored.
     if (authLoading || authedEmail) {
@@ -105,18 +109,23 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
     // Super-admin status must be resolved before tenant membership checks so
     // global admins can reach /platform even if they are not members of a tenant.
+    const adminT0 = performance.now();
     const [{ data: pa }, { data: sa }] = await Promise.all([
       supabase.from("platform_admins" as any).select("user_id").eq("user_id", authedUserId).maybeSingle(),
       supabase.from("super_admins" as any).select("user_id").eq("user_id", authedUserId).maybeSingle(),
     ]);
+    perfMark(`tenant:admin-check (${(performance.now() - adminT0).toFixed(0)}ms)`);
     const superAdmin = !!sa || authedEmail?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
     setIsPlatformAdmin(!!pa || superAdmin);
     setIsSuperAdmin(superAdmin);
 
+    const membershipsT0 = performance.now();
     const { data: members } = await supabase
       .from("tenant_members" as any)
       .select("tenant_id, tenant_role, tenants(id, name, slug)")
       .eq("user_id", authedUserId);
+    perfMark(`tenant:memberships-loaded (${(performance.now() - membershipsT0).toFixed(0)}ms)`);
+
 
     const rows = ((members as any) ?? []) as Array<{
       tenant_id: string;
@@ -187,7 +196,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       };
       setTenant(stub);
     }
+    perfMark(`tenant:hydrated (${(performance.now() - loadStart).toFixed(0)}ms total)`);
     setLoading(false);
+
 
     // ---- Background revalidation (does not block the UI) ----
     void (async () => {
