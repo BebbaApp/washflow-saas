@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -47,6 +47,8 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 const LS_KEY = "lovable.active_tenant_id";
+const LS_TENANT_CACHE = "lovable.active_tenant_cache";
+const LS_MEMBERSHIPS_CACHE = "lovable.memberships_cache";
 
 function readStoredTenant(): string | null {
   try { return localStorage.getItem(LS_KEY); } catch { return null; }
@@ -54,17 +56,33 @@ function readStoredTenant(): string | null {
 function writeStoredTenant(id: string | null) {
   try { id ? localStorage.setItem(LS_KEY, id) : localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
 }
+function readCachedTenant(): Tenant | null {
+  try { const raw = localStorage.getItem(LS_TENANT_CACHE); return raw ? JSON.parse(raw) as Tenant : null; } catch { return null; }
+}
+function writeCachedTenant(t: Tenant | null) {
+  try { t ? localStorage.setItem(LS_TENANT_CACHE, JSON.stringify(t)) : localStorage.removeItem(LS_TENANT_CACHE); } catch { /* ignore */ }
+}
+function readCachedMemberships(): TenantMembership[] {
+  try { const raw = localStorage.getItem(LS_MEMBERSHIPS_CACHE); return raw ? JSON.parse(raw) as TenantMembership[] : []; } catch { return []; }
+}
+function writeCachedMemberships(list: TenantMembership[]) {
+  try { localStorage.setItem(LS_MEMBERSHIPS_CACHE, JSON.stringify(list)); } catch { /* ignore */ }
+}
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, authedEmail, authedUserId } = useAuth();
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [memberships, setMemberships] = useState<TenantMembership[]>([]);
+  const [tenant, setTenant] = useState<Tenant | null>(() => readCachedTenant());
+  const [memberships, setMemberships] = useState<TenantMembership[]>(() => readCachedMemberships());
   const [myRole, setMyRole] = useState<TenantRole | null>(null);
-  const [loading, setLoading] = useState(true);
+  // If we have a cached tenant we don't need a loading flash on boot.
+  const [loading, setLoading] = useState(() => !readCachedTenant());
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const tenantRef = useRef<Tenant | null>(tenant);
+  useEffect(() => { tenantRef.current = tenant; }, [tenant]);
+
 
   const load = useCallback(async (preferredTenantId?: string) => {
     // Wait for auth to settle before resolving tenant state. This prevents the
@@ -75,9 +93,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
     if (!authedUserId) {
       setTenant(null); setMemberships([]); setMyRole(null); setLoading(false);
+      writeCachedTenant(null);
+      writeCachedMemberships([]);
       return;
     }
-    setLoading(true);
+    // Don't toggle loading=true if we already have a cached tenant — keep
+    // the UI populated while we revalidate in the background.
+    if (!tenantRef.current) setLoading(true);
+
+
 
     // Super-admin status must be resolved before tenant membership checks so
     // global admins can reach /platform even if they are not members of a tenant.
@@ -122,6 +146,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       }));
     }
     setMemberships(list);
+    writeCachedMemberships(list);
 
     if (list.length === 0) {
       setTenant(null); setMyRole(null); setPlanFeatures(null); setLoading(false);
@@ -143,58 +168,72 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       list[0].id;
     const activeRow = list.find((m) => m.id === activeId) ?? list[0];
     writeStoredTenant(activeRow.id);
-
-    // Super admins are not tenant_members; without an explicit JWT claim,
-    // current_tenant_id() returns null and RLS-scoped reads (orders, history,
-    // etc.) return nothing. Ensure the JWT claim matches the active tenant.
-    if (superAdmin && jwtId !== activeRow.id) {
-      try {
-        await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
-        await supabase.auth.refreshSession();
-      } catch (e) {
-        console.warn("super-admin tenant sync failed", e);
-      }
-    }
-
-    // If a URL slug picked a tenant different from the current JWT claim, sync
-    // the server-side active tenant so RLS-scoped queries hit the right workspace.
-    if (urlMatchId && urlMatchId !== jwtId) {
-      try {
-        await supabase.functions.invoke("switch-tenant", { body: { tenant_id: urlMatchId } });
-        await supabase.auth.refreshSession();
-      } catch (e) {
-        console.warn("URL tenant switch failed", e);
-      }
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("tenant");
-        window.history.replaceState({}, "", url.toString());
-      } catch { /* ignore */ }
-    }
-
-    const { data } = await supabase
-      .from("tenants" as any)
-      .select("*")
-      .eq("id", activeRow.id)
-      .maybeSingle();
-    const tenantRow = ((data as any) ?? null) as Tenant | null;
-    setTenant(tenantRow);
     setMyRole(activeRow.tenant_role);
 
-    // Load plan features (jsonb) for the active tenant
-    if (tenantRow?.plan_id) {
-      const { data: planRow } = await supabase
-        .from("plans" as any)
-        .select("features")
-        .eq("id", tenantRow.plan_id)
-        .maybeSingle();
-      const raw = (planRow as any)?.features;
-      setPlanFeatures(raw && typeof raw === "object" ? (raw as Record<string, boolean>) : {});
-    } else {
-      setPlanFeatures(null);
+    // If we already have a cached tenant for this id, surface it immediately
+    // so all data hooks unblock; otherwise paint as much as we can from the
+    // membership row while the full tenant record loads.
+    const cached = tenantRef.current;
+    if (!cached || cached.id !== activeRow.id) {
+      const stub: Tenant = {
+        id: activeRow.id,
+        name: activeRow.name,
+        slug: activeRow.slug,
+        status: (cached?.status ?? "active") as TenantStatus,
+        trial_ends_at: cached?.trial_ends_at ?? new Date().toISOString(),
+        current_period_end: cached?.current_period_end ?? null,
+        grace_period_ends_at: cached?.grace_period_ends_at ?? null,
+        plan_id: cached?.plan_id ?? null,
+      };
+      setTenant(stub);
     }
-
     setLoading(false);
+
+    // ---- Background revalidation (does not block the UI) ----
+    void (async () => {
+      // Sync server-side active tenant when JWT claim is out of date.
+      const needsClaimSync =
+        (superAdmin && jwtId !== activeRow.id) ||
+        (urlMatchId && urlMatchId !== jwtId);
+      if (needsClaimSync) {
+        try {
+          await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
+          await supabase.auth.refreshSession();
+        } catch (e) {
+          console.warn("tenant claim sync failed", e);
+        }
+      }
+      if (urlMatchId) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("tenant");
+          window.history.replaceState({}, "", url.toString());
+        } catch { /* ignore */ }
+      }
+
+      const { data } = await supabase
+        .from("tenants" as any)
+        .select("*")
+        .eq("id", activeRow.id)
+        .maybeSingle();
+      const tenantRow = ((data as any) ?? null) as Tenant | null;
+      if (tenantRow) {
+        setTenant(tenantRow);
+        writeCachedTenant(tenantRow);
+      }
+
+      if (tenantRow?.plan_id) {
+        const { data: planRow } = await supabase
+          .from("plans" as any)
+          .select("features")
+          .eq("id", tenantRow.plan_id)
+          .maybeSingle();
+        const raw = (planRow as any)?.features;
+        setPlanFeatures(raw && typeof raw === "object" ? (raw as Record<string, boolean>) : {});
+      } else {
+        setPlanFeatures(null);
+      }
+    })();
   }, [user, authLoading, authedEmail, authedUserId]);
 
   useEffect(() => { load(); }, [load]);
