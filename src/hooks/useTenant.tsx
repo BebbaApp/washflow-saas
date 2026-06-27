@@ -141,6 +141,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       }));
     }
     setMemberships(list);
+    writeCachedMemberships(list);
 
     if (list.length === 0) {
       setTenant(null); setMyRole(null); setPlanFeatures(null); setLoading(false);
