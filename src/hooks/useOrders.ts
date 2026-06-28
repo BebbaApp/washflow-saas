@@ -79,7 +79,12 @@ export function useOrders() {
       } catch {
         /* offline */
       }
-      if (!orderNum) orderNum = `W-LOCAL-${Date.now().toString(36).toUpperCase()}`;
+      if (!orderNum) {
+        const key = `__wf_offline_wo_seq_${tenant.id}`;
+        let seq = Number(localStorage.getItem(key) || "0") + 1;
+        localStorage.setItem(key, String(seq));
+        orderNum = `WO-${String(seq).padStart(3, "0")}`;
+      }
 
       const id = crypto.randomUUID();
       const nowIso = new Date().toISOString();
