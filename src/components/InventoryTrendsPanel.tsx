@@ -373,10 +373,10 @@ export function InventoryTrendsPanel() {
                     </div>
                   </td>
                   <td className="px-6 py-3 text-right font-semibold text-foreground">
-                    {r.stock} {r.unit}
+                    {Number(r.stock).toFixed(2)} {r.unit}
                   </td>
                   <td className="px-6 py-3 text-right text-muted-foreground">
-                    {r.threshold} {r.unit}
+                    {Number(r.threshold).toFixed(2)} {r.unit}
                   </td>
                   <td className="px-6 py-3 text-right text-muted-foreground">
                     {r.weeklyUse > 0 ? `${r.weeklyUse}/wk` : "—"}
