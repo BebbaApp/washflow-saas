@@ -1,6 +1,6 @@
 {
   "productName": "Washflow",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "identifier": "com.aumsoft.washflow",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -46,7 +46,7 @@
       "timestampUrl": "",
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "installMode": "perMachine",
+        "installMode": "currentUser",
         "languages": [
           "English"
         ],
