@@ -154,7 +154,7 @@ export const db = {
     const { data, error } = await supabase
       .from('orders')
       .insert({
-        order_number: orderNum || `WO-LOC-${Date.now().toString(36).toUpperCase()}`,
+        order_number: orderNum || `WO-${Date.now().toString(36).toUpperCase()}`,
         tenant_id: params.tenantId,
         customer: params.customer,
         customer_phone: params.customerPhone,

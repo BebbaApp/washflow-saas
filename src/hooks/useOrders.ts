@@ -80,14 +80,26 @@ export function useOrders() {
         /* offline */
       }
       if (!orderNum) {
-        // Offline: assign a local "WO-LOC-XXX" placeholder. The sync engine
-        // swaps this for a server-issued WO-XXX (via next_order_number()) on
-        // reconnect, so all references stay consistent with the canonical
-        // sequence.
+        // Offline: continue the W-XXX sequence using a "WO-XXX" prefix so the
+        // reference is visibly distinct from server-issued numbers. We seed
+        // from the highest known order_number in the local mirror (server
+        // W-### + offline WO-###) so it picks up where the last reference
+        // left off. The sync engine swaps WO-XXX for a canonical W-XXX from
+        // next_order_number() on reconnect.
+        const allLocal = await db.orders.toArray();
+        let highest = 0;
+        for (const r of allLocal as any[]) {
+          const m = String(r?.order_number ?? "").match(/^(?:W|WO)-(\d+)$/i);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (n > highest) highest = n;
+          }
+        }
         const key = `__wf_offline_wo_seq_${tenant.id}`;
-        const seq = Number(localStorage.getItem(key) || "0") + 1;
+        const stored = Number(localStorage.getItem(key) || "0");
+        const seq = Math.max(highest, stored) + 1;
         localStorage.setItem(key, String(seq));
-        orderNum = `WO-LOC-${String(seq).padStart(3, "0")}`;
+        orderNum = `WO-${String(seq).padStart(3, "0")}`;
       }
 
       const id = crypto.randomUUID();

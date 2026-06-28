@@ -1317,7 +1317,7 @@ function CurrencySection() {
 /* ───── Receipt content ───── */
 const SAMPLE_ORDER: WashOrder = {
   id: "sample",
-  orderNumber: "WO-042",
+  orderNumber: "W-042",
   customer: "Sample Customer",
   customerPhone: "+27 82 123 4567",
   vehicle: "Toyota Hilux",
