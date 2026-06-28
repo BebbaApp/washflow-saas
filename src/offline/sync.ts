@@ -195,7 +195,7 @@ async function drainOutbox() {
         // server's canonical WO-XXX sequence before insert. If the RPC
         // fails we fall through and let Postgres reject the duplicate so
         // we retry on next drain rather than persisting a placeholder.
-        if (it.table === "orders" && typeof payload?.order_number === "string" && payload.order_number.startsWith("WO-LOC-")) {
+        if (it.table === "orders" && typeof payload?.order_number === "string" && /^WO-/i.test(payload.order_number)) {
           const { data: fresh, error: rpcErr } = await supabase.rpc("next_order_number");
           if (rpcErr) throw rpcErr;
           if (fresh) {
