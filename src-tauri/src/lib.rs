@@ -287,6 +287,16 @@ async fn check_for_updates(app: tauri::AppHandle) {
             Ok(_) => {
                 update_banner(&app, "Installing update — app will restart", 100, "Done", "#0cd4c4", "#0d1b2a", false);
                 log("info", "Update successful; calling restart()");
+                // On Windows, NSIS installer runs async — wait for it to finish
+                // before restarting, otherwise old binary restarts instead of new one
+                #[cfg(target_os = "windows")]
+                {
+                    log("info", "Windows: waiting 4s for NSIS installer to complete...");
+                    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                    log("info", "Windows: exiting process — installer will launch new version");
+                    std::process::exit(0);
+                }
+                #[cfg(not(target_os = "windows"))]
                 app.restart();
             }
             Err(e) => {
