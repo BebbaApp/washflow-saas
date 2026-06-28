@@ -80,10 +80,14 @@ export function useOrders() {
         /* offline */
       }
       if (!orderNum) {
+        // Offline: assign a local "WO-LOC-XXX" placeholder. The sync engine
+        // swaps this for a server-issued WO-XXX (via next_order_number()) on
+        // reconnect, so all references stay consistent with the canonical
+        // sequence.
         const key = `__wf_offline_wo_seq_${tenant.id}`;
-        let seq = Number(localStorage.getItem(key) || "0") + 1;
+        const seq = Number(localStorage.getItem(key) || "0") + 1;
         localStorage.setItem(key, String(seq));
-        orderNum = `WO-${String(seq).padStart(3, "0")}`;
+        orderNum = `WO-LOC-${String(seq).padStart(3, "0")}`;
       }
 
       const id = crypto.randomUUID();

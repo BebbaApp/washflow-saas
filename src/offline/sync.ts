@@ -190,7 +190,27 @@ async function drainOutbox() {
       const tbl = supabase.from(it.table as any);
       let error: any = null;
       if (it.op === "insert") {
-        ({ error } = await tbl.insert(it.payload as any));
+        let payload: any = it.payload;
+        // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
+        // server's canonical WO-XXX sequence before insert. If the RPC
+        // fails we fall through and let Postgres reject the duplicate so
+        // we retry on next drain rather than persisting a placeholder.
+        if (it.table === "orders" && typeof payload?.order_number === "string" && payload.order_number.startsWith("WO-LOC-")) {
+          const { data: fresh, error: rpcErr } = await supabase.rpc("next_order_number");
+          if (rpcErr) throw rpcErr;
+          if (fresh) {
+            const newNumber = fresh as unknown as string;
+            payload = { ...payload, order_number: newNumber };
+            // Update local mirror so the UI swaps to the canonical reference.
+            try {
+              const local = await (db as any).orders.get(payload.id);
+              if (local) {
+                await (db as any).orders.put({ ...local, order_number: newNumber });
+              }
+            } catch { /* ignore mirror update */ }
+          }
+        }
+        ({ error } = await tbl.insert(payload as any));
       } else if (it.op === "update") {
         ({ error } = await tbl.update(it.payload as any).eq("id", (it.payload as any).id));
       } else if (it.op === "delete") {
