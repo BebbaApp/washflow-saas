@@ -7,6 +7,7 @@ use tauri::Manager;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use futures_util::StreamExt;
 
 // ============================================================
 // Updater logging
