@@ -356,7 +356,7 @@ export const UsageReferencePanel = () => {
                     </td>
                     <td className="py-2 text-xs">
                       {item
-                        ? <span className="text-success">Linked → {item.quantity} {item.unit}</span>
+                        ? <span className="text-success">Linked → {item.quantity.toFixed(2)} {item.unit}</span>
                         : <span className="text-muted-foreground inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3" />No item linked</span>}
                     </td>
                   </tr>
