@@ -174,6 +174,16 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                   <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete={isSignup ? "new-password" : "current-password"} />
                 </div>
               )}
+              {!forgotMode && !isSignup && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
+                  <Checkbox
+                    checked={rememberMe}
+                    onCheckedChange={(v) => setRememberMe(v === true)}
+                    id="remember-me"
+                  />
+                  <span>Remember me on this device</span>
+                </label>
+              )}
               {error && <p className="text-xs text-destructive">{error}</p>}
               {resetSent && <p className="text-xs text-primary">Reset link sent! Check your inbox.</p>}
               {forgotMode ? (
