@@ -285,6 +285,35 @@ function useAuthInternal(): AuthContextValue {
     };
   }, [fetchProfile, setResolvedUser]);
 
+  // Auto-logout after 1 hour of inactivity. Any interaction resets the timer
+  // and the timestamp is persisted so that a refresh mid-inactivity still
+  // enforces the limit (see the mount effect above).
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      try { localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now())); } catch { /* ignore */ }
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
+        await supabase.auth.signOut();
+        resolvedUserIdRef.current = null;
+        setAuthedUserId(null);
+        setAuthedEmail(null);
+        setResolvedUser(null);
+      }, INACTIVITY_LIMIT_MS);
+    };
+    bump();
+    const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "visibilitychange"];
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+    };
+  }, [user, setResolvedUser]);
+
+
+
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
