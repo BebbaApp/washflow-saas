@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppVersion } from "@/hooks/useAppVersion";
 
 const REMEMBER_KEY = "wf_remember_me";
 const SESSION_ACTIVE_KEY = "wf_session_active";
@@ -15,6 +16,7 @@ interface LoginProps {
 }
 
 const Login = ({ onLogin, onSignup }: LoginProps) => {
+  const { version } = useAppVersion();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -241,7 +243,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
             <span aria-hidden>·</span>
             <a href="https://washflow.co.za/privacy" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
           </div>
-          <p className="text-xs text-muted-foreground">Washflow Saas v{__APP_VERSION__}</p>
+          <p className="text-xs text-muted-foreground">Washflow Saas v{version}</p>
         </div>
       </div>
     </div>

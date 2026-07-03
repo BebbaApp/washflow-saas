@@ -27,6 +27,7 @@ import { useInventory } from "@/hooks/useInventory";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useAppLogo } from "@/hooks/useAppLogo";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -75,6 +76,7 @@ const Index = () => {
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd, isSuperAdmin } = useTenant();
+  const { version: appVersion, isOutdated } = useAppVersion();
   const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -303,8 +305,13 @@ const Index = () => {
               </span>
             )}
             <SyncStatusPill className="hidden sm:inline-flex" />
-            <span className="hidden md:inline-flex items-center text-[11px] text-muted-foreground">
-              Washflow Saas v{__APP_VERSION__}
+            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              Washflow Saas v{appVersion}
+              {isOutdated && (
+                <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-primary/10 text-primary text-[10px]" title="An update is available">
+                  update
+                </span>
+              )}
             </span>
           </div>
 
