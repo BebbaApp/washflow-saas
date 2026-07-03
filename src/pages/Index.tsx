@@ -27,6 +27,7 @@ import { useInventory } from "@/hooks/useInventory";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useAppLogo } from "@/hooks/useAppLogo";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
