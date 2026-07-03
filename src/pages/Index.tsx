@@ -76,6 +76,7 @@ const Index = () => {
   const { logo } = useAppLogo();
   const { can } = usePermissions();
   const { tenant, daysUntilTrialEnd, isSuperAdmin } = useTenant();
+  const { version: appVersion, isOutdated } = useAppVersion();
   const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
