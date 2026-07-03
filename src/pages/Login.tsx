@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import { Droplets, LogIn, UserPlus, Phone as PhoneIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+
+const REMEMBER_KEY = "wf_remember_me";
+const SESSION_ACTIVE_KEY = "wf_session_active";
 
 interface LoginProps {
   onLogin: (email: string, password: string) => Promise<string | null>;
