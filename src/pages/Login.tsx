@@ -33,6 +33,9 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try { return localStorage.getItem(REMEMBER_KEY) !== "false"; } catch { return true; }
+  });
 
   // Pre-fill workspace name from ?tenant=<slug> so admin-shared sign-up links land
   // the new user in the right context without manual entry.
