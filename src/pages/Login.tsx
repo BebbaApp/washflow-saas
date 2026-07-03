@@ -66,6 +66,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+    try { localStorage.setItem(REMEMBER_KEY, rememberMe ? "true" : "false"); } catch { /* ignore */ }
+    try { sessionStorage.setItem(SESSION_ACTIVE_KEY, "1"); } catch { /* ignore */ }
     if (isSignup) {
       const err = await onSignup(email, password, name, phone, companyName);
       if (err) setError(err);
@@ -81,6 +83,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+    try { localStorage.setItem(REMEMBER_KEY, rememberMe ? "true" : "false"); } catch { /* ignore */ }
+    try { sessionStorage.setItem(SESSION_ACTIVE_KEY, "1"); } catch { /* ignore */ }
     try {
       const { data, error: invokeErr } = await supabase.functions.invoke("pin-login", {
         body: { identifier: pinIdentifier.trim(), pin: pin.trim() },
