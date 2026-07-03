@@ -304,7 +304,7 @@ function useAuthInternal(): AuthContextValue {
       }, INACTIVITY_LIMIT_MS);
     };
     bump();
-    const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "visibilitychange"];
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "visibilitychange"] as const;
     events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
     return () => {
       if (timer) clearTimeout(timer);
