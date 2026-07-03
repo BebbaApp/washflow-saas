@@ -208,10 +208,13 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                 <PhoneIcon className="w-4 h-4" />
                 {submitting ? "Please wait..." : "Sign In with PIN"}
               </button>
-              <p className="text-xs text-muted-foreground text-center">Ask your administrator to set up phone + PIN access.</p>
+            <p className="text-xs text-muted-foreground text-center">Ask your administrator to set up phone + PIN access.</p>
             </form>
           </TabsContent>
         </Tabs>
+        <div className="mt-4 flex justify-center">
+          <p className="text-xs text-muted-foreground">Washflow Saas v{__APP_VERSION__}</p>
+        </div>
       </div>
     </div>
   );
