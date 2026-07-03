@@ -233,7 +233,14 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
             </form>
           </TabsContent>
         </Tabs>
-        <div className="mt-4 flex justify-center">
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <a href="mailto:support@washflow.co.za" className="hover:text-foreground transition-colors">Support</a>
+            <span aria-hidden>·</span>
+            <a href="https://washflow.co.za/terms" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Terms</a>
+            <span aria-hidden>·</span>
+            <a href="https://washflow.co.za/privacy" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
+          </div>
           <p className="text-xs text-muted-foreground">Washflow Saas v{__APP_VERSION__}</p>
         </div>
       </div>
