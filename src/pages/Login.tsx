@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import { Droplets, LogIn, UserPlus, Phone as PhoneIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+
+const REMEMBER_KEY = "wf_remember_me";
+const SESSION_ACTIVE_KEY = "wf_session_active";
 
 interface LoginProps {
   onLogin: (email: string, password: string) => Promise<string | null>;
@@ -29,6 +33,9 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try { return localStorage.getItem(REMEMBER_KEY) !== "false"; } catch { return true; }
+  });
 
   // Pre-fill workspace name from ?tenant=<slug> so admin-shared sign-up links land
   // the new user in the right context without manual entry.
@@ -59,6 +66,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+    try { localStorage.setItem(REMEMBER_KEY, rememberMe ? "true" : "false"); } catch { /* ignore */ }
+    try { sessionStorage.setItem(SESSION_ACTIVE_KEY, "1"); } catch { /* ignore */ }
     if (isSignup) {
       const err = await onSignup(email, password, name, phone, companyName);
       if (err) setError(err);
@@ -74,6 +83,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+    try { localStorage.setItem(REMEMBER_KEY, rememberMe ? "true" : "false"); } catch { /* ignore */ }
+    try { sessionStorage.setItem(SESSION_ACTIVE_KEY, "1"); } catch { /* ignore */ }
     try {
       const { data, error: invokeErr } = await supabase.functions.invoke("pin-login", {
         body: { identifier: pinIdentifier.trim(), pin: pin.trim() },
@@ -163,6 +174,16 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                   <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoComplete={isSignup ? "new-password" : "current-password"} />
                 </div>
               )}
+              {!forgotMode && !isSignup && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
+                  <Checkbox
+                    checked={rememberMe}
+                    onCheckedChange={(v) => setRememberMe(v === true)}
+                    id="remember-me"
+                  />
+                  <span>Remember me on this device</span>
+                </label>
+              )}
               {error && <p className="text-xs text-destructive">{error}</p>}
               {resetSent && <p className="text-xs text-primary">Reset link sent! Check your inbox.</p>}
               {forgotMode ? (
@@ -212,7 +233,14 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
             </form>
           </TabsContent>
         </Tabs>
-        <div className="mt-4 flex justify-center">
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <a href="mailto:support@washflow.co.za" className="hover:text-foreground transition-colors">Support</a>
+            <span aria-hidden>·</span>
+            <a href="https://washflow.co.za/terms" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Terms</a>
+            <span aria-hidden>·</span>
+            <a href="https://washflow.co.za/privacy" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
+          </div>
           <p className="text-xs text-muted-foreground">Washflow Saas v{__APP_VERSION__}</p>
         </div>
       </div>

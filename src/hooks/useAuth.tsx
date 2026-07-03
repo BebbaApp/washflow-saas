@@ -32,6 +32,10 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
+const REMEMBER_KEY = "wf_remember_me";
+const SESSION_ACTIVE_KEY = "wf_session_active";
+const LAST_ACTIVITY_KEY = "wf_last_activity";
+const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
 
 function activeTenantIdFor(authUser: User): string | null {
   const claim = (authUser.app_metadata as any)?.active_tenant_id;
@@ -250,6 +254,24 @@ function useAuthInternal(): AuthContextValue {
       resolveSession(session);
     });
 
+    // Remember-me + inactivity gate: if the user opted out of "Remember me",
+    // clear any persisted Supabase session when a brand-new browser session
+    // starts (no tab-scoped marker). Also enforce the 1-hour inactivity limit
+    // across reloads by inspecting the last-activity timestamp.
+    (async () => {
+      try {
+        const rememberMe = localStorage.getItem(REMEMBER_KEY) !== "false";
+        const hasSessionMarker = sessionStorage.getItem(SESSION_ACTIVE_KEY) === "1";
+        const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
+        const inactiveTooLong = lastActivity > 0 && (Date.now() - lastActivity) > INACTIVITY_LIMIT_MS;
+        if ((!rememberMe && !hasSessionMarker) || inactiveTooLong) {
+          await supabase.auth.signOut();
+          try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
+        }
+        try { sessionStorage.setItem(SESSION_ACTIVE_KEY, "1"); } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    })();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       resolveSession(session);
     }).catch((error) => {
@@ -262,6 +284,35 @@ function useAuthInternal(): AuthContextValue {
       subscription.unsubscribe();
     };
   }, [fetchProfile, setResolvedUser]);
+
+  // Auto-logout after 1 hour of inactivity. Any interaction resets the timer
+  // and the timestamp is persisted so that a refresh mid-inactivity still
+  // enforces the limit (see the mount effect above).
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      try { localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now())); } catch { /* ignore */ }
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
+        await supabase.auth.signOut();
+        resolvedUserIdRef.current = null;
+        setAuthedUserId(null);
+        setAuthedEmail(null);
+        setResolvedUser(null);
+      }, INACTIVITY_LIMIT_MS);
+    };
+    bump();
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "visibilitychange"] as const;
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+    };
+  }, [user, setResolvedUser]);
+
+
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
