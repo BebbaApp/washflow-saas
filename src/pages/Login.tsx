@@ -243,7 +243,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
             <span aria-hidden>·</span>
             <a href="https://washflow.co.za/privacy" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
           </div>
-          <p className="text-xs text-muted-foreground">Washflow Saas v{__APP_VERSION__}</p>
+          <p className="text-xs text-muted-foreground">Washflow Saas v{version}</p>
         </div>
       </div>
     </div>
