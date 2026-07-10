@@ -79,7 +79,7 @@ const Index = () => {
   const { version: appVersion, isOutdated } = useAppVersion();
   const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
@@ -104,16 +104,19 @@ const Index = () => {
   }, [searchParams]);
 
   // Persist the active tab + reflect it in the URL so refresh / deep-link work.
+  // IMPORTANT: use react-router's setSearchParams (not window.history.replaceState)
+  // so nested components reading useSearchParams see the current `tab`. Otherwise
+  // a child that copies searchParams to update its own sub-param (e.g. AttendancePage)
+  // would clobber `tab` with the stale value react-router still holds.
   useEffect(() => {
     if (!activeTab) return;
     try { localStorage.setItem("washflow:lastTab", activeTab); } catch {}
-    const current = new URLSearchParams(window.location.search);
-    if (current.get("tab") !== activeTab) {
-      current.set("tab", activeTab);
-      const qs = current.toString();
-      window.history.replaceState(null, "", `${window.location.pathname}?${qs}`);
+    if (searchParams.get("tab") !== activeTab) {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", activeTab);
+      setSearchParams(next, { replace: true });
     }
-  }, [activeTab]);
+  }, [activeTab, searchParams, setSearchParams]);
 
   // Intercept the wash START transition to deduct inventory up front
   // (service recipe + vehicle-type usage). Completion is then a plain status change.
