@@ -74,6 +74,38 @@
   }
 
   .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Auto-disappearing scrollbar that adapts to the active theme */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.15) hsl(var(--background) / 0.8);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background) / 0.8);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.2);
+    border-radius: 100px;
+    border: 2px solid hsl(var(--background) / 0.8);
+    background-clip: padding-box;
+    transition: background-color 0.25s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @layer components {
