@@ -266,6 +266,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
   }, [activeStaff, records, todayKey, markedAbsent]);
 
   const [notifDismissed, setNotifDismissed] = useState(false);
+  const [notifExpanded, setNotifExpanded] = useState(false);
   const unmarkedAbsentees = todayAbsentees.filter((a) => !a.marked);
   const showNotif = !notifDismissed && unmarkedAbsentees.length > 0;
 
@@ -436,28 +437,38 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           <div className="flex items-start gap-3">
             <Bell className="w-5 h-5 text-warning shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-sm font-semibold text-foreground">
-                  {unmarkedAbsentees.length} {unmarkedAbsentees.length === 1 ? "employee has" : "employees have"} not checked in today
-                </p>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setNotifDismissed(true)}>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-foreground"
+                  aria-expanded={notifExpanded}
+                  onClick={() => setNotifExpanded((expanded) => !expanded)}
+                >
+                  <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${notifExpanded ? "rotate-90" : ""}`} />
+                  <span className="min-w-0">
+                    {unmarkedAbsentees.length} {unmarkedAbsentees.length === 1 ? "employee has" : "employees have"} not checked in today
+                  </span>
+                </button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setNotifDismissed(true)}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {unmarkedAbsentees.map((a) => (
-                  <div key={a.id} className="inline-flex items-center gap-2 bg-card border border-border rounded-lg pl-3 pr-1 py-1">
-                    <span className="text-xs font-medium">{a.name}</span>
-                    <Button
-                      size="sm" variant="ghost"
-                      className="h-7 text-xs text-destructive hover:text-destructive"
-                      onClick={() => markAbsent(a.id, todayKey)}
-                    >
-                      <XCircle className="w-3 h-3 mr-1" /> Mark absent
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              {notifExpanded && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {unmarkedAbsentees.map((a) => (
+                    <div key={a.id} className="inline-flex items-center gap-2 bg-card border border-border rounded-lg pl-3 pr-1 py-1">
+                      <span className="text-xs font-medium">{a.name}</span>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive"
+                        onClick={() => markAbsent(a.id, todayKey)}
+                      >
+                        <XCircle className="w-3 h-3 mr-1" /> Mark absent
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
