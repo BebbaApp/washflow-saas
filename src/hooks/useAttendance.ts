@@ -43,12 +43,23 @@ export interface AuditEntry {
 }
 
 const BUCKET = "attendance-selfies";
+const RECENT_FACE_ENROLLMENTS_PREFIX = "wf_recent_face_enrollments:";
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
   if (!enrollment?.user_id || !enrollment?.image_url) return false;
   const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
   return clean.startsWith(`${enrollment.user_id}/`) ||
     (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+}
+
+function rememberRecentFaceEnrollment(tenantId: string, userId: string) {
+  try {
+    const key = `${RECENT_FACE_ENROLLMENTS_PREFIX}${tenantId}`;
+    const raw = localStorage.getItem(key);
+    const recent = raw ? JSON.parse(raw) : {};
+    recent[userId] = Date.now();
+    localStorage.setItem(key, JSON.stringify(recent));
+  } catch { /* ignore */ }
 }
 
 // localStorage keys for offline queue
@@ -312,6 +323,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       } catch { /* mirror will catch up via realtime */ }
 
       toast.success("Face enrolled");
+      rememberRecentFaceEnrollment(tenantId, targetUserId);
       window.dispatchEvent(new CustomEvent("wf:face-enrolled", { detail: { userId: targetUserId } }));
       return true;
     } catch (e: any) {

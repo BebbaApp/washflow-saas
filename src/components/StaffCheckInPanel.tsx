@@ -14,12 +14,48 @@ import {
 } from "lucide-react";
 
 interface StaffOption { user_id: string; name: string; role: string; has_face_enrollment?: boolean; }
+const RECENT_FACE_ENROLLMENTS_PREFIX = "wf_recent_face_enrollments:";
+const RECENT_ENROLLMENT_TTL_MS = 5 * 60 * 1000;
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
   if (!enrollment?.user_id || !enrollment?.image_url) return false;
   const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
   return clean.startsWith(`${enrollment.user_id}/`) ||
     (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+}
+
+function readRecentFaceEnrollmentIds(tenantId?: string | null) {
+  if (!tenantId) return new Set<string>();
+  try {
+    const key = `${RECENT_FACE_ENROLLMENTS_PREFIX}${tenantId}`;
+    const raw = localStorage.getItem(key);
+    const recent: Record<string, number> = raw ? JSON.parse(raw) : {};
+    const now = Date.now();
+    let changed = false;
+    const ids = new Set<string>();
+    Object.entries(recent).forEach(([userId, stampedAt]) => {
+      if (now - Number(stampedAt) <= RECENT_ENROLLMENT_TTL_MS) ids.add(userId);
+      else {
+        delete recent[userId];
+        changed = true;
+      }
+    });
+    if (changed) localStorage.setItem(key, JSON.stringify(recent));
+    return ids;
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function rememberRecentFaceEnrollment(tenantId: string | undefined, userId: string | undefined) {
+  if (!tenantId || !userId) return;
+  try {
+    const key = `${RECENT_FACE_ENROLLMENTS_PREFIX}${tenantId}`;
+    const raw = localStorage.getItem(key);
+    const recent = raw ? JSON.parse(raw) : {};
+    recent[userId] = Date.now();
+    localStorage.setItem(key, JSON.stringify(recent));
+  } catch { /* ignore */ }
 }
 
 interface StaffCheckInPanelProps {
@@ -96,6 +132,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
   const [directEnrollmentIds, setDirectEnrollmentIds] = useState<Set<string> | null>(null);
+  const [recentEnrollmentIds, setRecentEnrollmentIds] = useState<Set<string>>(() => readRecentFaceEnrollmentIds(tenant?.id));
   const [filter, setFilter] = useState("");
   const [soundOn, setSoundOn] = useState(true);
   const seenIdsRef = useRef<Set<string> | null>(null);
@@ -121,6 +158,10 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [canAssist, tenant?.id, user?.id]);
 
   useEffect(() => { void loadStaff(); }, [loadStaff]);
+
+  useEffect(() => {
+    setRecentEnrollmentIds(readRecentFaceEnrollmentIds(tenant?.id));
+  }, [tenant?.id]);
 
   const loadEnrollmentIds = useCallback(async () => {
     if (!tenant?.id) { setDirectEnrollmentIds(null); return; }
@@ -175,11 +216,13 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { userId?: string } | undefined;
+      rememberRecentFaceEnrollment(tenant?.id, detail?.userId);
+      setRecentEnrollmentIds(readRecentFaceEnrollmentIds(tenant?.id));
       pollEnrollment(detail?.userId);
     };
     window.addEventListener("wf:face-enrolled", handler);
     return () => window.removeEventListener("wf:face-enrolled", handler);
-  }, [pollEnrollment]);
+  }, [pollEnrollment, tenant?.id]);
 
   useEffect(() => {
     if (seenIdsRef.current === null) {
@@ -194,12 +237,12 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
 
   const myEnrolled = useMemo(
     () => !!user && (
-      directEnrollmentIds !== null
-        ? directEnrollmentIds.has(user.id)
-        : staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) ||
-      enrollments.some((e) => e.user_id === user.id)
+      recentEnrollmentIds.has(user.id) ||
+      staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) ||
+      enrollments.some((e) => e.user_id === user.id && enrollmentImageBelongsToUser(e)) ||
+      (directEnrollmentIds !== null ? directEnrollmentIds.has(user.id) : false)
     ),
-    [directEnrollmentIds, enrollments, staff, user]
+    [directEnrollmentIds, enrollments, recentEnrollmentIds, staff, user]
   );
   const myEnrollmentResolving = !!user && directEnrollmentIds === null &&
     !staff.some((s) => s.user_id === user.id && s.has_face_enrollment !== undefined) && attendanceLoading;
@@ -334,8 +377,12 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
                       const enrolled = directEnrollmentIds !== null
-                        ? directEnrollmentIds.has(s.user_id)
-                        : s.has_face_enrollment === true ||
+                        ? directEnrollmentIds.has(s.user_id) ||
+                          recentEnrollmentIds.has(s.user_id) ||
+                          s.has_face_enrollment === true ||
+                          enrollments.some((e) => e.user_id === s.user_id && enrollmentImageBelongsToUser(e))
+                        : recentEnrollmentIds.has(s.user_id) ||
+                          s.has_face_enrollment === true ||
                           enrollments.some((e) => e.user_id === s.user_id && enrollmentImageBelongsToUser(e));
                       const enrollmentResolving = directEnrollmentIds === null && s.has_face_enrollment === undefined && attendanceLoading;
                       const last = lastForUser(s.user_id);
