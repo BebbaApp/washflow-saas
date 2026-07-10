@@ -171,8 +171,9 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const comp = comps.find((c) => c.user_id === staffId);
   const selected = staff.find((s) => s.id === staffId);
   const displayName = selected ? (selected.name || selected.email.split("@")[0] || "Employee") : "";
-  const { hours, workedDays } = useMemo(() => pairAttendance(attendance), [attendance]);
+  const { hours, workedDays, hoursByDay } = useMemo(() => pairAttendance(attendance), [attendance]);
   const days = workedDays.size;
+  const [workBonus, setWorkBonus] = useState<string>("");
 
   // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -192,29 +193,40 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
   // Count busy/quiet days based on worked days only.
-  const { busyDays, quietDays } = useMemo(() => {
-    let busy = 0, quiet = 0;
+  const { busyDays, quietDays, normalDays } = useMemo(() => {
+    let busy = 0, quiet = 0, normal = 0;
     workedDays.forEach((key) => {
       const v = dayVolumes[key] || 0;
       if (v >= BUSY_THRESHOLD) busy++;
       else if (v < QUIET_THRESHOLD) quiet++;
+      else normal++;
     });
-    return { busyDays: busy, quietDays: quiet };
+    return { busyDays: busy, quietDays: quiet, normalDays: normal };
   }, [workedDays, dayVolumes]);
 
+  // Base amount: for wage/hourly, quiet days are paid at quiet_day_rate (flat)
+  // instead of the base rate. Busy days pay the normal base rate; any bonus
+  // is entered manually as "Work Bonus" below.
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
     if (comp.pay_type === "salary") return comp.base_rate;
-    if (comp.pay_type === "wage") return comp.base_rate * days;
-    return comp.base_rate * hours;
-  }, [comp, days, hours]);
+    if (comp.pay_type === "wage") {
+      const paidAtBase = days - quietDays; // normal + busy days
+      return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
+    }
+    // hourly
+    let sum = 0;
+    hoursByDay.forEach((h, key) => {
+      const v = dayVolumes[key] || 0;
+      if (v < QUIET_THRESHOLD) sum += comp.quiet_day_rate; // flat quiet-day pay
+      else sum += comp.base_rate * h;
+    });
+    return sum;
+  }, [comp, days, quietDays, hoursByDay, dayVolumes]);
 
-  const dayAdjustment = useMemo(() => {
-    if (!comp) return 0;
-    return busyDays * comp.busy_day_rate + quietDays * comp.quiet_day_rate;
-  }, [comp, busyDays, quietDays]);
+  const workBonusAmount = Number(workBonus) || 0;
+  const total = baseAmount + workBonusAmount;
 
-  const total = baseAmount + dayAdjustment;
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
   const handleSubmit = async () => {
