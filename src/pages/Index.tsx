@@ -116,7 +116,7 @@ const Index = () => {
       next.set("tab", activeTab);
       setSearchParams(next, { replace: true });
     }
-  }, [activeTab, searchParams, setSearchParams]);
+  }, [activeTab, setSearchParams]);
 
   // Intercept the wash START transition to deduct inventory up front
   // (service recipe + vehicle-type usage). Completion is then a plain status change.
