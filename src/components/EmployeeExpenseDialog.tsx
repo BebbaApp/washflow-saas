@@ -16,7 +16,7 @@ interface Props {
   onClose: () => void;
 }
 
-type PayType = "salary" | "wage" | "hourly";
+type PayType = "salary" | "wage" | "weekly";
 interface Compensation {
   user_id: string;
   pay_type: PayType;
@@ -41,7 +41,7 @@ interface AttRow {
 const PAY_LABEL: Record<PayType, string> = {
   salary: "Monthly Salary",
   wage: "Daily Wage",
-  hourly: "Hourly Rate",
+  weekly: "Weekly Wage",
 };
 
 function pairAttendance(rows: AttRow[]) {
