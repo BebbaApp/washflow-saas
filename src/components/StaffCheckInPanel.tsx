@@ -186,31 +186,31 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
             </div>
           </div>
 
-          {!myEnrolled ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setCaptureMode({ kind: "check_in" })}
+              disabled={busy || nextKind !== "check_in"}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+            >
+              <LogIn className="w-4 h-4" /> Check In
+            </button>
+            <button
+              onClick={() => setCaptureMode({ kind: "check_out" })}
+              disabled={busy || nextKind !== "check_out"}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+            >
+              <LogOut className="w-4 h-4" /> Check Out
+            </button>
+          </div>
+
+          {!myEnrolled && directEnrollmentIds !== null && (
             <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
               <ShieldCheck className="w-4 h-4" />
-              Your face hasn't been enrolled yet. Ask an admin to enroll you under{" "}
+              Face enrollment was not found locally. If verification fails, enroll under{" "}
               <button type="button" onClick={onOpenFaceEnroll} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
                 Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
               </button>
               .
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setCaptureMode({ kind: "check_in" })}
-                disabled={nextKind !== "check_in"}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-              >
-                <LogIn className="w-4 h-4" /> Check In
-              </button>
-              <button
-                onClick={() => setCaptureMode({ kind: "check_out" })}
-                disabled={nextKind !== "check_out"}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-              >
-                <LogOut className="w-4 h-4" /> Check Out
-              </button>
             </div>
           )}
         </div>
