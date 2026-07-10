@@ -148,9 +148,11 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [records, soundOn]);
 
   const myEnrolled = useMemo(
-    () => !!user && (directEnrollmentIds !== null
-      ? directEnrollmentIds.has(user.id)
-      : staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) || enrollments.some((e) => e.user_id === user.id)),
+    () => !!user && (
+      directEnrollmentIds?.has(user.id) === true ||
+      staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) ||
+      enrollments.some((e) => e.user_id === user.id)
+    ),
     [directEnrollmentIds, enrollments, staff, user]
   );
   const myEnrollmentResolving = !!user && directEnrollmentIds === null &&
@@ -285,9 +287,10 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
-                      const enrolled = directEnrollmentIds !== null
-                        ? directEnrollmentIds.has(s.user_id)
-                        : s.has_face_enrollment === true || enrollments.some((e) => e.user_id === s.user_id);
+                      const enrolled =
+                        directEnrollmentIds?.has(s.user_id) === true ||
+                        s.has_face_enrollment === true ||
+                        enrollments.some((e) => e.user_id === s.user_id);
                       const enrollmentResolving = directEnrollmentIds === null && s.has_face_enrollment === undefined && attendanceLoading;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
