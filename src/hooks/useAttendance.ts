@@ -253,6 +253,10 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       toast.error("Face enrollment requires an internet connection. Please try again when online.");
       return false;
     }
+    if (!tenantId) {
+      toast.error("No active workspace. Open a tenant and try again.");
+      return false;
+    }
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
@@ -261,7 +265,12 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
         return false;
       }
       const { data, error } = await supabase.functions.invoke("manage-staff", {
-        body: { action: "enroll_face", target_user_id: targetUserId, image_data_url: dataUrl },
+        body: {
+          action: "enroll_face",
+          tenant_id: tenantId,
+          target_user_id: targetUserId,
+          image_data_url: dataUrl,
+        },
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (error) throw error;
@@ -270,24 +279,29 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       // Immediately reconcile the local Dexie mirror so the UI (Enrolled badge,
       // Check-in button) updates without waiting on realtime. Any previous
       // enrollment for this user is replaced by the freshly-inserted active row.
-      if (tenantId) {
-        try {
+      try {
+        const savedEnrollment = (data as any)?.enrollment;
+        const existing = await db.staff_face_enrollments
+          .where("tenant_id").equals(tenantId).toArray();
+        const stale = existing.filter((r: any) => r.user_id === targetUserId);
+        if (stale.length) await db.staff_face_enrollments.bulkDelete(stale.map((r: any) => r.id));
+
+        if (savedEnrollment?.id) {
+          await db.staff_face_enrollments.put({ ...savedEnrollment, _dirty: 0 } as any);
+        } else {
           const { data: rows } = await supabase
             .from("staff_face_enrollments" as any)
             .select("*")
             .eq("tenant_id", tenantId)
-            .eq("user_id", targetUserId);
-          const existing = await db.staff_face_enrollments
-            .where("tenant_id").equals(tenantId).toArray();
-          const stale = existing.filter((r: any) => r.user_id === targetUserId);
-          if (stale.length) await db.staff_face_enrollments.bulkDelete(stale.map((r: any) => r.id));
+            .eq("user_id", targetUserId)
+            .eq("is_active", true);
           if (rows?.length) {
             await db.staff_face_enrollments.bulkPut(
               rows.map((r: any) => ({ ...r, _dirty: 0 })),
             );
           }
-        } catch { /* mirror will catch up via realtime */ }
-      }
+        }
+      } catch { /* mirror will catch up via realtime */ }
 
       toast.success("Face enrolled");
       window.dispatchEvent(new CustomEvent("wf:face-enrolled", { detail: { userId: targetUserId } }));

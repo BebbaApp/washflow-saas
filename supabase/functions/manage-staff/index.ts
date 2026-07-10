@@ -364,25 +364,26 @@ Deno.serve(async (req) => {
       }
       const { bytes, contentType } = dataUrlToBytes(String(imageDataUrl));
       const ext = contentType.includes("png") ? "png" : "jpg";
-      const image_url = `${target_user_id}/enroll-${Date.now()}.${ext}`;
+      const image_url = `${tenantId}/${target_user_id}/enroll-${Date.now()}.${ext}`;
       const { error: uploadError } = await admin.storage
         .from("attendance-selfies")
         .upload(image_url, bytes, { contentType, upsert: false });
       if (uploadError) return reply({ error: uploadError.message }, 500);
-      await admin
-        .from("staff_face_enrollments")
-        .update({ is_active: false })
-        .eq("user_id", target_user_id)
-        .eq("tenant_id", tenantId);
-      const { error } = await admin.from("staff_face_enrollments").insert({
+      const { data: enrollment, error } = await admin.from("staff_face_enrollments").insert({
         tenant_id: tenantId,
         user_id: target_user_id,
         image_url,
         enrolled_by: callerId,
         is_active: true,
-      });
+      }).select("*").single();
       if (error) return reply({ error: error.message }, 500);
-      return reply({ success: true });
+      await admin
+        .from("staff_face_enrollments")
+        .update({ is_active: false })
+        .eq("user_id", target_user_id)
+        .eq("tenant_id", tenantId)
+        .neq("id", enrollment.id);
+      return reply({ success: true, enrollment });
     }
 
     if (action === "delete") {
