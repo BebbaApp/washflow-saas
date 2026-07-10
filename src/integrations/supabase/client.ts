@@ -8,10 +8,45 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Detect a stale/invalidated session (server-side session_not_found) coming
+// back as a 401 from any Edge Function invocation, and force a clean sign-out
+// so the app doesn't get stuck on a blank screen.
+let handlingStaleSession = false;
+async function handleStaleSession() {
+  if (handlingStaleSession) return;
+  handlingStaleSession = true;
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // ignore
+  } finally {
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.replace("/login");
+    }
+  }
+}
+
+const customFetch: typeof fetch = async (input, init) => {
+  const res = await fetch(input as any, init);
+  try {
+    const url = typeof input === "string" ? input : (input as Request).url;
+    if (res.status === 401 && url.includes("/functions/v1/")) {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        void handleStaleSession();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return res;
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  global: { fetch: customFetch },
 });
