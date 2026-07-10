@@ -5,6 +5,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
+import { useAttendance } from "@/hooks/useAttendance";
 import { toast } from "sonner";
 
 const BUSY_THRESHOLD = 20;
@@ -83,7 +84,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [comps, setComps] = useState<Compensation[]>([]);
-  const [attendance, setAttendance] = useState<AttRow[]>([]);
+  const { records: liveAttendance } = useAttendance();
   const [staffId, setStaffId] = useState("");
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
@@ -133,20 +134,21 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     })();
   }, [open, tenant?.id]);
 
-  // load attendance
-  useEffect(() => {
-    if (!open || !staffId) { setAttendance([]); return; }
-    (async () => {
-      const { data } = await supabase
-        .from("attendance_records")
-        .select("user_id, kind, created_at")
-        .eq("user_id", staffId)
-        .gte("created_at", from.toISOString())
-        .lte("created_at", to.toISOString())
-        .order("created_at", { ascending: true });
-      setAttendance((data as any[]) || []);
-    })();
-  }, [open, staffId, from, to]);
+  // Derive attendance for selected staff + month from the live records feed
+  // (same source as the Work log calendar). Using the shared cache avoids the
+  // per-dialog direct query that could return empty on some sessions.
+  const attendance = useMemo<AttRow[]>(() => {
+    if (!staffId) return [];
+    const fromMs = from.getTime();
+    const toMs = to.getTime();
+    return (liveAttendance || [])
+      .filter((r: any) => r.user_id === staffId)
+      .filter((r: any) => {
+        const t = new Date(r.created_at).getTime();
+        return t >= fromMs && t <= toMs;
+      })
+      .map((r: any) => ({ user_id: r.user_id, kind: r.kind, created_at: r.created_at }));
+  }, [liveAttendance, staffId, from, to]);
 
   // load tenant-wide order volumes per day for the month (drives busy/quiet classification)
   useEffect(() => {
