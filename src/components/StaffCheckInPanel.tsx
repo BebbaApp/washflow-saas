@@ -240,9 +240,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
       recentEnrollmentIds.has(user.id) ||
       staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) ||
       enrollments.some((e) => e.user_id === user.id && enrollmentImageBelongsToUser(e)) ||
-      directEnrollmentIds !== null
-        ? directEnrollmentIds.has(user.id)
-        : false
+      (directEnrollmentIds !== null ? directEnrollmentIds.has(user.id) : false)
     ),
     [directEnrollmentIds, enrollments, recentEnrollmentIds, staff, user]
   );
