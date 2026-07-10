@@ -266,13 +266,37 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
+
+      // Immediately reconcile the local Dexie mirror so the UI (Enrolled badge,
+      // Check-in button) updates without waiting on realtime. Any previous
+      // enrollment for this user is replaced by the freshly-inserted active row.
+      if (tenantId) {
+        try {
+          const { data: rows } = await supabase
+            .from("staff_face_enrollments" as any)
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .eq("user_id", targetUserId);
+          const existing = await db.staff_face_enrollments
+            .where("tenant_id").equals(tenantId).toArray();
+          const stale = existing.filter((r: any) => r.user_id === targetUserId);
+          if (stale.length) await db.staff_face_enrollments.bulkDelete(stale.map((r: any) => r.id));
+          if (rows?.length) {
+            await db.staff_face_enrollments.bulkPut(
+              rows.map((r: any) => ({ ...r, _dirty: 0 })),
+            );
+          }
+        } catch { /* mirror will catch up via realtime */ }
+      }
+
       toast.success("Face enrolled");
+      window.dispatchEvent(new CustomEvent("wf:face-enrolled", { detail: { userId: targetUserId } }));
       return true;
     } catch (e: any) {
       toast.error("Enrollment failed: " + (e.message || e));
       return false;
     }
-  }, []);
+  }, [tenantId]);
 
   // Record attendance — face verify online, manual fallback offline
   const recordAttendance = useCallback(async (kind: "check_in" | "check_out", selfieDataUrl: string) => {
