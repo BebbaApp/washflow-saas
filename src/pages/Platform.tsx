@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import { TenantsAdmin } from "@/components/platform/TenantsAdmin";
 import { UsersAdmin } from "@/components/platform/UsersAdmin";
 import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
