@@ -299,7 +299,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                               {next === "check_in" ? "Check In" : "Check Out"}
                             </Button>
                             {!enrolled && !enrollmentResolving && (
-                              <p className="text-[10px] text-muted-foreground mt-1">Enroll face to enable</p>
+                              <p className="text-[10px] text-muted-foreground mt-1">Enrollment will be verified on submit</p>
                             )}
                           </td>
                         </tr>
