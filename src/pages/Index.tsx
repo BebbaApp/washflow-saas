@@ -138,6 +138,14 @@ const Index = () => {
     return updateStatus(id, status);
   };
 
+  const openFaceEnroll = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "attendance");
+    next.set("sub", "enroll");
+    setActiveTab("attendance");
+    setSearchParams(next, { replace: false });
+  };
+
   const navItems = allNavItems.filter((item) => {
     if (!user) return false;
     if (item.alwaysRoles?.includes(user.role)) return true;
@@ -456,7 +464,7 @@ const Index = () => {
           {activeTab === "services" && <ServicePackages addOpen={addServiceOpen} onAddOpenChange={setAddServiceOpen} />}
           {activeTab === "history" && <HistoryPage orders={orders} />}
           {activeTab === "loyalty" && <LoyaltyDashboard />}
-          {activeTab === "staff" && <SchedulingDashboard isAdmin={isAdmin} />}
+          {activeTab === "staff" && <SchedulingDashboard isAdmin={isAdmin} onOpenFaceEnroll={openFaceEnroll} />}
           {activeTab === "inventory" && (
             <InventoryPage addOpen={addInventoryOpen} onAddOpenChange={setAddInventoryOpen} />
           )}
