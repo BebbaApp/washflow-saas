@@ -144,8 +144,24 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         .order("name", { ascending: true });
       allTenantRows = ((allTenants as any) ?? []) as Array<{ id: string; name: string; slug: string }>;
       if (allTenantRows.length === 0 && authedEmail?.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL) {
-        const { data: platformData } = await supabase.functions.invoke("platform-admin", { body: { action: "list_tenants" } });
-        allTenantRows = (((platformData as any)?.tenants ?? []) as Array<{ id: string; name: string; slug: string }>);
+        try {
+          const { data: platformData, error: paErr } = await supabase.functions.invoke("platform-admin", { body: { action: "list_tenants" } });
+          if (paErr) {
+            // Bad JWT / expired session — sign out cleanly instead of blank-screening.
+            const msg = String((paErr as any)?.message ?? "");
+            if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+              console.warn("[useTenant] platform-admin unauthorized — signing out");
+              await supabase.auth.signOut();
+              window.location.href = "/login";
+              return;
+            }
+            console.warn("platform-admin list_tenants failed", paErr);
+          } else {
+            allTenantRows = (((platformData as any)?.tenants ?? []) as Array<{ id: string; name: string; slug: string }>);
+          }
+        } catch (e) {
+          console.warn("platform-admin invoke threw", e);
+        }
       }
       list = allTenantRows.map((t) => ({
         id: t.id,
