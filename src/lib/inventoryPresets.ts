@@ -12,7 +12,7 @@ export interface InventoryPreset {
 
 export const INVENTORY_PRESETS: InventoryPreset[] = [
   { id: "shampoo", name: "Car Wash Shampoo / Soap", category: "Soap", unit: "L", recommendedMin: 25, recommendedMax: 50, description: "High-foam wash shampoo" },
-  { id: "tyre-shine", name: "Tyre Shine / Gloss", category: "Chemicals", unit: "L", recommendedMin: 25, recommendedMax: 50 },
+  { id: "tyre-shine", name: "Tyre Polish", category: "Chemicals", unit: "L", recommendedMin: 25, recommendedMax: 50 },
   { id: "dash-trim", name: "Dash & Trim Cleaner", category: "Chemicals", unit: "L", recommendedMin: 5, recommendedMax: 10 },
   { id: "glass-cleaner", name: "Window / Glass Cleaner", category: "Chemicals", unit: "L", recommendedMin: 5, recommendedMax: 10 },
   { id: "engine-degreaser", name: "Engine Cleaner / Degreaser", category: "Chemicals", unit: "L", recommendedMin: 5, recommendedMax: 20 },
