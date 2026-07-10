@@ -361,7 +361,7 @@ export function AttendancePage() {
               <Button variant="outline" size="sm" onClick={handleExportRecords}>
                 <Download className="w-4 h-4 mr-1" /> Export CSV
               </Button>
-              {isAdmin && (
+              {canOverride && (
                 <Button size="sm" onClick={() => setOverrideOpen(true)}>
                   <ShieldAlert className="w-4 h-4 mr-1" /> Manual Override
                 </Button>
