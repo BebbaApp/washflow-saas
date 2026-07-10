@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Camera, RefreshCw, Loader2, AlertTriangle, SwitchCamera } from "lucide-react";
 
 interface Props {
@@ -32,6 +32,7 @@ function friendlyCameraError(e: any): string {
 
 export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,9 +138,34 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
     void startCamera(next);
   };
 
-  if (error) {
+  const handleFileCapture = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : null;
+      if (result) {
+        stopCamera();
+        setError(null);
+        setPreview(result);
+      }
+    };
+    reader.onerror = () => setError("Could not read the selected photo. Please try again.");
+    reader.readAsDataURL(file);
+  };
+
+  if (error && !preview) {
     return (
       <div className="space-y-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture={facing === "user" ? "user" : "environment"}
+          className="hidden"
+          onChange={handleFileCapture}
+        />
         <div className="text-sm text-destructive p-4 rounded-lg bg-destructive/10 flex gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <div>
@@ -157,11 +183,11 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
             Retry
           </button>
           <button
-            onClick={switchCam}
+            onClick={() => fileInputRef.current?.click()}
             disabled={starting}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90"
           >
-            <SwitchCamera className="w-4 h-4" /> Switch camera
+            <Camera className="w-4 h-4" /> Open camera
           </button>
         </div>
       </div>
@@ -170,6 +196,14 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
 
   return (
     <div className="space-y-3">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture={facing === "user" ? "user" : "environment"}
+        className="hidden"
+        onChange={handleFileCapture}
+      />
       <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-secondary">
         <video
           ref={setVideoRef}
