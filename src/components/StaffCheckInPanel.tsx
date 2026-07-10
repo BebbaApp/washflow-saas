@@ -153,13 +153,18 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
 
   const enrolledUserIds = useMemo(() => {
     const ids = new Set<string>();
-    directEnrollmentIds?.forEach((id) => ids.add(id));
+    if (directEnrollmentIds !== null) directEnrollmentIds.forEach((id) => ids.add(id));
+    if (directEnrollmentIds === null) {
+      staff.forEach((s) => {
+        if (s.has_face_enrollment === true) ids.add(s.user_id);
+      });
+    }
     recentEnrollmentIds.forEach((id) => ids.add(id));
     enrollments
       .filter(enrollmentImageBelongsToUser)
       .forEach((e) => ids.add(e.user_id));
     return ids;
-  }, [directEnrollmentIds, enrollments, recentEnrollmentIds]);
+  }, [directEnrollmentIds, enrollments, recentEnrollmentIds, staff]);
 
   // Refresh when a face enrollment happens elsewhere in the app, and poll for
   // a few seconds so the check-in button flips on even if realtime is delayed.
