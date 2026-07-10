@@ -15,6 +15,13 @@ import {
 
 interface StaffOption { user_id: string; name: string; role: string; has_face_enrollment?: boolean; }
 
+function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
+  if (!enrollment?.user_id || !enrollment?.image_url) return false;
+  const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
+  return clean.startsWith(`${enrollment.user_id}/`) ||
+    (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+}
+
 interface StaffCheckInPanelProps {
   onOpenFaceEnroll?: () => void;
 }
@@ -119,10 +126,12 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
     if (!tenant?.id) { setDirectEnrollmentIds(null); return; }
     const { data, error } = await supabase
       .from("staff_face_enrollments" as any)
-      .select("user_id")
+      .select("tenant_id,user_id,image_url")
       .eq("tenant_id", tenant.id)
       .eq("is_active", true);
-    setDirectEnrollmentIds(error ? null : new Set(((data as any[]) ?? []).map((e) => e.user_id)));
+    setDirectEnrollmentIds(error ? null : new Set(((data as any[]) ?? [])
+      .filter(enrollmentImageBelongsToUser)
+      .map((e) => e.user_id)));
   }, [tenant?.id]);
 
   useEffect(() => {
@@ -291,7 +300,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                       const enrolled =
                         directEnrollmentIds?.has(s.user_id) === true ||
                         s.has_face_enrollment === true ||
-                        enrollments.some((e) => e.user_id === s.user_id);
+                        enrollments.some((e) => e.user_id === s.user_id && enrollmentImageBelongsToUser(e));
                       const enrollmentResolving = directEnrollmentIds === null && s.has_face_enrollment === undefined && attendanceLoading;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
