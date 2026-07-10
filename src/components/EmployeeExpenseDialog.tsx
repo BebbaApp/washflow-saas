@@ -331,14 +331,14 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   <p className="text-sm font-semibold text-foreground">
                     {formatPrice(comp.base_rate)}
                     <span className="text-xs font-normal text-muted-foreground ml-1">
-                      {comp.pay_type === "salary" ? "/month" : comp.pay_type === "wage" ? "/day" : "/hour"}
+                      {comp.pay_type === "salary" ? "/month" : comp.pay_type === "wage" ? "/day" : "/week"}
                     </span>
                   </p>
                 </div>
-                {comp.pay_type === "hourly" && (
+                {comp.pay_type === "weekly" && (
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Hours (−1h lunch /day)</p>
-                    <p className="text-sm font-semibold text-foreground">{hours.toFixed(2)}h</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weeks worked</p>
+                    <p className="text-sm font-semibold text-foreground">{weeksWorked}</p>
                   </div>
                 )}
               </div>
@@ -390,7 +390,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {(comp.pay_type !== "salary" && comp.quiet_day_rate !== 0) && (
+              {(comp.pay_type === "wage" && comp.quiet_day_rate !== 0) && (
                 <div className="rounded-xl border border-border p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">
                     Quiet-day rate replaces the base rate on any worked day with &lt; {QUIET_THRESHOLD} vehicles.
