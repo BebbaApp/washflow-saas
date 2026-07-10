@@ -55,6 +55,7 @@ function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; u
 const SELFIE_QUEUE_KEY = "wf_selfie_upload_queue";
 const AUDIT_CACHE_KEY = "wf_audit_log_cache";
 const PROFILES_CACHE_KEY = "wf_attendance_profiles_cache";
+const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
 
 function lsLoad<T>(key: string, fallback: T): T {
   try {
@@ -64,6 +65,13 @@ function lsLoad<T>(key: string, fallback: T): T {
 }
 function lsSave(key: string, val: unknown) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* ignore */ }
+}
+
+function rememberLastFaceEnrollment(tenantId: string, userId: string) {
+  lsSave(`${LAST_FACE_ENROLLMENT_KEY_PREFIX}${tenantId}`, {
+    userId,
+    createdAt: Date.now(),
+  });
 }
 
 // Queue a selfie for upload when back online
@@ -312,6 +320,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       } catch { /* mirror will catch up via realtime */ }
 
       toast.success("Face enrolled");
+      rememberLastFaceEnrollment(tenantId, targetUserId);
       window.dispatchEvent(new CustomEvent("wf:face-enrolled", { detail: { userId: targetUserId } }));
       return true;
     } catch (e: any) {
