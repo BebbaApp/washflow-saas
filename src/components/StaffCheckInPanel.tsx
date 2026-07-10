@@ -147,12 +147,39 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
     void loadEnrollmentIds();
   }, [loadEnrollmentIds, enrollmentSignature]);
 
-  // Refresh when a face enrollment happens elsewhere in the app.
+  // Refresh when a face enrollment happens elsewhere in the app, and poll for
+  // a few seconds so the check-in button flips on even if realtime is delayed.
+  const pollEnrollment = useCallback((targetUserId?: string) => {
+    let attempts = 0;
+    const maxAttempts = 6; // ~6s at 1s interval
+    const tick = async () => {
+      attempts += 1;
+      await loadEnrollmentIds();
+      await loadStaff();
+      if (targetUserId) {
+        // Read the freshest state directly to decide whether to stop early.
+        const { data } = await supabase
+          .from("staff_face_enrollments" as any)
+          .select("user_id,image_url,tenant_id")
+          .eq("tenant_id", tenant?.id ?? "")
+          .eq("user_id", targetUserId)
+          .eq("is_active", true);
+        const hit = ((data as any[]) ?? []).some(enrollmentImageBelongsToUser);
+        if (hit) return;
+      }
+      if (attempts < maxAttempts) setTimeout(tick, 1000);
+    };
+    void tick();
+  }, [loadEnrollmentIds, loadStaff, tenant?.id]);
+
   useEffect(() => {
-    const handler = () => { void loadEnrollmentIds(); void loadStaff(); };
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { userId?: string } | undefined;
+      pollEnrollment(detail?.userId);
+    };
     window.addEventListener("wf:face-enrolled", handler);
     return () => window.removeEventListener("wf:face-enrolled", handler);
-  }, [loadEnrollmentIds, loadStaff]);
+  }, [pollEnrollment]);
 
   useEffect(() => {
     if (seenIdsRef.current === null) {
