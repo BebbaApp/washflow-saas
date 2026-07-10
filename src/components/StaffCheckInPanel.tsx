@@ -67,7 +67,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const { user } = useAuth();
   const { tenant } = useTenant();
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
-  const { records, enrollments, recordAttendance, recordAttendanceFor, lastForUser, refetch } = useAttendance();
+  const { records, enrollments, loading: attendanceLoading, recordAttendance, recordAttendanceFor, lastForUser, refetch } = useAttendance();
 
   const [isStaffHere, setIsStaffHere] = useState<boolean | null>(null);
   useEffect(() => {
@@ -88,6 +88,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const [busy, setBusy] = useState(false);
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
+  const [directEnrollmentIds, setDirectEnrollmentIds] = useState<Set<string> | null>(null);
   const [filter, setFilter] = useState("");
   const [soundOn, setSoundOn] = useState(true);
   const seenIdsRef = useRef<Set<string> | null>(null);
@@ -109,6 +110,22 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [canAssist, tenant?.id]);
 
   useEffect(() => {
+    if (!tenant?.id) { setDirectEnrollmentIds(null); return; }
+    let cancelled = false;
+    setDirectEnrollmentIds(null);
+    (async () => {
+      const { data, error } = await supabase
+        .from("staff_face_enrollments" as any)
+        .select("user_id")
+        .eq("tenant_id", tenant.id)
+        .eq("is_active", true);
+      if (cancelled) return;
+      setDirectEnrollmentIds(error ? null : new Set(((data as any[]) ?? []).map((e) => e.user_id)));
+    })();
+    return () => { cancelled = true; };
+  }, [tenant?.id, enrollments.length]);
+
+  useEffect(() => {
     if (seenIdsRef.current === null) {
       seenIdsRef.current = new Set(records.map((r) => r.id));
       return;
@@ -120,8 +137,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [records, soundOn]);
 
   const myEnrolled = useMemo(
-    () => !!user && enrollments.some((e) => e.user_id === user.id),
-    [enrollments, user]
+    () => !!user && (directEnrollmentIds?.has(user.id) || enrollments.some((e) => e.user_id === user.id)),
+    [directEnrollmentIds, enrollments, user]
   );
   const myLast = user ? lastForUser(user.id) : null;
   const nextKind: "check_in" | "check_out" = myLast?.kind === "check_in" ? "check_out" : "check_in";
@@ -248,7 +265,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
-                      const enrolled = enrollments.some((e) => e.user_id === s.user_id);
+                      const enrolled = directEnrollmentIds?.has(s.user_id) || enrollments.some((e) => e.user_id === s.user_id);
+                      const enrollmentResolving = attendanceLoading && directEnrollmentIds === null;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
                       return (
@@ -258,6 +276,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                           <td className="px-4 py-2">
                             {enrolled
                               ? <Badge variant="default">Enrolled</Badge>
+                              : enrollmentResolving
+                                ? <Badge variant="secondary">Checking…</Badge>
                               : <Badge variant="outline">Not enrolled</Badge>}
                           </td>
                           <td className="px-4 py-2"><StatusPill last={last} /></td>
@@ -267,8 +287,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                           <td className="px-4 py-2 text-right">
                             <Button
                               size="sm"
-                              disabled={!enrolled}
-                              title={!enrolled ? "Face not enrolled yet — enroll under Attendance → Enroll Faces first." : undefined}
+                              disabled={busy}
+                              title={!enrolled ? "If this staff member is enrolled, you can still continue — verification will confirm it." : undefined}
                               variant={next === "check_in" ? "default" : "secondary"}
                               onClick={() => setCaptureMode({
                                 kind: next === "check_in" ? "assist_check_in" : "assist_check_out",
@@ -278,7 +298,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                               <Camera className="w-3.5 h-3.5 mr-1" />
                               {next === "check_in" ? "Check In" : "Check Out"}
                             </Button>
-                            {!enrolled && (
+                            {!enrolled && !enrollmentResolving && (
                               <p className="text-[10px] text-muted-foreground mt-1">Enroll face to enable</p>
                             )}
                           </td>
