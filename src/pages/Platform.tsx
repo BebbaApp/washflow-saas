@@ -74,6 +74,7 @@ function PlatformSidebar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }
 export default function Platform() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { isSuperAdmin, loading } = useTenant();
+  const { version: appVersion, isOutdated } = useAppVersion();
   const [tab, setTab] = useState<Tab>("dashboard");
 
   if (authLoading || loading) {
