@@ -28,7 +28,7 @@ export interface WaterRow {
 
 export const CONCENTRATES: ConcentrateRow[] = [
   { key: "snow_foam",    name: "Snow foam shampoo",    dilution: "1:50", unit: "mL", values: { Sedan: 102, "SUV S/Cab": 126, "SUV D/Cab": 156, Quantum: 192, Sprinter: 228, "4T Truck": 324, "8T Truck": 516 } },
-  { key: "tyre_shine",   name: "Tyre polish",          dilution: "RTU",  unit: "mL", values: { Sedan: 20, "SUV S/Cab": 24, "SUV D/Cab": 28, Quantum: 30, Sprinter: 32, "4T Truck": 50, "8T Truck": 80 } },
+  { key: "tyre_shine",   name: "Tyre polish",          dilution: "RTU",  unit: "mL", values: { Sedan: 17, "SUV S/Cab": 20, "SUV D/Cab": 24, Quantum: 26, Sprinter: 27, "4T Truck": 43, "8T Truck": 68 } },
   { key: "dash_trim",    name: "Dash & trim dressing", dilution: "RTU",  unit: "mL", values: { Sedan: 50,  "SUV S/Cab": 60,  "SUV D/Cab": 75,  Quantum: 100, Sprinter: 90,  "4T Truck": 120, "8T Truck": 150 } },
   { key: "glass",        name: "Glass cleaner",        dilution: "1:10", unit: "mL", values: { Sedan: 8,   "SUV S/Cab": 10,  "SUV D/Cab": 12,  Quantum: 18,  Sprinter: 16,  "4T Truck": 20,  "8T Truck": 25 } },
   { key: "engine_deg",   name: "Engine degreaser*",    dilution: "1:10", unit: "mL", values: { Sedan: 30,  "SUV S/Cab": 40,  "SUV D/Cab": 50,  Quantum: 60,  Sprinter: 70,  "4T Truck": 120, "8T Truck": 200 } },
