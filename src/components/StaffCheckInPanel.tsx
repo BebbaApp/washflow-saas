@@ -12,9 +12,12 @@ import {
   LogIn, LogOut, UserCheck, Camera, Search, ShieldCheck,
   Volume2, VolumeX, ExternalLink,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 
 interface StaffOption { user_id: string; name: string; role: string; }
+
+interface StaffCheckInPanelProps {
+  onOpenFaceEnroll?: () => void;
+}
 
 function playChime() {
   try {
@@ -60,7 +63,7 @@ function StatusPill({ last }: { last: AttendanceRecord | null }) {
  * - All data is wired to the same `useAttendance` hook so records flow into
  *   the existing Attendance page / day log.
  */
-export function StaffCheckInPanel() {
+export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) {
   const { user } = useAuth();
   const { tenant } = useTenant();
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
@@ -170,9 +173,9 @@ export function StaffCheckInPanel() {
             <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
               <ShieldCheck className="w-4 h-4" />
               Your face hasn't been enrolled yet. Ask an admin to enroll you under{" "}
-              <Link to="/?tab=attendance&sub=enroll" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+              <button type="button" onClick={onOpenFaceEnroll} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
                 Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
-              </Link>
+              </button>
               .
             </div>
           ) : (
@@ -284,12 +287,13 @@ export function StaffCheckInPanel() {
           </div>
           <p className="text-xs text-muted-foreground">
             Tip: staff without an enrolled face must be enrolled first under{" "}
-            <Link
-              to="/?tab=attendance&sub=enroll"
+            <button
+              type="button"
+              onClick={onOpenFaceEnroll}
               className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
             >
               Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
-            </Link>
+            </button>
             .
           </p>
         </>

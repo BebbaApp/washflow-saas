@@ -18,6 +18,7 @@ import autoTable from "jspdf-autotable";
 
 interface SchedulingDashboardProps {
   isAdmin: boolean;
+  onOpenFaceEnroll?: () => void;
 }
 
 type View = "checkin" | "daylog" | "employees" | "performance";
@@ -71,7 +72,7 @@ function downloadBlob(name: string, blob: Blob) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
+export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDashboardProps) => {
   const { staffMembers, loading } = useScheduling();
   const { records } = useAttendance();
 
@@ -463,7 +464,7 @@ export const SchedulingDashboard = ({ isAdmin }: SchedulingDashboardProps) => {
       )}
 
       {/* CHECK-IN VIEW */}
-      {view === "checkin" && <StaffCheckInPanel />}
+      {view === "checkin" && <StaffCheckInPanel onOpenFaceEnroll={onOpenFaceEnroll} />}
 
       {/* DAY LOG VIEW */}
       {view === "daylog" && (
