@@ -57,9 +57,20 @@ const allNavItems: { id: string; label: string; icon: typeof LayoutDashboard; pe
   { id: "settings", label: "Settings", icon: SettingsIcon, permission: "settings.view" },
 ];
 
+const getInitialTab = () => {
+  const fallback = "dashboard";
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("tab");
+    if (fromUrl) return fromUrl;
+    return localStorage.getItem("washflow:lastTab") || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [addServiceOpen, setAddServiceOpen] = useState(false);
@@ -94,13 +105,8 @@ const Index = () => {
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab) {
-      setActiveTab(tab);
-      return;
+      setActiveTab((current) => (current === tab ? current : tab));
     }
-    try {
-      const saved = localStorage.getItem("washflow:lastTab");
-      if (saved) setActiveTab(saved);
-    } catch {}
   }, [searchParams]);
 
   // Persist the active tab + reflect it in the URL so refresh / deep-link work.
@@ -111,12 +117,13 @@ const Index = () => {
   useEffect(() => {
     if (!activeTab) return;
     try { localStorage.setItem("washflow:lastTab", activeTab); } catch {}
-    if (searchParams.get("tab") !== activeTab) {
+    if (searchParams.get("tab") !== activeTab || (activeTab !== "attendance" && searchParams.has("sub"))) {
       const next = new URLSearchParams(searchParams);
       next.set("tab", activeTab);
+      if (activeTab !== "attendance") next.delete("sub");
       setSearchParams(next, { replace: true });
     }
-  }, [activeTab, searchParams, setSearchParams]);
+  }, [activeTab, setSearchParams]);
 
   // Intercept the wash START transition to deduct inventory up front
   // (service recipe + vehicle-type usage). Completion is then a plain status change.
