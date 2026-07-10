@@ -237,8 +237,9 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
     if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
     else if (comp.pay_type === "hourly") parts.push(`${hours.toFixed(2)}h`);
+    if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
-    if (quietDays > 0) parts.push(`${quietDays} quiet day(s)`);
+    if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
     const desc = `Remuneration — ${displayName} (${monthLabel})`;
     const summary = `${parts.join(", ")} · ${days} worked / ${absentDays} absent`;
     await addExpense({
