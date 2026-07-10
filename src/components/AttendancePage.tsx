@@ -80,8 +80,13 @@ function ymd(d: Date) { return d.toISOString().slice(0, 10); }
 function startOfWeek(d: Date) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0,0,0,0); return x; }
 
 export function AttendancePage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const { tenant } = useTenant();
+  const { can } = usePermissions();
+  const canReport = isAdmin || can("reports.attendance");
+  const canEnroll = isAdmin || can("attendance.enroll");
+  const canAudit = isAdmin || can("attendance.audit");
+  const canOverride = isAdmin || can("attendance.manualOverride");
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
     useAttendance();
