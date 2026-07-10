@@ -134,10 +134,18 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
       .map((e) => e.user_id)));
   }, [tenant?.id]);
 
+  const enrollmentSignature = useMemo(
+    () => enrollments
+      .filter(enrollmentImageBelongsToUser)
+      .map((e) => `${e.user_id}:${e.created_at}`)
+      .sort()
+      .join("|"),
+    [enrollments]
+  );
   useEffect(() => {
     setDirectEnrollmentIds(null);
     void loadEnrollmentIds();
-  }, [loadEnrollmentIds, enrollments.length]);
+  }, [loadEnrollmentIds, enrollmentSignature]);
 
   // Refresh when a face enrollment happens elsewhere in the app.
   useEffect(() => {
