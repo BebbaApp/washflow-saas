@@ -135,7 +135,7 @@ export function AttendancePage() {
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
 
   useEffect(() => {
-    if (!canAssist || !tenant?.id) {
+    if ((!canAssist && !canEnroll) || !tenant?.id) {
       setStaff([]);
       return;
     }
@@ -145,7 +145,7 @@ export function AttendancePage() {
         .filter((u: any) => !!u.role)
         .map((u: any) => ({ user_id: u.id, name: u.name || u.email || "Staff", role: u.role })));
     })();
-  }, [canAssist, tenant?.id]);
+  }, [canAssist, canEnroll, tenant?.id]);
 
   // Detect newly inserted records (from realtime) and play a subtle chime.
   // Skip the very first sync so we don't beep on initial load.
@@ -536,15 +536,19 @@ export function AttendancePage() {
                   {enrollments.length === 0 && (
                     <tr><td colSpan={3} className="text-center py-6 text-muted-foreground">Nobody enrolled yet</td></tr>
                   )}
-                  {enrollments.map((e) => (
-                    <tr key={e.id} className="border-t border-border">
-                      <td className="px-4 py-2">{e.staffName}</td>
-                      <td className="px-4 py-2">{new Date(e.created_at).toLocaleString()}</td>
-                      <td className="px-4 py-2">
-                        <button onClick={() => showSelfie(e.image_url)} className="text-primary hover:underline text-xs">View</button>
-                      </td>
-                    </tr>
-                  ))}
+                  {enrollments.map((e) => {
+                    const fallbackName = staff.find((s) => s.user_id === e.user_id)?.name;
+                    const displayName = (e.staffName && e.staffName !== "Unknown") ? e.staffName : (fallbackName || "Unknown");
+                    return (
+                      <tr key={e.id} className="border-t border-border">
+                        <td className="px-4 py-2">{displayName}</td>
+                        <td className="px-4 py-2">{new Date(e.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => showSelfie(e.image_url)} className="text-primary hover:underline text-xs">View</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
