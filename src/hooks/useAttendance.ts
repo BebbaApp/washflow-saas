@@ -254,8 +254,15 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       return false;
     }
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        toast.error("Your session has expired. Please sign in again.");
+        return false;
+      }
       const { data, error } = await supabase.functions.invoke("manage-staff", {
         body: { action: "enroll_face", target_user_id: targetUserId, image_data_url: dataUrl },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
