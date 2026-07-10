@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     // when provided so multi-workspace users do not verify against old data.
     let enrolQuery = admin
       .from("staff_face_enrollments")
-      .select("image_url")
+      .select("tenant_id,user_id,image_url")
       .eq("user_id", subjectUserId)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -92,11 +92,17 @@ Deno.serve(async (req) => {
       return json({ error: "no_enrollment" }, 404);
     }
 
+    const cleanEnrollmentPath = String(enrol.image_url).replace(/^.*attendance-selfies\//, "");
+    const enrollmentBelongsToSubject = cleanEnrollmentPath.startsWith(`${subjectUserId}/`) ||
+      (!!enrol.tenant_id && cleanEnrollmentPath.startsWith(`${enrol.tenant_id}/${subjectUserId}/`));
+    if (!enrollmentBelongsToSubject) {
+      return json({ error: "no_enrollment" }, 404);
+    }
+
     // Signed URL for the enrolled image
-    const path = enrol.image_url.replace(/^.*attendance-selfies\//, "");
     const { data: signed } = await admin.storage
       .from("attendance-selfies")
-      .createSignedUrl(path, 60);
+      .createSignedUrl(cleanEnrollmentPath, 60);
     const enrolledUrl = signed?.signedUrl || enrol.image_url;
 
     const enrolledResp = await fetch(enrolledUrl);

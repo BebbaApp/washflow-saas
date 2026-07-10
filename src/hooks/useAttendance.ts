@@ -44,6 +44,13 @@ export interface AuditEntry {
 
 const BUCKET = "attendance-selfies";
 
+function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
+  if (!enrollment?.user_id || !enrollment?.image_url) return false;
+  const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
+  return clean.startsWith(`${enrollment.user_id}/`) ||
+    (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+}
+
 // localStorage keys for offline queue
 const SELFIE_QUEUE_KEY = "wf_selfie_upload_queue";
 const AUDIT_CACHE_KEY = "wf_audit_log_cache";
@@ -222,6 +229,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
   const enrollments = useMemo<FaceEnrollment[]>(() => {
     const list = (enrollmentRows ?? [])
       .filter((e: any) => e.is_active !== false)
+      .filter(enrollmentImageBelongsToUser)
       .map((e: any) => ({ ...e, staffName: profilesMap[e.user_id] || "Unknown" }));
     list.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     return list;

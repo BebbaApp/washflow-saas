@@ -3,7 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-2026-06-05-face-enroll-service-upload";
+const FUNCTION_VERSION = "manage-staff-2026-07-10-scoped-face-enrollment";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
         admin.from("platform_admins").select("user_id").in("user_id", ids),
         admin.from("super_admins").select("user_id").in("user_id", ids),
         admin.from("staff_compensation").select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate").eq("tenant_id", tenantId),
-        admin.from("staff_face_enrollments").select("user_id").eq("tenant_id", tenantId).eq("is_active", true).in("user_id", ids),
+        admin.from("staff_face_enrollments").select("tenant_id,user_id,image_url").eq("tenant_id", tenantId).eq("is_active", true).in("user_id", ids),
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
@@ -206,7 +206,14 @@ Deno.serve(async (req) => {
         ...(platformAdmins ?? []).map((p: any) => p.user_id),
         ...superAdminIds,
       ]);
-      const enrolledFaceIds = new Set<string>((faceEnrollments ?? []).map((e: any) => e.user_id));
+      const enrollmentBelongsToUser = (e: any) => {
+        if (!e?.user_id || !e?.image_url) return false;
+        const clean = String(e.image_url).replace(/^.*attendance-selfies\//, "");
+        return clean.startsWith(`${e.user_id}/`) || clean.startsWith(`${tenantId}/${e.user_id}/`);
+      };
+      const enrolledFaceIds = new Set<string>((faceEnrollments ?? [])
+        .filter(enrollmentBelongsToUser)
+        .map((e: any) => e.user_id));
       // Super admins must never appear as workspace staff — scrub any stale
       // tenant_members or user_roles rows for them.
       if (superAdminIds.size > 0) {
@@ -409,6 +416,12 @@ Deno.serve(async (req) => {
         .eq("user_id", target_user_id)
         .eq("tenant_id", tenantId)
         .neq("id", enrollment.id);
+      await admin
+        .from("staff_face_enrollments")
+        .update({ is_active: false })
+        .eq("tenant_id", tenantId)
+        .eq("image_url", image_url)
+        .neq("user_id", target_user_id);
       return reply({ success: true, enrollment });
     }
 
