@@ -93,42 +93,48 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const [soundOn, setSoundOn] = useState(true);
   const seenIdsRef = useRef<Set<string> | null>(null);
 
-  useEffect(() => {
+  const loadStaff = useCallback(async () => {
     if (!canAssist || !tenant?.id) { setStaff([]); return; }
-    (async () => {
-      const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } });
-      setStaff(((data as any)?.users ?? [])
-        .filter((u: any) => !!u.role)
-        .map((u: any) => ({
-          user_id: u.id,
-          name: u.name || u.email || "Staff",
-          role: u.role,
-          has_face_enrollment: u.has_face_enrollment,
-        })));
-      const { data: statusRows } = await (supabase as any)
-        .from("staff_active_status")
-        .select("user_id,is_active");
-      const m: Record<string, boolean> = {};
-      (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
-      setActiveMap(m);
-    })();
+    const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } });
+    setStaff(((data as any)?.users ?? [])
+      .filter((u: any) => !!u.role)
+      .map((u: any) => ({
+        user_id: u.id,
+        name: u.name || u.email || "Staff",
+        role: u.role,
+        has_face_enrollment: u.has_face_enrollment,
+      })));
+    const { data: statusRows } = await (supabase as any)
+      .from("staff_active_status")
+      .select("user_id,is_active");
+    const m: Record<string, boolean> = {};
+    (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
+    setActiveMap(m);
   }, [canAssist, tenant?.id]);
 
-  useEffect(() => {
+  useEffect(() => { void loadStaff(); }, [loadStaff]);
+
+  const loadEnrollmentIds = useCallback(async () => {
     if (!tenant?.id) { setDirectEnrollmentIds(null); return; }
-    let cancelled = false;
+    const { data, error } = await supabase
+      .from("staff_face_enrollments" as any)
+      .select("user_id")
+      .eq("tenant_id", tenant.id)
+      .eq("is_active", true);
+    setDirectEnrollmentIds(error ? null : new Set(((data as any[]) ?? []).map((e) => e.user_id)));
+  }, [tenant?.id]);
+
+  useEffect(() => {
     setDirectEnrollmentIds(null);
-    (async () => {
-      const { data, error } = await supabase
-        .from("staff_face_enrollments" as any)
-        .select("user_id")
-        .eq("tenant_id", tenant.id)
-        .eq("is_active", true);
-      if (cancelled) return;
-      setDirectEnrollmentIds(error ? null : new Set(((data as any[]) ?? []).map((e) => e.user_id)));
-    })();
-    return () => { cancelled = true; };
-  }, [tenant?.id, enrollments.length]);
+    void loadEnrollmentIds();
+  }, [loadEnrollmentIds, enrollments.length]);
+
+  // Refresh when a face enrollment happens elsewhere in the app.
+  useEffect(() => {
+    const handler = () => { void loadEnrollmentIds(); void loadStaff(); };
+    window.addEventListener("wf:face-enrolled", handler);
+    return () => window.removeEventListener("wf:face-enrolled", handler);
+  }, [loadEnrollmentIds, loadStaff]);
 
   useEffect(() => {
     if (seenIdsRef.current === null) {
