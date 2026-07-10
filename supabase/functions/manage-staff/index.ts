@@ -385,7 +385,7 @@ Deno.serve(async (req) => {
       if (existingActive?.id) {
         const { data: updated, error: updateError } = await admin
           .from("staff_face_enrollments")
-          .update({ image_url, enrolled_by: callerId, is_active: true })
+          .update({ image_url, enrolled_by: callerId, is_active: true, created_at: new Date().toISOString() })
           .eq("id", existingActive.id)
           .select("*")
           .single();
