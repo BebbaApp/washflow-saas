@@ -552,7 +552,7 @@ export function AttendancePage() {
         )}
 
         {/* Audit log */}
-        {isAdmin && (
+        {canAudit && (
           <TabsContent value="audit" className="mt-4">
             <div className="glass-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border text-sm font-medium flex items-center gap-2">
