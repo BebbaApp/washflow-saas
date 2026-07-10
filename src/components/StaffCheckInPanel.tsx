@@ -13,7 +13,7 @@ import {
   Volume2, VolumeX, ExternalLink,
 } from "lucide-react";
 
-interface StaffOption { user_id: string; name: string; role: string; }
+interface StaffOption { user_id: string; name: string; role: string; has_face_enrollment?: boolean; }
 
 interface StaffCheckInPanelProps {
   onOpenFaceEnroll?: () => void;
@@ -99,7 +99,12 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
       const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } });
       setStaff(((data as any)?.users ?? [])
         .filter((u: any) => !!u.role)
-        .map((u: any) => ({ user_id: u.id, name: u.name || u.email || "Staff", role: u.role })));
+        .map((u: any) => ({
+          user_id: u.id,
+          name: u.name || u.email || "Staff",
+          role: u.role,
+          has_face_enrollment: u.has_face_enrollment,
+        })));
       const { data: statusRows } = await (supabase as any)
         .from("staff_active_status")
         .select("user_id,is_active");
@@ -137,9 +142,13 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [records, soundOn]);
 
   const myEnrolled = useMemo(
-    () => !!user && (directEnrollmentIds?.has(user.id) || enrollments.some((e) => e.user_id === user.id)),
-    [directEnrollmentIds, enrollments, user]
+    () => !!user && (directEnrollmentIds !== null
+      ? directEnrollmentIds.has(user.id)
+      : staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) || enrollments.some((e) => e.user_id === user.id)),
+    [directEnrollmentIds, enrollments, staff, user]
   );
+  const myEnrollmentResolving = !!user && directEnrollmentIds === null &&
+    !staff.some((s) => s.user_id === user.id && s.has_face_enrollment !== undefined) && attendanceLoading;
   const myLast = user ? lastForUser(user.id) : null;
   const nextKind: "check_in" | "check_out" = myLast?.kind === "check_in" ? "check_out" : "check_in";
 
@@ -189,24 +198,29 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setCaptureMode({ kind: "check_in" })}
-              disabled={busy || nextKind !== "check_in"}
+              disabled={busy || myEnrollmentResolving || !myEnrolled || nextKind !== "check_in"}
               className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
             >
               <LogIn className="w-4 h-4" /> Check In
             </button>
             <button
               onClick={() => setCaptureMode({ kind: "check_out" })}
-              disabled={busy || nextKind !== "check_out"}
+              disabled={busy || myEnrollmentResolving || !myEnrolled || nextKind !== "check_out"}
               className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
             >
               <LogOut className="w-4 h-4" /> Check Out
             </button>
           </div>
 
-          {!myEnrolled && directEnrollmentIds !== null && (
+          {myEnrollmentResolving ? (
             <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
               <ShieldCheck className="w-4 h-4" />
-              Face enrollment was not found locally. If verification fails, enroll under{" "}
+              Checking face enrollment…
+            </div>
+          ) : !myEnrolled && (
+            <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+              <ShieldCheck className="w-4 h-4" />
+              Your face hasn't been enrolled yet. Ask an admin to enroll you under{" "}
               <button type="button" onClick={onOpenFaceEnroll} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
                 Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
               </button>
@@ -265,8 +279,10 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
-                      const enrolled = directEnrollmentIds?.has(s.user_id) || enrollments.some((e) => e.user_id === s.user_id);
-                      const enrollmentResolving = attendanceLoading && directEnrollmentIds === null;
+                      const enrolled = directEnrollmentIds !== null
+                        ? directEnrollmentIds.has(s.user_id)
+                        : s.has_face_enrollment === true || enrollments.some((e) => e.user_id === s.user_id);
+                      const enrollmentResolving = directEnrollmentIds === null && s.has_face_enrollment === undefined && attendanceLoading;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
                       return (
@@ -287,8 +303,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                           <td className="px-4 py-2 text-right">
                             <Button
                               size="sm"
-                              disabled={busy}
-                              title={!enrolled ? "If this staff member is enrolled, you can still continue — verification will confirm it." : undefined}
+                              disabled={busy || enrollmentResolving || !enrolled}
+                              title={!enrolled ? "Face not enrolled yet — enroll under Attendance → Enroll Faces first." : undefined}
                               variant={next === "check_in" ? "default" : "secondary"}
                               onClick={() => setCaptureMode({
                                 kind: next === "check_in" ? "assist_check_in" : "assist_check_out",
@@ -299,7 +315,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                               {next === "check_in" ? "Check In" : "Check Out"}
                             </Button>
                             {!enrolled && !enrollmentResolving && (
-                              <p className="text-[10px] text-muted-foreground mt-1">Enrollment will be verified on submit</p>
+                              <p className="text-[10px] text-muted-foreground mt-1">Enroll face to enable</p>
                             )}
                           </td>
                         </tr>

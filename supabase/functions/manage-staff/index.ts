@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
       const { data: list, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (error) return reply({ error: error.message }, 500);
       const ids = list.users.map((u) => u.id);
-      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }, { data: compensationRows }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: pins }, { data: tenantMembers }, { data: platformAdmins }, { data: superAdmins }, { data: compensationRows }, { data: faceEnrollments }] = await Promise.all([
         admin.from("profiles").select("user_id,name").in("user_id", ids),
         admin.from("user_roles").select("user_id,role").eq("tenant_id", tenantId).in("user_id", ids),
         admin.from("staff_pins").select("user_id,phone").eq("tenant_id", tenantId).in("user_id", ids),
@@ -194,6 +194,7 @@ Deno.serve(async (req) => {
         admin.from("platform_admins").select("user_id").in("user_id", ids),
         admin.from("super_admins").select("user_id").in("user_id", ids),
         admin.from("staff_compensation").select("user_id,pay_type,base_rate,busy_day_rate,quiet_day_rate").eq("tenant_id", tenantId),
+        admin.from("staff_face_enrollments").select("user_id").eq("tenant_id", tenantId).eq("is_active", true).in("user_id", ids),
       ]);
       const pMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.name]));
       const pinMap = new Map((pins ?? []).map((p: any) => [p.user_id, p.phone]));
@@ -205,6 +206,7 @@ Deno.serve(async (req) => {
         ...(platformAdmins ?? []).map((p: any) => p.user_id),
         ...superAdminIds,
       ]);
+      const enrolledFaceIds = new Set<string>((faceEnrollments ?? []).map((e: any) => e.user_id));
       // Super admins must never appear as workspace staff — scrub any stale
       // tenant_members or user_roles rows for them.
       if (superAdminIds.size > 0) {
@@ -247,6 +249,7 @@ Deno.serve(async (req) => {
           is_super_admin: superAdminIds.has(u.id),
           phone: pinMap.get(u.id) ?? null,
           has_pin: pinMap.has(u.id),
+          has_face_enrollment: enrolledFaceIds.has(u.id),
           email_confirmed: !!(u.email_confirmed_at || u.confirmed_at || u.last_sign_in_at),
           created_at: u.created_at,
         };
