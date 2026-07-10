@@ -94,10 +94,11 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const seenIdsRef = useRef<Set<string> | null>(null);
 
   const loadStaff = useCallback(async () => {
-    if (!canAssist || !tenant?.id) { setStaff([]); return; }
+    if (!tenant?.id || !user?.id) { setStaff([]); return; }
     const { data } = await supabase.functions.invoke("manage-staff", { body: { action: "list", tenant_id: tenant.id } });
     setStaff(((data as any)?.users ?? [])
       .filter((u: any) => !!u.role)
+      .filter((u: any) => canAssist || u.id === user.id)
       .map((u: any) => ({
         user_id: u.id,
         name: u.name || u.email || "Staff",
@@ -110,7 +111,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
     const m: Record<string, boolean> = {};
     (statusRows || []).forEach((r: any) => { m[r.user_id] = !!r.is_active; });
     setActiveMap(m);
-  }, [canAssist, tenant?.id]);
+  }, [canAssist, tenant?.id, user?.id]);
 
   useEffect(() => { void loadStaff(); }, [loadStaff]);
 
@@ -148,9 +149,11 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [records, soundOn]);
 
   const myEnrolled = useMemo(
-    () => !!user && (directEnrollmentIds !== null
-      ? directEnrollmentIds.has(user.id)
-      : staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) || enrollments.some((e) => e.user_id === user.id)),
+    () => !!user && (
+      directEnrollmentIds?.has(user.id) === true ||
+      staff.some((s) => s.user_id === user.id && s.has_face_enrollment === true) ||
+      enrollments.some((e) => e.user_id === user.id)
+    ),
     [directEnrollmentIds, enrollments, staff, user]
   );
   const myEnrollmentResolving = !!user && directEnrollmentIds === null &&
@@ -285,9 +288,10 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
-                      const enrolled = directEnrollmentIds !== null
-                        ? directEnrollmentIds.has(s.user_id)
-                        : s.has_face_enrollment === true || enrollments.some((e) => e.user_id === s.user_id);
+                      const enrolled =
+                        directEnrollmentIds?.has(s.user_id) === true ||
+                        s.has_face_enrollment === true ||
+                        enrollments.some((e) => e.user_id === s.user_id);
                       const enrollmentResolving = directEnrollmentIds === null && s.has_face_enrollment === undefined && attendanceLoading;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { Camera, RefreshCw, Loader2, AlertTriangle, SwitchCamera } from "lucide-react";
 
 interface Props {
@@ -31,6 +31,7 @@ function friendlyCameraError(e: any): string {
 }
 
 export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) {
+  const fileInputId = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -113,9 +114,15 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
 
   const snap = () => {
     const v = videoRef.current; const c = canvasRef.current;
-    if (!v || !c) return;
+    if (!v || !c) {
+      setError("Camera preview is not ready. Tap Open camera to capture a photo with your device camera.");
+      return;
+    }
     const w = v.videoWidth, h = v.videoHeight;
-    if (!w || !h) return;
+    if (!w || !h) {
+      setError("Camera preview is still loading. Tap Retry, or use Open camera.");
+      return;
+    }
     c.width = w; c.height = h;
     const ctx = c.getContext("2d");
     if (!ctx) return;
@@ -159,11 +166,12 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
     return (
       <div className="space-y-3">
         <input
+          id={fileInputId}
           ref={fileInputRef}
           type="file"
           accept="image/*"
           capture={facing === "user" ? "user" : "environment"}
-          className="hidden"
+          className="sr-only"
           onChange={handleFileCapture}
         />
         <div className="text-sm text-destructive p-4 rounded-lg bg-destructive/10 flex gap-2">
@@ -182,13 +190,13 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Retry
           </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={starting}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90"
+          <label
+            htmlFor={starting ? undefined : fileInputId}
+            aria-disabled={starting}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 aria-disabled:opacity-50 aria-disabled:pointer-events-none cursor-pointer"
           >
             <Camera className="w-4 h-4" /> Open camera
-          </button>
+          </label>
         </div>
       </div>
     );
@@ -197,11 +205,12 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   return (
     <div className="space-y-3">
       <input
+        id={fileInputId}
         ref={fileInputRef}
         type="file"
         accept="image/*"
         capture={facing === "user" ? "user" : "environment"}
-        className="hidden"
+        className="sr-only"
         onChange={handleFileCapture}
       />
       <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-secondary">
@@ -250,13 +259,21 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
             </button>
           </>
         ) : (
-          <button
-            onClick={snap}
-            disabled={!streaming || busy}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-50"
-          >
-            <Camera className="w-4 h-4" /> Take Selfie
-          </button>
+          <div className="grid grid-cols-2 gap-2 w-full">
+            <button
+              onClick={snap}
+              disabled={!streaming || busy}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              <Camera className="w-4 h-4" /> Take Selfie
+            </button>
+            <label
+              htmlFor={fileInputId}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 cursor-pointer"
+            >
+              <Camera className="w-4 h-4" /> Open camera
+            </label>
+          </div>
         )}
       </div>
     </div>
