@@ -185,7 +185,7 @@ function WorkersSection() {
   const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
   const [togglingActive, setTogglingActive] = useState<string | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
-  type Compensation = { pay_type: "salary" | "wage" | "hourly"; base_rate: number; busy_day_rate: number; quiet_day_rate: number };
+  type Compensation = { pay_type: "salary" | "wage" | "weekly"; base_rate: number; busy_day_rate: number; quiet_day_rate: number };
   const emptyComp = (): Compensation => ({ pay_type: "salary", base_rate: 0, busy_day_rate: 0, quiet_day_rate: 0 });
   const [compMap, setCompMap] = useState<Record<string, Compensation>>({});
   const [savingComp, setSavingComp] = useState<string | null>(null);
@@ -580,7 +580,7 @@ function WorkersSection() {
               <CollapsibleContent>
                 {(() => {
                   const comp = compMap[u.id] ?? emptyComp();
-                  const payTypeLabel = comp.pay_type === "salary" ? "Monthly salary" : comp.pay_type === "wage" ? "Daily wage" : "Hourly rate";
+                  const payTypeLabel = comp.pay_type === "salary" ? "Monthly salary" : comp.pay_type === "wage" ? "Daily wage" : "Weekly wage";
                   return (
                     <div className="px-4 pb-4 pt-2 border-t border-border space-y-4">
                       <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold">
@@ -589,8 +589,8 @@ function WorkersSection() {
 
                       {/* Pay type toggles */}
                       <div className="grid sm:grid-cols-3 gap-3">
-                        {(["salary","wage","hourly"] as const).map((pt) => {
-                          const labels: Record<typeof pt, string> = { salary: "Salary", wage: "Wage", hourly: "Hourly rate" } as any;
+                        {(["salary","wage","weekly"] as const).map((pt) => {
+                          const labels: Record<typeof pt, string> = { salary: "Salary", wage: "Wage", weekly: "Weekly wage" } as any;
                           const checked = comp.pay_type === pt;
                           return (
                             <label
@@ -640,7 +640,7 @@ function WorkersSection() {
                         </div>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        Busy/quiet adjustments are added per qualifying day on top of salary, daily wage, or hourly pay.
+                        Quiet-day rate replaces the daily wage on quiet worked days. Busy-day bonus is entered manually as a Work Bonus when recording the expense.
                       </p>
 
 

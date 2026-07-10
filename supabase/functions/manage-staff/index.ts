@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
     if (action === "save_compensation") {
       const { user_id } = body ?? {};
       const payType = String(body?.pay_type ?? "salary");
-      if (!user_id || !["salary", "wage", "hourly"].includes(payType)) {
+      if (!user_id || !["salary", "wage", "weekly"].includes(payType)) {
         return reply({ error: "Invalid compensation input" }, 400);
       }
       const [{ data: targetMember }, { data: targetRole }] = await Promise.all([

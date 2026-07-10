@@ -16,7 +16,7 @@ interface Props {
   onClose: () => void;
 }
 
-type PayType = "salary" | "wage" | "hourly";
+type PayType = "salary" | "wage" | "weekly";
 interface Compensation {
   user_id: string;
   pay_type: PayType;
@@ -41,7 +41,7 @@ interface AttRow {
 const PAY_LABEL: Record<PayType, string> = {
   salary: "Monthly Salary",
   wage: "Daily Wage",
-  hourly: "Hourly Rate",
+  weekly: "Weekly Wage",
 };
 
 function pairAttendance(rows: AttRow[]) {
@@ -206,25 +206,33 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return { busyDays: busy, quietDays: quiet, normalDays: normal };
   }, [workedDays, dayVolumes]);
 
-  // Base amount: for wage/hourly, quiet days are paid at quiet_day_rate (flat)
-  // instead of the base rate. Busy days pay the normal base rate; any bonus
-  // is entered manually as "Work Bonus" below.
+  // Count distinct Mon–Sun weeks in the month that contain at least one
+  // worked day. Used to bill flat weekly wages.
+  const weeksWorked = useMemo(() => {
+    const keys = new Set<string>();
+    workedDays.forEach((k) => {
+      const d = new Date(k);
+      const day = d.getDay(); // 0=Sun..6=Sat
+      const diffToMon = (day + 6) % 7;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - diffToMon);
+      monday.setHours(0, 0, 0, 0);
+      keys.add(monday.toDateString());
+    });
+    return keys.size;
+  }, [workedDays]);
+
+  // Base amount: for wage, quiet days are paid at quiet_day_rate (flat)
+  // instead of the base rate. Salary and weekly are flat amounts; busy-day
+  // bonuses are entered manually as "Work Bonus" below.
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
     if (comp.pay_type === "salary") return comp.base_rate;
-    if (comp.pay_type === "wage") {
-      const paidAtBase = days - quietDays; // normal + busy days
-      return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
-    }
-    // hourly
-    let sum = 0;
-    hoursByDay.forEach((h, key) => {
-      const v = dayVolumes[key] || 0;
-      if (v < QUIET_THRESHOLD) sum += comp.quiet_day_rate; // flat quiet-day pay
-      else sum += comp.base_rate * h;
-    });
-    return sum;
-  }, [comp, days, quietDays, hoursByDay, dayVolumes]);
+    if (comp.pay_type === "weekly") return comp.base_rate * weeksWorked;
+    // wage
+    const paidAtBase = days - quietDays; // normal + busy days
+    return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
+  }, [comp, days, quietDays, weeksWorked]);
 
   const workBonusAmount = Number(workBonus) || 0;
   const total = baseAmount + workBonusAmount;
@@ -238,7 +246,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
     if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
-    else if (comp.pay_type === "hourly") parts.push(`${hours.toFixed(2)}h`);
+    else if (comp.pay_type === "weekly") parts.push(`${weeksWorked} week(s)`);
     if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
@@ -323,14 +331,14 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   <p className="text-sm font-semibold text-foreground">
                     {formatPrice(comp.base_rate)}
                     <span className="text-xs font-normal text-muted-foreground ml-1">
-                      {comp.pay_type === "salary" ? "/month" : comp.pay_type === "wage" ? "/day" : "/hour"}
+                      {comp.pay_type === "salary" ? "/month" : comp.pay_type === "wage" ? "/day" : "/week"}
                     </span>
                   </p>
                 </div>
-                {comp.pay_type === "hourly" && (
+                {comp.pay_type === "weekly" && (
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Hours (−1h lunch /day)</p>
-                    <p className="text-sm font-semibold text-foreground">{hours.toFixed(2)}h</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weeks worked</p>
+                    <p className="text-sm font-semibold text-foreground">{weeksWorked}</p>
                   </div>
                 )}
               </div>
@@ -382,7 +390,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {(comp.pay_type !== "salary" && comp.quiet_day_rate !== 0) && (
+              {(comp.pay_type === "wage" && comp.quiet_day_rate !== 0) && (
                 <div className="rounded-xl border border-border p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">
                     Quiet-day rate replaces the base rate on any worked day with &lt; {QUIET_THRESHOLD} vehicles.
