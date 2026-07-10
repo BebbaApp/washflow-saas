@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 interface StaffOption { user_id: string; name: string; role: string; has_face_enrollment?: boolean; }
-const RECENT_ENROLLMENT_TTL_MS = 15 * 1000;
+const RECENT_ENROLLMENT_TTL_MS = 24 * 60 * 60 * 1000;
 const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
@@ -177,17 +177,12 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const enrolledUserIds = useMemo(() => {
     const ids = new Set<string>();
     if (directEnrollmentIds !== null) directEnrollmentIds.forEach((id) => ids.add(id));
-    if (directEnrollmentIds === null) {
-      staff.forEach((s) => {
-        if (s.has_face_enrollment === true) ids.add(s.user_id);
-      });
-    }
     recentEnrollmentIds.forEach((id) => ids.add(id));
     enrollments
       .filter(enrollmentImageBelongsToUser)
       .forEach((e) => ids.add(e.user_id));
     return ids;
-  }, [directEnrollmentIds, enrollments, recentEnrollmentIds, staff]);
+  }, [directEnrollmentIds, enrollments, recentEnrollmentIds]);
 
   // Refresh when a face enrollment happens elsewhere in the app, and poll for
   // a few seconds so the check-in button flips on even if realtime is delayed.
