@@ -151,6 +151,16 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
     void loadEnrollmentIds();
   }, [loadEnrollmentIds, enrollmentSignature]);
 
+  const enrolledUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    directEnrollmentIds?.forEach((id) => ids.add(id));
+    recentEnrollmentIds.forEach((id) => ids.add(id));
+    enrollments
+      .filter(enrollmentImageBelongsToUser)
+      .forEach((e) => ids.add(e.user_id));
+    return ids;
+  }, [directEnrollmentIds, enrollments, recentEnrollmentIds]);
+
   // Refresh when a face enrollment happens elsewhere in the app, and poll for
   // a few seconds so the check-in button flips on even if realtime is delayed.
   const pollEnrollment = useCallback((targetUserId?: string) => {
@@ -201,12 +211,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [records, soundOn]);
 
   const myEnrolled = useMemo(
-    () => !!user && (
-      directEnrollmentIds !== null
-        ? directEnrollmentIds.has(user.id) || recentEnrollmentIds.has(user.id)
-        : recentEnrollmentIds.has(user.id) || enrollments.some((e) => e.user_id === user.id && enrollmentImageBelongsToUser(e))
-    ),
-    [directEnrollmentIds, enrollments, recentEnrollmentIds, user]
+    () => !!user && enrolledUserIds.has(user.id),
+    [enrolledUserIds, user]
   );
   const myEnrollmentResolving = !!user && directEnrollmentIds === null &&
     !staff.some((s) => s.user_id === user.id && s.has_face_enrollment !== undefined) && attendanceLoading;
@@ -340,11 +346,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
-                      const enrolled = directEnrollmentIds !== null
-                        ? directEnrollmentIds.has(s.user_id) ||
-                          recentEnrollmentIds.has(s.user_id)
-                        : recentEnrollmentIds.has(s.user_id) ||
-                          enrollments.some((e) => e.user_id === s.user_id && enrollmentImageBelongsToUser(e));
+                      const enrolled = enrolledUserIds.has(s.user_id);
                       const enrollmentResolving = directEnrollmentIds === null && s.has_face_enrollment === undefined && attendanceLoading;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
