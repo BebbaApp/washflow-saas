@@ -91,8 +91,20 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
       const { data, error: invokeErr } = await supabase.functions.invoke("pin-login", {
         body: { identifier: pinIdentifier.trim(), pin: pin.trim() },
       });
+      // Non-2xx responses come back as invokeErr with the raw body on invokeErr.context.
+      // Parse it so the user sees the friendly message instead of "Edge function returned 401".
+      let friendly: string | null = data?.error ?? null;
+      if (invokeErr && !friendly) {
+        try {
+          const res = (invokeErr as any)?.context;
+          if (res && typeof res.json === "function") {
+            const body = await res.clone().json();
+            friendly = body?.error ?? null;
+          }
+        } catch { /* ignore */ }
+      }
       if (invokeErr || data?.error) {
-        setError(data?.error || invokeErr?.message || "Login failed");
+        setError(friendly || invokeErr?.message || "Login failed");
       } else if (data?.token_hash) {
         const { error: verifyErr } = await supabase.auth.verifyOtp({
           token_hash: data.token_hash,
@@ -101,7 +113,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
         if (verifyErr) setError(verifyErr.message);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message ?? "Login failed");
     }
     setSubmitting(false);
   };
