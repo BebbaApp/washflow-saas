@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useAttendance, getSignedSelfieUrl, signSelfieUrls, type AttendanceRecord } from "@/hooks/useAttendance";
 import { CameraCapture } from "@/components/CameraCapture";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -79,8 +80,13 @@ function ymd(d: Date) { return d.toISOString().slice(0, 10); }
 function startOfWeek(d: Date) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0,0,0,0); return x; }
 
 export function AttendancePage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const { tenant } = useTenant();
+  const { can } = usePermissions();
+  const canReport = isAdmin || can("reports.attendance");
+  const canEnroll = isAdmin || can("attendance.enroll");
+  const canAudit = isAdmin || can("attendance.audit");
+  const canOverride = isAdmin || can("attendance.manualOverride");
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
     useAttendance();
@@ -294,17 +300,27 @@ export function AttendancePage() {
   // from quick-access links on the Staff page).
   const [searchParams, setSearchParams] = useSearchParams();
   const allowedSubs = ["log", "report", "enroll", "audit"] as const;
+  const subAllowed = (s: string | null): s is (typeof allowedSubs)[number] => {
+    if (!s || !(allowedSubs as readonly string[]).includes(s)) return false;
+    if (s === "report") return canReport;
+    if (s === "enroll") return canEnroll;
+    if (s === "audit") return canAudit;
+    return true;
+  };
   const subParam = searchParams.get("sub");
-  const initialTab = (allowedSubs as readonly string[]).includes(subParam ?? "")
-    ? (subParam as string)
-    : "log";
+  // While auth/role is still resolving, keep the default tab to avoid a
+  // flash of admin-only content when the URL preselects e.g. sub=enroll.
+  const initialTab = !authLoading && subAllowed(subParam) ? subParam : "log";
   const [activeSub, setActiveSub] = useState<string>(initialTab);
   useEffect(() => {
+    if (authLoading) return;
     const s = searchParams.get("sub");
-    if (s && (allowedSubs as readonly string[]).includes(s) && s !== activeSub) {
-      setActiveSub(s);
+    if (s && subAllowed(s)) {
+      if (s !== activeSub) setActiveSub(s);
+    } else if (activeSub !== "log") {
+      setActiveSub("log");
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, authLoading, canReport, canEnroll, canAudit]); // eslint-disable-line react-hooks/exhaustive-deps
   const handleSubChange = (v: string) => {
     setActiveSub(v);
     const next = new URLSearchParams(searchParams);
@@ -321,9 +337,9 @@ export function AttendancePage() {
       <Tabs value={activeSub} onValueChange={handleSubChange}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="log">{canAssist ? "All Records" : "My History"}</TabsTrigger>
-          {isAdmin && <TabsTrigger value="report"><BarChart3 className="w-3.5 h-3.5 mr-1" />Report</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="enroll">Enroll Faces</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="audit"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
+          {!authLoading && canReport && <TabsTrigger value="report"><BarChart3 className="w-3.5 h-3.5 mr-1" />Report</TabsTrigger>}
+          {!authLoading && canEnroll && <TabsTrigger value="enroll">Enroll Faces</TabsTrigger>}
+          {!authLoading && canAudit && <TabsTrigger value="audit"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
         </TabsList>
 
 
@@ -345,7 +361,7 @@ export function AttendancePage() {
               <Button variant="outline" size="sm" onClick={handleExportRecords}>
                 <Download className="w-4 h-4 mr-1" /> Export CSV
               </Button>
-              {isAdmin && (
+              {canOverride && (
                 <Button size="sm" onClick={() => setOverrideOpen(true)}>
                   <ShieldAlert className="w-4 h-4 mr-1" /> Manual Override
                 </Button>
@@ -403,7 +419,7 @@ export function AttendancePage() {
         </TabsContent>
 
         {/* Report */}
-        {isAdmin && (
+        {canReport && (
           <TabsContent value="report" className="mt-4 space-y-3">
             <div className="flex flex-wrap items-end gap-3">
               <div>
@@ -484,7 +500,7 @@ export function AttendancePage() {
         )}
 
         {/* Admin enroll */}
-        {isAdmin && (
+        {canEnroll && (
           <TabsContent value="enroll" className="mt-4 space-y-4">
             <div className="glass-card p-5 space-y-3">
               <h3 className="font-semibold text-foreground flex items-center gap-2"><UserCheck className="w-4 h-4" /> Enroll a staff member's face</h3>
@@ -536,7 +552,7 @@ export function AttendancePage() {
         )}
 
         {/* Audit log */}
-        {isAdmin && (
+        {canAudit && (
           <TabsContent value="audit" className="mt-4">
             <div className="glass-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border text-sm font-medium flex items-center gap-2">
