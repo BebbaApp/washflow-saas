@@ -5,6 +5,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
+import { useAttendance } from "@/hooks/useAttendance";
 import { toast } from "sonner";
 
 const BUSY_THRESHOLD = 20;
