@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Camera, RefreshCw, Loader2, AlertTriangle, SwitchCamera } from "lucide-react";
 
 interface Props {
@@ -138,7 +138,7 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
     void startCamera(next);
   };
 
-  const handleFileCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileCapture = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
