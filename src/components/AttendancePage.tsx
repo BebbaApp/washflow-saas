@@ -500,7 +500,7 @@ export function AttendancePage() {
         )}
 
         {/* Admin enroll */}
-        {isAdmin && (
+        {canEnroll && (
           <TabsContent value="enroll" className="mt-4 space-y-4">
             <div className="glass-card p-5 space-y-3">
               <h3 className="font-semibold text-foreground flex items-center gap-2"><UserCheck className="w-4 h-4" /> Enroll a staff member's face</h3>
