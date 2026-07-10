@@ -380,23 +380,48 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {(comp.busy_day_rate !== 0 || comp.quiet_day_rate !== 0) && (
+              {(comp.pay_type !== "salary" && comp.quiet_day_rate !== 0) && (
                 <div className="rounded-xl border border-border p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Day-volume adjustments (busy ≥ {BUSY_THRESHOLD} vehicles, quiet &lt; {QUIET_THRESHOLD} vehicles)
+                    Quiet-day rate replaces the base rate on any worked day with &lt; {QUIET_THRESHOLD} vehicles.
                   </p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                      <span className="text-muted-foreground">Busy days · {formatPrice(comp.busy_day_rate)}/day</span>
-                      <span className="font-semibold text-foreground">{busyDays}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                      <span className="text-muted-foreground">Quiet days · {formatPrice(comp.quiet_day_rate)}/day</span>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="flex flex-col rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-[11px] text-muted-foreground">Quiet · {formatPrice(comp.quiet_day_rate)}/day</span>
                       <span className="font-semibold text-foreground">{quietDays}</span>
+                    </div>
+                    <div className="flex flex-col rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-[11px] text-muted-foreground">Normal (base rate)</span>
+                      <span className="font-semibold text-foreground">{normalDays}</span>
+                    </div>
+                    <div className="flex flex-col rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-[11px] text-muted-foreground">Busy · ≥ {BUSY_THRESHOLD} vehicles</span>
+                      <span className="font-semibold text-foreground">{busyDays}</span>
                     </div>
                   </div>
                 </div>
               )}
+
+              <label className="block">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Work Bonus (optional) — {busyDays} busy day{busyDays === 1 ? "" : "s"} this month
+                </span>
+                <div className="mt-1.5 relative">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                    {currency.symbol}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={workBonus}
+                    onChange={(e) => setWorkBonus(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-3 py-2 rounded-lg bg-background border border-border text-sm"
+                  />
+                </div>
+              </label>
 
               <div className="rounded-xl bg-muted/50 border border-border p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -404,7 +429,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   <div className="text-sm">
                     <p className="font-medium text-foreground">Computed amount</p>
                     <p className="text-xs text-muted-foreground">
-                      Base {formatPrice(baseAmount)}{dayAdjustment !== 0 ? ` ${dayAdjustment >= 0 ? "+" : "−"} ${formatPrice(Math.abs(dayAdjustment))} day adj.` : ""}
+                      Base {formatPrice(baseAmount)}{workBonusAmount > 0 ? ` + ${formatPrice(workBonusAmount)} work bonus` : ""}
                     </p>
                   </div>
                 </div>
