@@ -161,6 +161,14 @@ export function LicenseGate({ children }: { children: ReactNode }) {
   };
 
   if (!licenseActive) {
+    if (autoSwitching) {
+      return (
+        <div className="flex h-screen items-center justify-center text-muted-foreground gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Switching to an active workspace…
+        </div>
+      );
+    }
     const isCancelled = tenant.status === "cancelled";
     const isPastDueExpired = tenant.status === "past_due";
     const title = isCancelled ? "Workspace cancelled" : isPastDueExpired ? "Access paused — payment overdue" : "Workspace suspended";
