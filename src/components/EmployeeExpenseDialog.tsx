@@ -206,25 +206,33 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return { busyDays: busy, quietDays: quiet, normalDays: normal };
   }, [workedDays, dayVolumes]);
 
-  // Base amount: for wage/hourly, quiet days are paid at quiet_day_rate (flat)
-  // instead of the base rate. Busy days pay the normal base rate; any bonus
-  // is entered manually as "Work Bonus" below.
+  // Count distinct Mon–Sun weeks in the month that contain at least one
+  // worked day. Used to bill flat weekly wages.
+  const weeksWorked = useMemo(() => {
+    const keys = new Set<string>();
+    workedDays.forEach((k) => {
+      const d = new Date(k);
+      const day = d.getDay(); // 0=Sun..6=Sat
+      const diffToMon = (day + 6) % 7;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - diffToMon);
+      monday.setHours(0, 0, 0, 0);
+      keys.add(monday.toDateString());
+    });
+    return keys.size;
+  }, [workedDays]);
+
+  // Base amount: for wage, quiet days are paid at quiet_day_rate (flat)
+  // instead of the base rate. Salary and weekly are flat amounts; busy-day
+  // bonuses are entered manually as "Work Bonus" below.
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
     if (comp.pay_type === "salary") return comp.base_rate;
-    if (comp.pay_type === "wage") {
-      const paidAtBase = days - quietDays; // normal + busy days
-      return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
-    }
-    // hourly
-    let sum = 0;
-    hoursByDay.forEach((h, key) => {
-      const v = dayVolumes[key] || 0;
-      if (v < QUIET_THRESHOLD) sum += comp.quiet_day_rate; // flat quiet-day pay
-      else sum += comp.base_rate * h;
-    });
-    return sum;
-  }, [comp, days, quietDays, hoursByDay, dayVolumes]);
+    if (comp.pay_type === "weekly") return comp.base_rate * weeksWorked;
+    // wage
+    const paidAtBase = days - quietDays; // normal + busy days
+    return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
+  }, [comp, days, quietDays, weeksWorked]);
 
   const workBonusAmount = Number(workBonus) || 0;
   const total = baseAmount + workBonusAmount;
@@ -238,7 +246,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
     if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
-    else if (comp.pay_type === "hourly") parts.push(`${hours.toFixed(2)}h`);
+    else if (comp.pay_type === "weekly") parts.push(`${weeksWorked} week(s)`);
     if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
