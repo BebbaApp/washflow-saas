@@ -419,7 +419,7 @@ export function AttendancePage() {
         </TabsContent>
 
         {/* Report */}
-        {isAdmin && (
+        {canReport && (
           <TabsContent value="report" className="mt-4 space-y-3">
             <div className="flex flex-wrap items-end gap-3">
               <div>
