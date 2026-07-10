@@ -300,17 +300,27 @@ export function AttendancePage() {
   // from quick-access links on the Staff page).
   const [searchParams, setSearchParams] = useSearchParams();
   const allowedSubs = ["log", "report", "enroll", "audit"] as const;
+  const subAllowed = (s: string | null): s is (typeof allowedSubs)[number] => {
+    if (!s || !(allowedSubs as readonly string[]).includes(s)) return false;
+    if (s === "report") return canReport;
+    if (s === "enroll") return canEnroll;
+    if (s === "audit") return canAudit;
+    return true;
+  };
   const subParam = searchParams.get("sub");
-  const initialTab = (allowedSubs as readonly string[]).includes(subParam ?? "")
-    ? (subParam as string)
-    : "log";
+  // While auth/role is still resolving, keep the default tab to avoid a
+  // flash of admin-only content when the URL preselects e.g. sub=enroll.
+  const initialTab = !authLoading && subAllowed(subParam) ? subParam : "log";
   const [activeSub, setActiveSub] = useState<string>(initialTab);
   useEffect(() => {
+    if (authLoading) return;
     const s = searchParams.get("sub");
-    if (s && (allowedSubs as readonly string[]).includes(s) && s !== activeSub) {
-      setActiveSub(s);
+    if (s && subAllowed(s)) {
+      if (s !== activeSub) setActiveSub(s);
+    } else if (activeSub !== "log") {
+      setActiveSub("log");
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, authLoading, canReport, canEnroll, canAudit]); // eslint-disable-line react-hooks/exhaustive-deps
   const handleSubChange = (v: string) => {
     setActiveSub(v);
     const next = new URLSearchParams(searchParams);
