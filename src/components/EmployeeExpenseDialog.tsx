@@ -60,16 +60,19 @@ function pairAttendance(rows: AttRow[]) {
   }
   let totalMs = 0;
   const workedDays = new Set<string>();
+  const hoursByDay = new Map<string, number>();
   for (const [key, pairs] of byDate) {
     let dayMs = 0; let hasPair = false;
     for (const p of pairs) if (p.in && p.out) { dayMs += p.out.getTime() - p.in.getTime(); hasPair = true; }
     if (hasPair) {
       const lunch = dayMs > 5 * 3600_000 ? 3600_000 : 0;
-      totalMs += Math.max(0, dayMs - lunch);
+      const net = Math.max(0, dayMs - lunch);
+      totalMs += net;
       workedDays.add(key);
+      hoursByDay.set(key, net / 3600_000);
     }
   }
-  return { hours: totalMs / 3600_000, workedDays };
+  return { hours: totalMs / 3600_000, workedDays, hoursByDay };
 }
 
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
