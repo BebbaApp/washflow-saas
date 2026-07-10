@@ -31,8 +31,12 @@ const customFetch: typeof fetch = async (input, init) => {
   try {
     const url = typeof input === "string" ? input : (input as Request).url;
     if (res.status === 401 && url.includes("/functions/v1/")) {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+      // Server rejected the token. Try to refresh; if that also fails, the
+      // session is truly invalid — sign out and bounce to /login so the user
+      // isn't stuck on a broken UI (e.g. staff list showing UUIDs).
+      const { data: refreshed, error: refreshErr } =
+        await supabase.auth.refreshSession();
+      if (refreshErr || !refreshed?.session) {
         void handleStaleSession();
       }
     }
