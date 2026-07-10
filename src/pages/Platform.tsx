@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useAppVersion } from "@/hooks/useAppVersion";
 import { TenantsAdmin } from "@/components/platform/TenantsAdmin";
 import { UsersAdmin } from "@/components/platform/UsersAdmin";
 import { LicenseEventsAdmin } from "@/components/LicenseEventsAdmin";
@@ -73,6 +74,7 @@ function PlatformSidebar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }
 export default function Platform() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { isSuperAdmin, loading } = useTenant();
+  const { version: appVersion, isOutdated } = useAppVersion();
   const [tab, setTab] = useState<Tab>("dashboard");
 
   if (authLoading || loading) {
@@ -110,6 +112,14 @@ export default function Platform() {
             <SidebarTrigger />
             <h1 className="text-sm font-semibold text-foreground">{activeLabel}</h1>
             <SyncStatusPill className="hidden sm:inline-flex" />
+            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              Washflow Saas v{appVersion}
+              {isOutdated && (
+                <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-primary/10 text-primary text-[10px]" title="An update is available">
+                  update
+                </span>
+              )}
+            </span>
             <div className="flex-1" />
             <UserMenu showAppLink />
             <HeaderClock />
