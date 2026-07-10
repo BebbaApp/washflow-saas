@@ -536,15 +536,19 @@ export function AttendancePage() {
                   {enrollments.length === 0 && (
                     <tr><td colSpan={3} className="text-center py-6 text-muted-foreground">Nobody enrolled yet</td></tr>
                   )}
-                  {enrollments.map((e) => (
-                    <tr key={e.id} className="border-t border-border">
-                      <td className="px-4 py-2">{e.staffName}</td>
-                      <td className="px-4 py-2">{new Date(e.created_at).toLocaleString()}</td>
-                      <td className="px-4 py-2">
-                        <button onClick={() => showSelfie(e.image_url)} className="text-primary hover:underline text-xs">View</button>
-                      </td>
-                    </tr>
-                  ))}
+                  {enrollments.map((e) => {
+                    const fallbackName = staff.find((s) => s.user_id === e.user_id)?.name;
+                    const displayName = (e.staffName && e.staffName !== "Unknown") ? e.staffName : (fallbackName || "Unknown");
+                    return (
+                      <tr key={e.id} className="border-t border-border">
+                        <td className="px-4 py-2">{displayName}</td>
+                        <td className="px-4 py-2">{new Date(e.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => showSelfie(e.image_url)} className="text-primary hover:underline text-xs">View</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
