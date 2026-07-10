@@ -15,12 +15,29 @@ import {
 
 interface StaffOption { user_id: string; name: string; role: string; has_face_enrollment?: boolean; }
 const RECENT_ENROLLMENT_TTL_MS = 15 * 1000;
+const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
   if (!enrollment?.user_id || !enrollment?.image_url) return false;
   const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
   return clean.startsWith(`${enrollment.user_id}/`) ||
     (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+}
+
+function readLastFaceEnrollment(tenantId?: string | null): string | null {
+  if (!tenantId) return null;
+  try {
+    const raw = localStorage.getItem(`${LAST_FACE_ENROLLMENT_KEY_PREFIX}${tenantId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { userId?: string; createdAt?: number };
+    if (!parsed.userId || !parsed.createdAt || Date.now() - parsed.createdAt > RECENT_ENROLLMENT_TTL_MS) {
+      localStorage.removeItem(`${LAST_FACE_ENROLLMENT_KEY_PREFIX}${tenantId}`);
+      return null;
+    }
+    return parsed.userId;
+  } catch {
+    return null;
+  }
 }
 
 interface StaffCheckInPanelProps {
@@ -124,7 +141,13 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
 
   useEffect(() => { void loadStaff(); }, [loadStaff]);
 
-  useEffect(() => { setRecentEnrollmentIds(new Set()); }, [tenant?.id]);
+  useEffect(() => {
+    const lastEnrolledUserId = readLastFaceEnrollment(tenant?.id);
+    setRecentEnrollmentIds(lastEnrolledUserId ? new Set([lastEnrolledUserId]) : new Set());
+    if (lastEnrolledUserId) {
+      window.setTimeout(() => setRecentEnrollmentIds(new Set()), RECENT_ENROLLMENT_TTL_MS);
+    }
+  }, [tenant?.id]);
 
   const loadEnrollmentIds = useCallback(async () => {
     if (!tenant?.id) { setDirectEnrollmentIds(null); return; }
