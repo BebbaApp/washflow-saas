@@ -65,20 +65,38 @@ export function useScheduling() {
   // Load staff — from Supabase when online, from local Dexie when offline
   useEffect(() => {
     if (!tenant?.id) return;
+    const isUuid = (s: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    const prettify = (name: string, email: string, id: string) => {
+      if (name && !isUuid(name)) return name;
+      if (email) return email.split("@")[0];
+      return "Unnamed staff";
+    };
     const load = async () => {
       if (navigator.onLine) {
         try {
-          const { data } = await supabase.functions.invoke("manage-staff", {
+          const { data, error } = await supabase.functions.invoke("manage-staff", {
             body: { action: "list", tenant_id: tenant.id },
           });
-          if (data?.users) { setStaffMembers(data.users); return; }
+          if (!error && data?.users) {
+            setStaffMembers(
+              data.users.map((u: any) => ({
+                ...u,
+                name: prettify(u.name ?? "", u.email ?? "", u.id),
+              })),
+            );
+            return;
+          }
         } catch { /* fall through to offline */ }
       }
       // Offline: read from local tenant_members + profiles
       const members = await (db as any).tenant_members
         .where("tenant_id").equals(tenant.id).toArray();
       setStaffMembers(members.map((m: any) => ({
-        id: m.user_id, name: m.name ?? m.user_id, email: m.email ?? "", role: m.tenant_role ?? "member",
+        id: m.user_id,
+        name: prettify(m.name ?? "", m.email ?? "", m.user_id),
+        email: m.email ?? "",
+        role: m.tenant_role ?? "member",
       })));
     };
     load();
