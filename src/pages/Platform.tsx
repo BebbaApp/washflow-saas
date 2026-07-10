@@ -112,6 +112,14 @@ export default function Platform() {
             <SidebarTrigger />
             <h1 className="text-sm font-semibold text-foreground">{activeLabel}</h1>
             <SyncStatusPill className="hidden sm:inline-flex" />
+            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              Washflow Saas v{appVersion}
+              {isOutdated && (
+                <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-primary/10 text-primary text-[10px]" title="An update is available">
+                  update
+                </span>
+              )}
+            </span>
             <div className="flex-1" />
             <UserMenu showAppLink />
             <HeaderClock />
