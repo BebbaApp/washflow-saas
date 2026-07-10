@@ -369,14 +369,40 @@ Deno.serve(async (req) => {
         .from("attendance-selfies")
         .upload(image_url, bytes, { contentType, upsert: false });
       if (uploadError) return reply({ error: uploadError.message }, 500);
-      const { data: enrollment, error } = await admin.from("staff_face_enrollments").insert({
-        tenant_id: tenantId,
-        user_id: target_user_id,
-        image_url,
-        enrolled_by: callerId,
-        is_active: true,
-      }).select("*").single();
-      if (error) return reply({ error: error.message }, 500);
+
+      const { data: existingActive, error: existingError } = await admin
+        .from("staff_face_enrollments")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", target_user_id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingError) return reply({ error: existingError.message }, 500);
+
+      let enrollment: any = null;
+      if (existingActive?.id) {
+        const { data: updated, error: updateError } = await admin
+          .from("staff_face_enrollments")
+          .update({ image_url, enrolled_by: callerId, is_active: true })
+          .eq("id", existingActive.id)
+          .select("*")
+          .single();
+        if (updateError) return reply({ error: updateError.message }, 500);
+        enrollment = updated;
+      } else {
+        const { data: inserted, error: insertError } = await admin.from("staff_face_enrollments").insert({
+          tenant_id: tenantId,
+          user_id: target_user_id,
+          image_url,
+          enrolled_by: callerId,
+          is_active: true,
+        }).select("*").single();
+        if (insertError) return reply({ error: insertError.message }, 500);
+        enrollment = inserted;
+      }
+
       await admin
         .from("staff_face_enrollments")
         .update({ is_active: false })
