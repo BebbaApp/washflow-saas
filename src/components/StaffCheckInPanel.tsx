@@ -268,6 +268,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                             <Button
                               size="sm"
                               disabled={!enrolled}
+                              title={!enrolled ? "Face not enrolled yet — enroll under Attendance → Enroll Faces first." : undefined}
                               variant={next === "check_in" ? "default" : "secondary"}
                               onClick={() => setCaptureMode({
                                 kind: next === "check_in" ? "assist_check_in" : "assist_check_out",
@@ -277,6 +278,9 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                               <Camera className="w-3.5 h-3.5 mr-1" />
                               {next === "check_in" ? "Check In" : "Check Out"}
                             </Button>
+                            {!enrolled && (
+                              <p className="text-[10px] text-muted-foreground mt-1">Enroll face to enable</p>
+                            )}
                           </td>
                         </tr>
                       );
