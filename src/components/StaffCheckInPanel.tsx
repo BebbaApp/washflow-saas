@@ -67,7 +67,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const { user } = useAuth();
   const { tenant } = useTenant();
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
-  const { records, enrollments, recordAttendance, recordAttendanceFor, lastForUser, refetch } = useAttendance();
+  const { records, enrollments, loading: attendanceLoading, recordAttendance, recordAttendanceFor, lastForUser, refetch } = useAttendance();
 
   const [isStaffHere, setIsStaffHere] = useState<boolean | null>(null);
   useEffect(() => {
@@ -88,6 +88,7 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   const [busy, setBusy] = useState(false);
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [activeMap, setActiveMap] = useState<Record<string, boolean>>({});
+  const [directEnrollmentIds, setDirectEnrollmentIds] = useState<Set<string> | null>(null);
   const [filter, setFilter] = useState("");
   const [soundOn, setSoundOn] = useState(true);
   const seenIdsRef = useRef<Set<string> | null>(null);
@@ -109,6 +110,22 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [canAssist, tenant?.id]);
 
   useEffect(() => {
+    if (!tenant?.id) { setDirectEnrollmentIds(null); return; }
+    let cancelled = false;
+    setDirectEnrollmentIds(null);
+    (async () => {
+      const { data, error } = await supabase
+        .from("staff_face_enrollments" as any)
+        .select("user_id")
+        .eq("tenant_id", tenant.id)
+        .eq("is_active", true);
+      if (cancelled) return;
+      setDirectEnrollmentIds(error ? null : new Set(((data as any[]) ?? []).map((e) => e.user_id)));
+    })();
+    return () => { cancelled = true; };
+  }, [tenant?.id, enrollments.length]);
+
+  useEffect(() => {
     if (seenIdsRef.current === null) {
       seenIdsRef.current = new Set(records.map((r) => r.id));
       return;
@@ -120,8 +137,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
   }, [records, soundOn]);
 
   const myEnrolled = useMemo(
-    () => !!user && enrollments.some((e) => e.user_id === user.id),
-    [enrollments, user]
+    () => !!user && (directEnrollmentIds?.has(user.id) || enrollments.some((e) => e.user_id === user.id)),
+    [directEnrollmentIds, enrollments, user]
   );
   const myLast = user ? lastForUser(user.id) : null;
   const nextKind: "check_in" | "check_out" = myLast?.kind === "check_in" ? "check_out" : "check_in";
@@ -169,31 +186,31 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
             </div>
           </div>
 
-          {!myEnrolled ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setCaptureMode({ kind: "check_in" })}
+              disabled={busy || nextKind !== "check_in"}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+            >
+              <LogIn className="w-4 h-4" /> Check In
+            </button>
+            <button
+              onClick={() => setCaptureMode({ kind: "check_out" })}
+              disabled={busy || nextKind !== "check_out"}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+            >
+              <LogOut className="w-4 h-4" /> Check Out
+            </button>
+          </div>
+
+          {!myEnrolled && directEnrollmentIds !== null && (
             <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
               <ShieldCheck className="w-4 h-4" />
-              Your face hasn't been enrolled yet. Ask an admin to enroll you under{" "}
+              Face enrollment was not found locally. If verification fails, enroll under{" "}
               <button type="button" onClick={onOpenFaceEnroll} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
                 Attendance → Enroll Faces <ExternalLink className="w-3 h-3" />
               </button>
               .
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setCaptureMode({ kind: "check_in" })}
-                disabled={nextKind !== "check_in"}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-              >
-                <LogIn className="w-4 h-4" /> Check In
-              </button>
-              <button
-                onClick={() => setCaptureMode({ kind: "check_out" })}
-                disabled={nextKind !== "check_out"}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-40"
-              >
-                <LogOut className="w-4 h-4" /> Check Out
-              </button>
             </div>
           )}
         </div>
@@ -248,7 +265,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                     .filter((s) => activeMap[s.user_id] !== false)
                     .filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
                     .map((s) => {
-                      const enrolled = enrollments.some((e) => e.user_id === s.user_id);
+                      const enrolled = directEnrollmentIds?.has(s.user_id) || enrollments.some((e) => e.user_id === s.user_id);
+                      const enrollmentResolving = attendanceLoading && directEnrollmentIds === null;
                       const last = lastForUser(s.user_id);
                       const next: "check_in" | "check_out" = last?.kind === "check_in" ? "check_out" : "check_in";
                       return (
@@ -258,6 +276,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                           <td className="px-4 py-2">
                             {enrolled
                               ? <Badge variant="default">Enrolled</Badge>
+                              : enrollmentResolving
+                                ? <Badge variant="secondary">Checking…</Badge>
                               : <Badge variant="outline">Not enrolled</Badge>}
                           </td>
                           <td className="px-4 py-2"><StatusPill last={last} /></td>
@@ -267,8 +287,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                           <td className="px-4 py-2 text-right">
                             <Button
                               size="sm"
-                              disabled={!enrolled}
-                              title={!enrolled ? "Face not enrolled yet — enroll under Attendance → Enroll Faces first." : undefined}
+                              disabled={busy}
+                              title={!enrolled ? "If this staff member is enrolled, you can still continue — verification will confirm it." : undefined}
                               variant={next === "check_in" ? "default" : "secondary"}
                               onClick={() => setCaptureMode({
                                 kind: next === "check_in" ? "assist_check_in" : "assist_check_out",
@@ -278,8 +298,8 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
                               <Camera className="w-3.5 h-3.5 mr-1" />
                               {next === "check_in" ? "Check In" : "Check Out"}
                             </Button>
-                            {!enrolled && (
-                              <p className="text-[10px] text-muted-foreground mt-1">Enroll face to enable</p>
+                            {!enrolled && !enrollmentResolving && (
+                              <p className="text-[10px] text-muted-foreground mt-1">Enrollment will be verified on submit</p>
                             )}
                           </td>
                         </tr>
