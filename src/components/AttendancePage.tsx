@@ -135,7 +135,7 @@ export function AttendancePage() {
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
 
   useEffect(() => {
-    if (!canAssist || !tenant?.id) {
+    if ((!canAssist && !canEnroll) || !tenant?.id) {
       setStaff([]);
       return;
     }
@@ -145,7 +145,7 @@ export function AttendancePage() {
         .filter((u: any) => !!u.role)
         .map((u: any) => ({ user_id: u.id, name: u.name || u.email || "Staff", role: u.role })));
     })();
-  }, [canAssist, tenant?.id]);
+  }, [canAssist, canEnroll, tenant?.id]);
 
   // Detect newly inserted records (from realtime) and play a subtle chime.
   // Skip the very first sync so we don't beep on initial load.
