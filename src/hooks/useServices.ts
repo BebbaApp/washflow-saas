@@ -113,15 +113,19 @@ export function useServices() {
       .eq("id", id)
       .eq("tenant_id", tenant.id)
       .select("*")
-      .single();
+      .maybeSingle();
     if (error) { toast.error(`Failed to update service: ${error.message}`); throw error; }
     setRows((prev) => {
       const list = prev ? [...prev] : [];
       const idx = list.findIndex((r) => r.id === id);
-      if (idx >= 0) list[idx] = data as Row; else list.push(data as Row);
+      const merged: Row = data
+        ? (data as Row)
+        : ({ ...(list[idx] ?? ({} as Row)), ...patch, id, tenant_id: tenant.id } as Row);
+      if (idx >= 0) list[idx] = merged; else list.push(merged);
       return list;
     });
   };
+
 
   const addService = async (service: Omit<ServicePackage, "id">) => {
     if (!tenant?.id) { toast.error("No workspace selected."); throw new Error("no_tenant"); }
