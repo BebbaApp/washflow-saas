@@ -112,7 +112,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="plate" className="text-sm text-secondary-foreground">License Plate</Label>
-              <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC 1234" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+              <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} placeholder="ABC1234" maxLength={10} autoCapitalize="characters" autoCorrect="off" spellCheck={false} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground font-mono uppercase tracking-wider" />
             </div>
             <div className="space-y-2">
               <Label className="text-sm text-secondary-foreground">Vehicle Type</Label>
