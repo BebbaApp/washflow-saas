@@ -8,7 +8,8 @@ const STORAGE_KEY = "washflow.immersive";
 
 async function invoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
   if (!isTauri) return null;
-  const mod: any = await import(/* @vite-ignore */ "@tauri-apps/api/core");
+  const modName = "@tauri-apps/api/core";
+  const mod: any = await import(/* @vite-ignore */ modName);
   return mod.invoke(cmd, args) as Promise<T>;
 }
 
