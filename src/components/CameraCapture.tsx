@@ -53,16 +53,17 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   const startCamera = useCallback(async (preferred: Facing = facing) => {
     stopCamera();
     setError(null);
+    setApiUnavailable(false);
     setStarting(true);
 
-    // Secure-context / API availability check
+    // Secure-context / API availability check — fall back to file input instead of a scary error.
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setError("Camera API is not available in this browser. Please use a modern browser over HTTPS.");
+      setApiUnavailable(true);
       setStarting(false);
       return;
     }
     if (window.isSecureContext === false) {
-      setError("Camera requires a secure (HTTPS) connection. Open the app via its https:// URL.");
+      setApiUnavailable(true);
       setStarting(false);
       return;
     }
