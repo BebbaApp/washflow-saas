@@ -141,11 +141,14 @@ async function canManageServices(
   const isTenantAdmin = tenantRole === "owner" || tenantRole === "admin";
   const managerRoles = new Set(["admin", "manager", "supervisor", "cashier"]);
   const isStaffServiceAdmin = ((roles as Array<{ role: string }> | null) ?? []).some((r) => managerRoles.has(r.role));
-  const isTenantMember = !!membership;
 
-  if (!isTenantMember && !isGlobalAdmin) return { ok: false, status: 403, error: "You are not a member of this workspace" };
-  if (!isGlobalAdmin && !isTenantAdmin && !isStaffServiceAdmin && !isTenantMember) {
-    return { ok: false, status: 403, error: "You do not have permission to manage services" };
+  if (!membership && !isGlobalAdmin) return { ok: false, status: 403, error: "You are not a member of this workspace" };
+  if (!isGlobalAdmin && !isTenantAdmin && !isStaffServiceAdmin) {
+    return {
+      ok: false,
+      status: 403,
+      error: `You do not have permission to manage services (tenant_role=${tenantRole ?? "none"}, roles=${((roles as Array<{ role: string }> | null) ?? []).map((r) => r.role).join(",") || "none"})`,
+    };
   }
   return { ok: true };
 }
