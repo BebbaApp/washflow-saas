@@ -61,11 +61,7 @@
       "providerShortName": null,
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "10.13",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Washflow needs camera access to capture staff selfies for attendance check-in / check-out.",
-        "NSMicrophoneUsageDescription": "Microphone access is required by the camera capture pipeline (audio is never recorded).",
-        "NSPhotoLibraryUsageDescription": "Washflow can attach photos from your library to attendance and receipts."
-      }
+      "infoPlist": "Info.plist"
     },
     "linux": {
       "deb": {
