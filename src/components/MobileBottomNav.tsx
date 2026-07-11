@@ -63,14 +63,14 @@ export function MobileBottomNav({
 
   return (
     <>
-      {/* Spacer so page content isn't hidden behind the floating bar */}
-      <div className="lg:hidden h-24" aria-hidden />
+      {/* Spacer so page content isn't hidden behind the floating bar (extra room for device gesture/nav bars) */}
+      <div className="lg:hidden h-36 md:h-40" aria-hidden />
 
       <nav
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40"
         aria-label="Primary"
       >
-        <div className="relative w-full bg-card/95 backdrop-blur border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.12)] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative w-full bg-card/95 backdrop-blur border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.12)] px-2 pt-2 pb-[max(2.5rem,calc(env(safe-area-inset-bottom)+1.5rem))] md:pb-[max(3rem,calc(env(safe-area-inset-bottom)+2rem))]">
           <div className="flex items-end justify-between gap-1">
             <div className="flex flex-1 justify-around">
               {left.map(renderTab)}
