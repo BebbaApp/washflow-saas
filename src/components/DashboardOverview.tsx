@@ -184,7 +184,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
         )}
       </div>
 
-      {tab === "inventory" ? (
+      {tab === "inventory" && showInventoryTab ? (
         <InventoryTrendsPanel />
       ) : (
         <>
