@@ -165,6 +165,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
           <h2 className="text-3xl font-bold text-foreground tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground text-sm mt-1">Today's overview at a glance</p>
         </div>
+        {showInventoryTab && (
         <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border">
           {(["overview", "inventory"] as TabKey[]).map((t) => (
             <button
@@ -180,6 +181,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {tab === "inventory" ? (
