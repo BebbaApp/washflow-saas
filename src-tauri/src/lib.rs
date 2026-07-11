@@ -2,6 +2,7 @@ mod database;
 mod commands;
 mod sync;
 mod tray;
+mod immersive;
 
 use tauri::Manager;
 use once_cell::sync::Lazy;
@@ -211,6 +212,9 @@ pub fn run() {
             updater_cancel_download,
             updater_get_settings,
             updater_set_settings,
+            immersive::is_immersive,
+            immersive::set_immersive,
+            immersive::toggle_immersive,
         ])
         .run(tauri::generate_context!())
         .expect("Error while running Washflow");
