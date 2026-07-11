@@ -6,6 +6,7 @@ import type { WashOrder } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { InventoryTrendsPanel } from "@/components/InventoryTrendsPanel";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface DashboardOverviewProps {
   orders: WashOrder[];
@@ -28,6 +29,10 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onViewAll }: DashboardOverviewProps) => {
   const { formatPrice } = useCurrency();
+  const { can } = usePermissions();
+  const showRevenue = can("dashboard.revenue");
+  const showInventoryTab = can("dashboard.inventory");
+  const showActivity = can("dashboard.activity");
   const { eligibleOrderIds } = useRewardEligibility(orders);
   const [tab, setTab] = useState<TabKey>("overview");
   const [range, setRange] = useState<RangeKey>("today");
@@ -124,14 +129,16 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
       iconBg: "bg-info/10",
       iconColor: "text-info",
     },
-    {
-      label: `Revenue (${rangeLabel})`,
-      value: formatPrice(rangeRevenue),
-      sub: `${rangeCompleted.length} paid jobs`,
-      icon: DollarSign,
-      iconBg: "bg-success/10",
-      iconColor: "text-success",
-    },
+    ...(showRevenue
+      ? [{
+          label: `Revenue (${rangeLabel})`,
+          value: formatPrice(rangeRevenue),
+          sub: `${rangeCompleted.length} paid jobs`,
+          icon: DollarSign,
+          iconBg: "bg-success/10",
+          iconColor: "text-success",
+        }]
+      : []),
     {
       label: "In Queue",
       value: String(inQueue),
@@ -158,6 +165,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
           <h2 className="text-3xl font-bold text-foreground tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground text-sm mt-1">Today's overview at a glance</p>
         </div>
+        {showInventoryTab && (
         <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border">
           {(["overview", "inventory"] as TabKey[]).map((t) => (
             <button
@@ -173,9 +181,10 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
             </button>
           ))}
         </div>
+        )}
       </div>
 
-      {tab === "inventory" ? (
+      {tab === "inventory" && showInventoryTab ? (
         <InventoryTrendsPanel />
       ) : (
         <>
@@ -233,7 +242,8 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
 
       {/* Chart + active jobs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glass-card p-6 lg:col-span-2">
+        {showRevenue && (
+        <div className={`glass-card p-6 ${showActivity ? "lg:col-span-2" : "lg:col-span-3"}`}>
           <h3 className="text-lg font-semibold text-foreground mb-4">{chartTitle}</h3>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -276,9 +286,11 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
             </ResponsiveContainer>
           </div>
         </div>
+        )}
 
         {/* Active Jobs */}
-        <div className="space-y-4">
+        {showActivity && (
+        <div className={`space-y-4 ${showRevenue ? "" : "lg:col-span-3"}`}>
           <div className="flex items-center justify-between px-1">
             <h3 className="text-lg font-semibold text-foreground">Active Jobs</h3>
             <button
@@ -367,6 +379,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
             })}
           </div>
         </div>
+        )}
       </div>
         </>
       )}
