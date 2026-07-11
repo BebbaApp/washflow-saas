@@ -67,25 +67,26 @@ export function useServices() {
     };
     void load();
 
-    const channel = supabase
-      .channel(`services:${tenant.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "services", filter: `tenant_id=eq.${tenant.id}` },
-        (payload) => {
-          setRows((prev) => {
-            const list = prev ? [...prev] : [];
-            if (payload.eventType === "DELETE") {
-              return list.filter((r) => r.id !== (payload.old as any).id);
-            }
-            const next = payload.new as Row;
-            const idx = list.findIndex((r) => r.id === next.id);
-            if (idx >= 0) list[idx] = next; else list.push(next);
-            return list;
-          });
-        },
-      )
-      .subscribe();
+    const channel = supabase.channel(`services:${tenant.id}:${crypto.randomUUID()}`);
+
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "services", filter: `tenant_id=eq.${tenant.id}` },
+      (payload) => {
+        setRows((prev) => {
+          const list = prev ? [...prev] : [];
+          if (payload.eventType === "DELETE") {
+            return list.filter((r) => r.id !== (payload.old as any).id);
+          }
+          const next = payload.new as Row;
+          const idx = list.findIndex((r) => r.id === next.id);
+          if (idx >= 0) list[idx] = next; else list.push(next);
+          return list;
+        });
+      },
+    );
+
+    channel.subscribe();
 
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [tenant?.id]);
