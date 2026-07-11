@@ -313,6 +313,13 @@ async fn check_for_updates(app: tauri::AppHandle) {
                         log("warn", format!("Windows: uninstaller not found at {}", uninst));
                         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                     }
+                    // Launch the newly installed binary before exiting
+                    let new_exe = format!("{}\\AppData\\Local\\Washflow\\washflow.exe", std::env::var("USERPROFILE").unwrap_or_default());
+                    if std::path::Path::new(&new_exe).exists() {
+                        log("info", format!("Windows: spawning new binary: {}", new_exe));
+                        let _ = std::process::Command::new(&new_exe).spawn();
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    }
                     std::process::exit(0);
                 }
                 #[cfg(not(target_os = "windows"))]
