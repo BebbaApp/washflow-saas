@@ -289,7 +289,8 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
         )}
 
         {/* Active Jobs */}
-        <div className="space-y-4">
+        {showActivity && (
+        <div className={`space-y-4 ${showRevenue ? "" : "lg:col-span-3"}`}>
           <div className="flex items-center justify-between px-1">
             <h3 className="text-lg font-semibold text-foreground">Active Jobs</h3>
             <button
