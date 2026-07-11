@@ -528,13 +528,17 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
         body: { selfieDataUrl, targetUserId, kind, tenantId },
       });
       if (error) {
-        const msg = (error as any).message || String(error);
-        if (msg.includes("no_enrollment")) {
+        const { code, message } = await extractInvokeError(error);
+        if (code === "no_enrollment") {
           toast.error("This staff member has no enrolled face. Enroll them first.");
-        } else if (msg.includes("forbidden_assisted_check_in")) {
+        } else if (code === "forbidden_assisted_check_in") {
           toast.error("You don't have permission to check in other staff.");
+        } else if (code === "ai_overloaded") {
+          toast.error("Face verification busy. Please retake in a few seconds.");
+        } else if (code === "tenant_not_resolved") {
+          toast.error("Could not resolve this staff member's workspace.");
         } else {
-          toast.error("Verification failed: " + msg);
+          toast.error("Verification failed: " + message);
         }
         return null;
       }
