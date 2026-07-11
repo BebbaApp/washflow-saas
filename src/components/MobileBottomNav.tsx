@@ -101,11 +101,11 @@ export function MobileBottomNav({
                 <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
                   <SheetTrigger asChild>
                     <button
-                      className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 py-1.5 md:py-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                      className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 py-2 md:py-3 text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="More"
                     >
-                      <MoreHorizontal className="w-5 h-5 md:w-6 md:h-6" />
-                      <span className="text-[10px] md:text-xs leading-none font-medium">More</span>
+                      <MoreHorizontal className="w-6 h-6 md:w-7 md:h-7" />
+                      <span className="text-[11px] md:text-sm leading-none font-medium">More</span>
                     </button>
                   </SheetTrigger>
                   <SheetContent side="bottom" className="rounded-t-2xl bg-card border-border">
