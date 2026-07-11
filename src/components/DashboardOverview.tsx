@@ -379,6 +379,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
             })}
           </div>
         </div>
+        )}
       </div>
         </>
       )}
