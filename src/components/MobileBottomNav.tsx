@@ -70,7 +70,7 @@ export function MobileBottomNav({
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40"
         aria-label="Primary"
       >
-        <div className="relative w-full bg-card/95 backdrop-blur border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.12)] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative w-full bg-card/95 backdrop-blur border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.12)] px-2 pt-2 pb-[max(1.75rem,env(safe-area-inset-bottom))] md:pb-[max(2.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-end justify-between gap-1">
             <div className="flex flex-1 justify-around">
               {left.map(renderTab)}
