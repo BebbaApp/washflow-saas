@@ -20,11 +20,14 @@
         "fullscreen": false,
         "center": true,
         "decorations": true,
-        "visible": false
+        "visible": false,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "browserExtensionsEnabled": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob: mediastream:"
+      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.github.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob: mediastream: https:; worker-src 'self' blob:;",
+      "dangerousDisableAssetCspModification": true
     }
   },
   "bundle": {
