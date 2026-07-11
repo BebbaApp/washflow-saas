@@ -6,12 +6,34 @@ import { isImmersive, toggleImmersive } from '@/lib/tauri/immersive';
 
 export function TauriStatusBar() {
   const { isOnline, isSyncing, pendingCount, lastSyncTime, isTauriApp, forceSync } = useTauriSync();
+  const [immersive, setImmersive] = useState(false);
+
+  useEffect(() => {
+    if (!isTauriApp) return;
+    isImmersive().then(setImmersive).catch(() => {});
+  }, [isTauriApp]);
 
   // Only show in Tauri desktop app
   if (!isTauriApp) return null;
 
-  // All good — no banner
-  if (isOnline && !isSyncing && pendingCount === 0) return null;
+  const handleToggleImmersive = async () => {
+    const next = await toggleImmersive();
+    setImmersive(next);
+  };
+
+  const ImmersiveFab = (
+    <button
+      onClick={handleToggleImmersive}
+      title={immersive ? 'Exit fullscreen (F11 / Esc)' : 'Enter fullscreen (F11)'}
+      aria-label={immersive ? 'Exit fullscreen' : 'Enter fullscreen'}
+      className="fixed top-3 right-3 z-[60] w-9 h-9 rounded-full bg-background/80 backdrop-blur border border-border shadow-md flex items-center justify-center text-foreground hover:bg-background transition-colors"
+    >
+      {immersive ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+    </button>
+  );
+
+  // All good — show only the immersive toggle
+  if (isOnline && !isSyncing && pendingCount === 0) return ImmersiveFab;
 
   const formatTime = (d: Date | null) => {
     if (!d) return 'Never';
