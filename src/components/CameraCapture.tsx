@@ -37,6 +37,7 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [apiUnavailable, setApiUnavailable] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [facing, setFacing] = useState<Facing>("user");
