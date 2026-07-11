@@ -107,8 +107,20 @@ export function useServices() {
   const updateService = async (id: string, updates: Partial<Omit<ServicePackage, "id">>) => {
     if (!tenant?.id) return;
     const patch = toRow(updates);
-    const { error } = await supabase.from("services").update(patch).eq("id", id).eq("tenant_id", tenant.id);
+    const { data, error } = await supabase
+      .from("services")
+      .update(patch)
+      .eq("id", id)
+      .eq("tenant_id", tenant.id)
+      .select("*")
+      .single();
     if (error) { toast.error(`Failed to update service: ${error.message}`); throw error; }
+    setRows((prev) => {
+      const list = prev ? [...prev] : [];
+      const idx = list.findIndex((r) => r.id === id);
+      if (idx >= 0) list[idx] = data as Row; else list.push(data as Row);
+      return list;
+    });
   };
 
   const addService = async (service: Omit<ServicePackage, "id">) => {
