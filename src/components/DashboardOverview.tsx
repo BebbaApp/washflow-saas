@@ -129,14 +129,16 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
       iconBg: "bg-info/10",
       iconColor: "text-info",
     },
-    {
-      label: `Revenue (${rangeLabel})`,
-      value: formatPrice(rangeRevenue),
-      sub: `${rangeCompleted.length} paid jobs`,
-      icon: DollarSign,
-      iconBg: "bg-success/10",
-      iconColor: "text-success",
-    },
+    ...(showRevenue
+      ? [{
+          label: `Revenue (${rangeLabel})`,
+          value: formatPrice(rangeRevenue),
+          sub: `${rangeCompleted.length} paid jobs`,
+          icon: DollarSign,
+          iconBg: "bg-success/10",
+          iconColor: "text-success",
+        }]
+      : []),
     {
       label: "In Queue",
       value: String(inQueue),
