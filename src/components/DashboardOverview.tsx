@@ -29,6 +29,10 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onViewAll }: DashboardOverviewProps) => {
   const { formatPrice } = useCurrency();
+  const { can } = usePermissions();
+  const showRevenue = can("dashboard.revenue");
+  const showInventoryTab = can("dashboard.inventory");
+  const showActivity = can("dashboard.activity");
   const { eligibleOrderIds } = useRewardEligibility(orders);
   const [tab, setTab] = useState<TabKey>("overview");
   const [range, setRange] = useState<RangeKey>("today");
