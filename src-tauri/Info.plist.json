@@ -1,0 +1,5 @@
+{
+  "NSCameraUsageDescription": "Washflow needs camera access to capture staff selfies for attendance check-in / check-out.",
+  "NSMicrophoneUsageDescription": "Microphone access is required by the camera capture pipeline (audio is never recorded).",
+  "NSPhotoLibraryUsageDescription": "Washflow can attach photos from your library to attendance and receipts."
+}
