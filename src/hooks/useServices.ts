@@ -109,7 +109,7 @@ export function useServices() {
   const updateService = async (id: string, updates: Partial<Omit<ServicePackage, "id">>) => {
     if (!tenant?.id) return;
     const patch = toRow(updates);
-    const data = await writeService({ action: "update", tenant_id: tenant.id, service_id: id, service: patch });
+    const data = await writeService("update", { action: "update", tenant_id: tenant.id, service_id: id, service: patch });
     if (!data.service) throw new Error("Service update did not return a row");
     setRows((prev) => {
       const list = prev ? [...prev] : [];
@@ -123,7 +123,7 @@ export function useServices() {
   const addService = async (service: Omit<ServicePackage, "id">) => {
     if (!tenant?.id) { toast.error("No workspace selected."); throw new Error("no_tenant"); }
     const payload = { tenant_id: tenant.id, ...toRow(service) };
-    const data = await writeService({ action: "create", tenant_id: tenant.id, service: payload });
+    const data = await writeService("add", { action: "create", tenant_id: tenant.id, service: payload });
     if (!data.service) throw new Error("Service creation did not return a row");
     setRows((prev) => [...(prev ?? []), data.service!]);
     return fromRow(data.service);
@@ -132,7 +132,7 @@ export function useServices() {
   const removeService = async (id: string) => {
     if (!tenant?.id) return;
     const removed = services.find((s) => s.id === id);
-    await writeService({ action: "delete", tenant_id: tenant.id, service_id: id });
+    await writeService("delete", { action: "delete", tenant_id: tenant.id, service_id: id });
     setRows((prev) => (prev ?? []).filter((r) => r.id !== id));
     return removed;
   };
@@ -140,7 +140,7 @@ export function useServices() {
   return { services, loading, updateService, addService, removeService };
 }
 
-async function writeService(body: Record<string, unknown>): Promise<ServiceWriteResponse> {
+async function writeService(actionLabel: "add" | "update" | "delete", body: Record<string, unknown>): Promise<ServiceWriteResponse> {
   const { data, error } = await supabase.functions.invoke<ServiceWriteResponse>("manage-service", { body });
   if (error) {
     let message = error.message;
@@ -151,11 +151,11 @@ async function writeService(body: Record<string, unknown>): Promise<ServiceWrite
         if (payload?.error) message = typeof payload.error === "string" ? payload.error : JSON.stringify(payload.error);
       } catch { /* keep default message */ }
     }
-    toast.error(`Failed to update service: ${message}`);
+    toast.error(`Failed to ${actionLabel} service: ${message}`);
     throw new Error(message);
   }
   if (data?.error) {
-    toast.error(`Failed to update service: ${data.error}`);
+    toast.error(`Failed to ${actionLabel} service: ${data.error}`);
     throw new Error(data.error);
   }
   return data ?? {};

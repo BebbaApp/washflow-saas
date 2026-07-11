@@ -19,11 +19,15 @@ const ServicePatchSchema = z.object({
   sort_order: z.number().int().min(-999_999).max(999_999).optional(),
 });
 
+const ServiceCreateSchema = ServicePatchSchema.extend({
+  name: z.string().trim().min(1).max(120),
+});
+
 const BodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
     tenant_id: z.string().uuid(),
-    service: ServicePatchSchema.required({ name: true }),
+    service: ServiceCreateSchema,
   }),
   z.object({
     action: z.literal("update"),
