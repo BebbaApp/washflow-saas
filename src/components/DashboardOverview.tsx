@@ -6,6 +6,7 @@ import type { WashOrder } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { InventoryTrendsPanel } from "@/components/InventoryTrendsPanel";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface DashboardOverviewProps {
   orders: WashOrder[];
