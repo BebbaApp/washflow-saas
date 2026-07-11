@@ -242,7 +242,8 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
 
       {/* Chart + active jobs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glass-card p-6 lg:col-span-2">
+        {showRevenue && (
+        <div className={`glass-card p-6 ${showActivity ? "lg:col-span-2" : "lg:col-span-3"}`}>
           <h3 className="text-lg font-semibold text-foreground mb-4">{chartTitle}</h3>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -285,6 +286,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
             </ResponsiveContainer>
           </div>
         </div>
+        )}
 
         {/* Active Jobs */}
         <div className="space-y-4">
