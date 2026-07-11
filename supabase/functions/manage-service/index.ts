@@ -139,10 +139,12 @@ async function canManageServices(
   const isGlobalAdmin = !!platformAdmin || !!superAdmin || callerEmail.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
   const tenantRole = (membership as { tenant_role?: string } | null)?.tenant_role;
   const isTenantAdmin = tenantRole === "owner" || tenantRole === "admin";
-  const isStaffServiceAdmin = ((roles as Array<{ role: string }> | null) ?? []).some((r) => r.role === "admin" || r.role === "manager");
+  const managerRoles = new Set(["admin", "manager", "supervisor", "cashier"]);
+  const isStaffServiceAdmin = ((roles as Array<{ role: string }> | null) ?? []).some((r) => managerRoles.has(r.role));
+  const isTenantMember = !!membership;
 
-  if (!membership && !isGlobalAdmin) return { ok: false, status: 403, error: "You are not a member of this workspace" };
-  if (!isGlobalAdmin && !isTenantAdmin && !isStaffServiceAdmin) {
+  if (!isTenantMember && !isGlobalAdmin) return { ok: false, status: 403, error: "You are not a member of this workspace" };
+  if (!isGlobalAdmin && !isTenantAdmin && !isStaffServiceAdmin && !isTenantMember) {
     return { ok: false, status: 403, error: "You do not have permission to manage services" };
   }
   return { ok: true };
