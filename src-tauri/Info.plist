@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Washflow needs camera access to capture staff selfies for attendance check-in / check-out.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Microphone access is required by the camera capture pipeline (audio is never recorded).</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Washflow can attach photos from your library to attendance and receipts.</string>
+</dict>
+</plist>
