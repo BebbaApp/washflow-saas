@@ -63,8 +63,8 @@ export function MobileBottomNav({
 
   return (
     <>
-      {/* Spacer so page content isn't hidden behind the floating bar (extra room for device gesture/nav bars) */}
-      <div className="lg:hidden h-36 md:h-40" aria-hidden />
+      {/* Bottom padding for scroll clearance is provided by the parent <main>, so the nav can overlay content without leaving a dead spacer outside the scroll area. */}
+
 
       <nav
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40"
