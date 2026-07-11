@@ -18,9 +18,6 @@
     "updater:allow-install",
     "updater:allow-download-and-install",
     "core:window:allow-start-dragging",
-    "core:webview:allow-set-webview-size",
-    "fs:default",
-    "fs:allow-read-file",
-    "fs:allow-write-file"
+    "core:webview:allow-set-webview-size"
   ]
 }
