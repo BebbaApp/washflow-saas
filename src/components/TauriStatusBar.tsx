@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useTauriSync } from '@/lib/tauri/sync';
-import { WifiOff, RefreshCw, CloudOff, Clock } from 'lucide-react';
+import { WifiOff, RefreshCw, CloudOff, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isImmersive, toggleImmersive } from '@/lib/tauri/immersive';
 
 export function TauriStatusBar() {
   const { isOnline, isSyncing, pendingCount, lastSyncTime, isTauriApp, forceSync } = useTauriSync();
