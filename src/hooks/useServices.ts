@@ -1,9 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
-import { db } from "@/offline/db";
-import { enqueueOutbox } from "@/offline/sync";
-import { useLiveTable } from "@/offline/useLiveTable";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ServicePackage {
   id: string;
@@ -52,7 +50,46 @@ const toRow = (s: Partial<ServicePackage>) => ({
 
 export function useServices() {
   const { tenant } = useTenant();
-  const rows = useLiveTable<Row & { tenant_id: string }>(tenant?.id, "services");
+  const [rows, setRows] = useState<Row[] | undefined>(undefined);
+
+  useEffect(() => {
+    if (!tenant?.id) { setRows([]); return; }
+    let cancelled = false;
+
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .eq("tenant_id", tenant.id);
+      if (cancelled) return;
+      if (error) { toast.error(`Failed to load services: ${error.message}`); setRows([]); return; }
+      setRows((data ?? []) as Row[]);
+    };
+    void load();
+
+    const channel = supabase
+      .channel(`services:${tenant.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "services", filter: `tenant_id=eq.${tenant.id}` },
+        (payload) => {
+          setRows((prev) => {
+            const list = prev ? [...prev] : [];
+            if (payload.eventType === "DELETE") {
+              return list.filter((r) => r.id !== (payload.old as any).id);
+            }
+            const next = payload.new as Row;
+            const idx = list.findIndex((r) => r.id === next.id);
+            if (idx >= 0) list[idx] = next; else list.push(next);
+            return list;
+          });
+        },
+      )
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [tenant?.id]);
+
   const loading = rows === undefined;
 
   const services = useMemo<ServicePackage[]>(() => {
@@ -68,30 +105,24 @@ export function useServices() {
 
   const updateService = async (id: string, updates: Partial<Omit<ServicePackage, "id">>) => {
     if (!tenant?.id) return;
-    const existing = await (db as any).services.get(id);
-    if (!existing) { toast.error("Service not found"); return; }
     const patch = toRow(updates);
-    const now = new Date().toISOString();
-    const updated = { ...existing, ...patch, updated_at: now, _dirty: 1, _op: "update" };
-    await (db as any).services.put(updated);
-    await enqueueOutbox({ tenant_id: tenant.id, table: "services", op: "update", payload: { id, ...patch, updated_at: now } });
+    const { error } = await supabase.from("services").update(patch).eq("id", id).eq("tenant_id", tenant.id);
+    if (error) { toast.error(`Failed to update service: ${error.message}`); throw error; }
   };
 
   const addService = async (service: Omit<ServicePackage, "id">) => {
     if (!tenant?.id) { toast.error("No workspace selected."); throw new Error("no_tenant"); }
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const payload = { id, tenant_id: tenant.id, ...toRow(service), created_at: now, updated_at: now };
-    await (db as any).services.put({ ...payload, _dirty: 1, _op: "insert" });
-    await enqueueOutbox({ tenant_id: tenant.id, table: "services", op: "insert", payload });
-    return fromRow(payload as Row);
+    const payload = { tenant_id: tenant.id, ...toRow(service) };
+    const { data, error } = await supabase.from("services").insert(payload).select("*").single();
+    if (error) { toast.error(`Failed to add service: ${error.message}`); throw error; }
+    return fromRow(data as Row);
   };
 
   const removeService = async (id: string) => {
     if (!tenant?.id) return;
     const removed = services.find((s) => s.id === id);
-    await (db as any).services.delete(id);
-    await enqueueOutbox({ tenant_id: tenant.id, table: "services", op: "delete", payload: { id } });
+    const { error } = await supabase.from("services").delete().eq("id", id).eq("tenant_id", tenant.id);
+    if (error) { toast.error(`Failed to delete service: ${error.message}`); throw error; }
     return removed;
   };
 
