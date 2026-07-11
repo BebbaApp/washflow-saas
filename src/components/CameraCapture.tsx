@@ -164,7 +164,8 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
     reader.readAsDataURL(file);
   };
 
-  if (error && !preview) {
+  if ((error || apiUnavailable) && !preview) {
+    const showFallbackOnly = apiUnavailable && !error;
     return (
       <div className="space-y-3">
         <input
@@ -176,29 +177,33 @@ export function CameraCapture({ onCapture, busy, ctaLabel = "Capture" }: Props) 
           className="sr-only"
           onChange={handleFileCapture}
         />
-        <div className="text-sm text-destructive p-4 rounded-lg bg-destructive/10 flex gap-2">
+        <div className={`text-sm p-4 rounded-lg flex gap-2 ${showFallbackOnly ? "bg-muted text-muted-foreground" : "bg-destructive/10 text-destructive"}`}>
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium mb-1">Camera error</p>
-            <p className="text-destructive/90">{error}</p>
+            <p className="font-medium mb-1">{showFallbackOnly ? "Use your device camera" : "Camera error"}</p>
+            <p className={showFallbackOnly ? "" : "text-destructive/90"}>
+              {showFallbackOnly
+                ? "Live preview isn't available here. Tap Open camera to take the photo with your device's camera app."
+                : error}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
+          <label
+            htmlFor={starting ? undefined : fileInputId}
+            aria-disabled={starting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 aria-disabled:opacity-50 aria-disabled:pointer-events-none cursor-pointer"
+          >
+            <Camera className="w-4 h-4" /> Open camera
+          </label>
           <button
             onClick={() => void startCamera(facing)}
             disabled={starting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
           >
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Retry
           </button>
-          <label
-            htmlFor={starting ? undefined : fileInputId}
-            aria-disabled={starting}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 aria-disabled:opacity-50 aria-disabled:pointer-events-none cursor-pointer"
-          >
-            <Camera className="w-4 h-4" /> Open camera
-          </label>
         </div>
       </div>
     );
