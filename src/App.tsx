@@ -14,6 +14,7 @@ import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
 import { SyncBoot } from "./offline/SyncBoot";
+import { TauriStatusBar } from "./components/TauriStatusBar";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <SyncBoot />
+            <TauriStatusBar />
             <BrowserRouter>
               <GatedRoutes />
             </BrowserRouter>
