@@ -439,8 +439,32 @@ Deno.serve(async (req) => {
       if ((targetRoles ?? []).some((r: any) => r.role === "admin")) {
         return reply({ error: "Admin users cannot be deleted" }, 400);
       }
+      // Clean up rows that FK-reference auth.users(id) without ON DELETE CASCADE.
+      // Any failure here is logged but not fatal — we still attempt the auth delete.
+      const cleanupTables = [
+        "staff_pins",
+        "staff_face_enrollments",
+        "staff_compensation",
+        "staff_active_status",
+        "user_roles",
+        "tenant_members",
+        "time_off_requests",
+        "shifts",
+        "attendance_records",
+        "profiles",
+        "platform_admins",
+        "super_admins",
+      ];
+      for (const t of cleanupTables) {
+        const { error: delErr } = await admin.from(t).delete().eq("user_id", user_id);
+        if (delErr) console.warn(`[manage-staff.delete] cleanup ${t} failed:`, delErr.message);
+      }
+
       const { error } = await admin.auth.admin.deleteUser(user_id);
-      if (error) return reply({ error: error.message }, 500);
+      if (error) {
+        console.error("[manage-staff.delete] auth.admin.deleteUser failed:", error);
+        return reply({ error: error.message, detail: (error as any).cause ?? null }, 500);
+      }
       return reply({ success: true });
     }
 
