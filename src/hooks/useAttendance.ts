@@ -7,6 +7,27 @@ import { db } from "@/offline/db";
 import { offlineInsert } from "@/offline/offlineWrite";
 import { enqueueOutbox } from "@/offline/sync";
 
+// supabase.functions.invoke turns any non-2xx into a generic
+// "Edge Function returned a non-2xx status code" error. Read the response
+// body from FunctionsHttpError.context so the toast shows the real reason.
+async function extractInvokeError(err: unknown): Promise<{ code?: string; detail?: string; message: string }> {
+  const anyErr = err as any;
+  const fallback = anyErr?.message || String(err);
+  try {
+    const ctx = anyErr?.context;
+    if (ctx && typeof ctx.json === "function") {
+      const body = await ctx.clone().json().catch(async () => {
+        const t = await ctx.clone().text().catch(() => "");
+        return t ? { error: t } : {};
+      });
+      const code = body?.error || body?.code;
+      const detail = body?.detail || body?.message || body?.reason;
+      return { code, detail, message: [code, detail].filter(Boolean).join(": ") || fallback };
+    }
+  } catch { /* ignore */ }
+  return { message: fallback };
+}
+
 export interface AttendanceRecord {
   id: string;
   tenant_id?: string;
