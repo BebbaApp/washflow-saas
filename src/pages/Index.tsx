@@ -307,7 +307,7 @@ const Index = () => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 lg:pt-0 pt-16 overflow-auto">
+      <main className="flex-1 lg:pt-0 pt-16 overflow-auto pb-44 md:pb-52 lg:pb-0">
         {/* Top Nav Bar */}
         <div className="hidden lg:flex sticky top-0 z-30 h-14 items-center justify-between gap-3 px-6 bg-card/80 backdrop-blur border-b border-border">
           <div className="flex items-center gap-2 min-w-0">
