@@ -295,9 +295,24 @@ async fn check_for_updates(app: tauri::AppHandle) {
                 // before restarting, otherwise old binary restarts instead of new one
                 #[cfg(target_os = "windows")]
                 {
-                    log("info", "Windows: waiting 4s for NSIS installer to complete...");
-                    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
-                    log("info", "Windows: exiting process — installer will launch new version");
+                    log("info", "Windows: looking for uninstaller...");
+                    // Run the existing uninstaller silently first so NSIS can replace files cleanly
+                    let install_dir = format!(
+                        "{}\\AppData\\Local\\Washflow",
+                        std::env::var("USERPROFILE").unwrap_or_default()
+                    );
+                    let uninst = format!("{}\\Uninstall Washflow.exe", install_dir);
+                    if std::path::Path::new(&uninst).exists() {
+                        log("info", format!("Windows: running uninstaller: {}", uninst));
+                        let _ = std::process::Command::new(&uninst)
+                            .arg("/S")
+                            .spawn();
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        log("info", "Windows: uninstall complete, exiting for installer");
+                    } else {
+                        log("warn", format!("Windows: uninstaller not found at {}", uninst));
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    }
                     std::process::exit(0);
                 }
                 #[cfg(not(target_os = "windows"))]
