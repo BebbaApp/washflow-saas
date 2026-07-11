@@ -7,6 +7,27 @@ import { db } from "@/offline/db";
 import { offlineInsert } from "@/offline/offlineWrite";
 import { enqueueOutbox } from "@/offline/sync";
 
+// supabase.functions.invoke turns any non-2xx into a generic
+// "Edge Function returned a non-2xx status code" error. Read the response
+// body from FunctionsHttpError.context so the toast shows the real reason.
+async function extractInvokeError(err: unknown): Promise<{ code?: string; detail?: string; message: string }> {
+  const anyErr = err as any;
+  const fallback = anyErr?.message || String(err);
+  try {
+    const ctx = anyErr?.context;
+    if (ctx && typeof ctx.json === "function") {
+      const body = await ctx.clone().json().catch(async () => {
+        const t = await ctx.clone().text().catch(() => "");
+        return t ? { error: t } : {};
+      });
+      const code = body?.error || body?.code;
+      const detail = body?.detail || body?.message || body?.reason;
+      return { code, detail, message: [code, detail].filter(Boolean).join(": ") || fallback };
+    }
+  } catch { /* ignore */ }
+  return { message: fallback };
+}
+
 export interface AttendanceRecord {
   id: string;
   tenant_id?: string;
@@ -391,13 +412,17 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
           body: { selfieDataUrl, kind, tenantId: activeTenantId },
         });
         if (vErr) {
-          const msg = (vErr as any).message || String(vErr);
-          if (msg.includes("no_enrollment")) {
+          const { code, message } = await extractInvokeError(vErr);
+          if (code === "no_enrollment") {
             toast.error("No enrolled face. Ask an admin to enroll your face first.");
-          } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
+          } else if (code === "ai_overloaded") {
             toast.error("Face verification busy. Please retake in a few seconds.");
+          } else if (code === "tenant_not_resolved") {
+            toast.error("No active workspace found for your account.");
+          } else if (code === "AI not configured") {
+            toast.error("Face verification is not configured. Contact an admin.");
           } else {
-            toast.error("Face verification failed: " + msg);
+            toast.error("Face verification failed: " + message);
           }
           return null;
         }
@@ -503,13 +528,17 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
         body: { selfieDataUrl, targetUserId, kind, tenantId },
       });
       if (error) {
-        const msg = (error as any).message || String(error);
-        if (msg.includes("no_enrollment")) {
+        const { code, message } = await extractInvokeError(error);
+        if (code === "no_enrollment") {
           toast.error("This staff member has no enrolled face. Enroll them first.");
-        } else if (msg.includes("forbidden_assisted_check_in")) {
+        } else if (code === "forbidden_assisted_check_in") {
           toast.error("You don't have permission to check in other staff.");
+        } else if (code === "ai_overloaded") {
+          toast.error("Face verification busy. Please retake in a few seconds.");
+        } else if (code === "tenant_not_resolved") {
+          toast.error("Could not resolve this staff member's workspace.");
         } else {
-          toast.error("Verification failed: " + msg);
+          toast.error("Verification failed: " + message);
         }
         return null;
       }
