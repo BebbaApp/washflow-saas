@@ -48,6 +48,8 @@ const toRow = (s: Partial<ServicePackage>) => ({
   ...(s.sort_order !== undefined && { sort_order: s.sort_order }),
 });
 
+type ServiceWriteResponse = { service?: Row; error?: string };
+
 export function useServices() {
   const { tenant } = useTenant();
   const [rows, setRows] = useState<Row[] | undefined>(undefined);
@@ -107,21 +109,12 @@ export function useServices() {
   const updateService = async (id: string, updates: Partial<Omit<ServicePackage, "id">>) => {
     if (!tenant?.id) return;
     const patch = toRow(updates);
-    const { data, error } = await supabase
-      .from("services")
-      .update(patch)
-      .eq("id", id)
-      .eq("tenant_id", tenant.id)
-      .select("*")
-      .maybeSingle();
-    if (error) { toast.error(`Failed to update service: ${error.message}`); throw error; }
+    const data = await writeService("update", { action: "update", tenant_id: tenant.id, service_id: id, service: patch });
+    if (!data.service) throw new Error("Service update did not return a row");
     setRows((prev) => {
       const list = prev ? [...prev] : [];
       const idx = list.findIndex((r) => r.id === id);
-      const merged: Row = data
-        ? (data as Row)
-        : ({ ...(list[idx] ?? ({} as Row)), ...patch, id, tenant_id: tenant.id } as Row);
-      if (idx >= 0) list[idx] = merged; else list.push(merged);
+      if (idx >= 0) list[idx] = data.service!; else list.push(data.service!);
       return list;
     });
   };
@@ -130,18 +123,40 @@ export function useServices() {
   const addService = async (service: Omit<ServicePackage, "id">) => {
     if (!tenant?.id) { toast.error("No workspace selected."); throw new Error("no_tenant"); }
     const payload = { tenant_id: tenant.id, ...toRow(service) };
-    const { data, error } = await supabase.from("services").insert(payload).select("*").single();
-    if (error) { toast.error(`Failed to add service: ${error.message}`); throw error; }
-    return fromRow(data as Row);
+    const data = await writeService("add", { action: "create", tenant_id: tenant.id, service: payload });
+    if (!data.service) throw new Error("Service creation did not return a row");
+    setRows((prev) => [...(prev ?? []), data.service!]);
+    return fromRow(data.service);
   };
 
   const removeService = async (id: string) => {
     if (!tenant?.id) return;
     const removed = services.find((s) => s.id === id);
-    const { error } = await supabase.from("services").delete().eq("id", id).eq("tenant_id", tenant.id);
-    if (error) { toast.error(`Failed to delete service: ${error.message}`); throw error; }
+    await writeService("delete", { action: "delete", tenant_id: tenant.id, service_id: id });
+    setRows((prev) => (prev ?? []).filter((r) => r.id !== id));
     return removed;
   };
 
   return { services, loading, updateService, addService, removeService };
+}
+
+async function writeService(actionLabel: "add" | "update" | "delete", body: Record<string, unknown>): Promise<ServiceWriteResponse> {
+  const { data, error } = await supabase.functions.invoke<ServiceWriteResponse>("manage-service", { body });
+  if (error) {
+    let message = error.message;
+    const response = (error as any).context;
+    if (response && typeof response.json === "function") {
+      try {
+        const payload = await response.json();
+        if (payload?.error) message = typeof payload.error === "string" ? payload.error : JSON.stringify(payload.error);
+      } catch { /* keep default message */ }
+    }
+    toast.error(`Failed to ${actionLabel} service: ${message}`);
+    throw new Error(message);
+  }
+  if (data?.error) {
+    toast.error(`Failed to ${actionLabel} service: ${data.error}`);
+    throw new Error(data.error);
+  }
+  return data ?? {};
 }
