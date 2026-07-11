@@ -412,13 +412,17 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
           body: { selfieDataUrl, kind, tenantId: activeTenantId },
         });
         if (vErr) {
-          const msg = (vErr as any).message || String(vErr);
-          if (msg.includes("no_enrollment")) {
+          const { code, message } = await extractInvokeError(vErr);
+          if (code === "no_enrollment") {
             toast.error("No enrolled face. Ask an admin to enroll your face first.");
-          } else if (msg.includes("ai_overloaded") || msg.includes("503")) {
+          } else if (code === "ai_overloaded") {
             toast.error("Face verification busy. Please retake in a few seconds.");
+          } else if (code === "tenant_not_resolved") {
+            toast.error("No active workspace found for your account.");
+          } else if (code === "AI not configured") {
+            toast.error("Face verification is not configured. Contact an admin.");
           } else {
-            toast.error("Face verification failed: " + msg);
+            toast.error("Face verification failed: " + message);
           }
           return null;
         }
