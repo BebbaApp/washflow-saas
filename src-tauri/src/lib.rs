@@ -301,7 +301,7 @@ async fn check_for_updates(app: tauri::AppHandle) {
                         "{}\\AppData\\Local\\Washflow",
                         std::env::var("USERPROFILE").unwrap_or_default()
                     );
-                    let uninst = format!("{}\\Uninstall Washflow.exe", install_dir);
+                    let uninst = format!("{}\\uninstall.exe", install_dir);
                     if std::path::Path::new(&uninst).exists() {
                         log("info", format!("Windows: running uninstaller: {}", uninst));
                         let _ = std::process::Command::new(&uninst)
