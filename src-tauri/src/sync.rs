@@ -7,6 +7,10 @@ use serde_json::{json, Value};
 
 #[tauri::command]
 pub async fn trigger_sync(supabase_url: String, supabase_key: String) -> Result<Value, String> {
+    // supabase_key is the caller's access_token (user JWT) — used for both
+    // apikey and Authorization so PostgREST evaluates RLS as that user.
+    // Passing the anon key here would make every write anonymous and RLS
+    // would silently drop it.
     let queue = get_queue_items()?;
 
     if queue.is_empty() {
