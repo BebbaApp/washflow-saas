@@ -23,6 +23,7 @@ import {
 type Channel = ReturnType<typeof supabase.channel>;
 
 const PAGE_SIZE = 1000;
+const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
 let currentTenant: string | null = null;
 let channels: Channel[] = [];
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -182,6 +183,45 @@ function sanitizePayloadForRemote(table: string, payload: any) {
   };
 }
 
+async function ensureSessionForTenant(tenantId: string) {
+  const { data: initial, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+
+  let session = initial.session;
+  if (!session) throw new Error("Cannot sync changes — please sign in again.");
+
+  const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
+  if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    session = data.session;
+    if (!session) throw new Error("Cannot sync changes — please sign in again.");
+  }
+
+  try { localStorage.setItem(ACTIVE_TENANT_KEY, tenantId); } catch { /* ignore */ }
+
+  const activeClaim = (session.user.app_metadata as any)?.active_tenant_id;
+  if (activeClaim !== tenantId) {
+    const { error } = await supabase.functions.invoke("switch-tenant", { body: { tenant_id: tenantId } });
+    if (error) throw error;
+    const { data, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) throw refreshError;
+    session = data.session;
+    if (!session) throw new Error("Cannot sync changes — please sign in again.");
+  }
+
+  return session;
+}
+
+function assertMutationReturnedRow(table: string, op: OutboxItem["op"], data: any) {
+  if (op === "insert") return;
+  if (data) return;
+  throw new Error(
+    `No remote ${table} row was ${op === "update" ? "updated" : "deleted"}. ` +
+    "The local change is still queued; refresh your session or switch to the correct workspace before retrying.",
+  );
+}
+
 /** Enqueue a local mutation. Hooks call this instead of writing to Supabase
  *  directly so we can replay when offline. The local mirror should also be
  *  updated optimistically by the caller. */
@@ -199,10 +239,13 @@ async function drainOutbox() {
   if (!navigator.onLine) { setStatus("offline"); return; }
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
   if (items.length === 0) { emit(); return; }
+  const tenantId = currentTenant ?? items[0]?.tenant_id;
+  if (tenantId) await ensureSessionForTenant(tenantId);
   for (const it of items) {
     try {
       const tbl = supabase.from(it.table as any);
       let error: any = null;
+      let data: any = null;
       if (it.op === "insert") {
         let payload: any = sanitizePayloadForRemote(it.table, it.payload);
         // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
@@ -224,14 +267,23 @@ async function drainOutbox() {
             } catch { /* ignore mirror update */ }
           }
         }
-        ({ error } = await tbl.insert(payload as any));
+        ({ data, error } = await (tbl.insert(payload as any) as any).select("id").maybeSingle());
       } else if (it.op === "update") {
         const payload = sanitizePayloadForRemote(it.table, it.payload);
-        ({ error } = await tbl.update(payload as any).eq("id", (payload as any).id));
+        ({ data, error } = await (tbl.update(payload as any) as any)
+          .eq("id", (payload as any).id)
+          .eq("tenant_id", it.tenant_id)
+          .select("id")
+          .maybeSingle());
       } else if (it.op === "delete") {
-        ({ error } = await tbl.delete().eq("id", (it.payload as any).id));
+        ({ data, error } = await (tbl.delete() as any)
+          .eq("id", (it.payload as any).id)
+          .eq("tenant_id", it.tenant_id)
+          .select("id")
+          .maybeSingle());
       }
       if (error) throw error;
+      assertMutationReturnedRow(it.table, it.op, data);
       await db.outbox.delete(it.id!);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
@@ -290,6 +342,7 @@ export async function purgeTenant(tenantId: string) {
 /** Force a full resync — clears the cursor and re-pulls everything. */
 export async function forceResync() {
   if (!currentTenant) return;
+  await drainOutbox();
   await db.sync_meta.where("key").startsWith(`${currentTenant}:`).delete();
   await initialPull(currentTenant);
 }
