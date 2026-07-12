@@ -67,11 +67,7 @@ export const PERMISSION_GROUPS: PermGroup[] = [
     label: "Staff & Scheduling",
     items: [
       { key: "staff.view", label: "View Staff Schedule" },
-      { key: "staff.createShift", label: "Create Shifts" },
-      { key: "staff.editShift", label: "Edit Shifts" },
-      { key: "staff.deleteShift", label: "Delete Shifts" },
       { key: "staff.timeOff.request", label: "Request Time Off" },
-      { key: "staff.timeOff.approve", label: "Approve Time Off" },
     ],
   },
   {
