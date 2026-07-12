@@ -154,7 +154,13 @@ export function TimeOffPanel() {
               />
             </div>
           </div>
+          {startDate && endDate && (
+            <p className="text-xs text-muted-foreground">
+              Requesting <span className="font-medium text-foreground">{requestedDays}</span> day{requestedDays !== 1 ? "s" : ""} off
+            </p>
+          )}
           <div>
+
             <label className="text-xs text-muted-foreground block mb-1">Reason (optional)</label>
             <Textarea
               value={reason}
