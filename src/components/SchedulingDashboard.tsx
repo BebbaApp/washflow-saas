@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
+import { TimeOffPanel } from "@/components/TimeOffPanel";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
