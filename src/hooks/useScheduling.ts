@@ -42,7 +42,7 @@ function mapTemplate(r: any): ShiftTemplate {
 }
 function mapTimeOff(r: any): TimeOffRequest {
   return {
-    id: r.id, userId: r.user_id, staffName: r.staff_name ?? "",
+    id: r.id, userId: r.staff_user_id ?? r.user_id, staffName: r.staff_name ?? "",
     startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
     status: r.status ?? "pending", createdAt: r.created_at,
   };
@@ -140,7 +140,7 @@ export function useScheduling() {
     if (!tenant?.id || !user?.id) return;
     const uid = data.targetUserId || user.id;
     await offlineInsert("time_off_requests", tenant.id, {
-      user_id: uid,
+      staff_user_id: uid,
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,
