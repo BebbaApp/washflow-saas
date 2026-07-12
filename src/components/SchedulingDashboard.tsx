@@ -23,7 +23,7 @@ interface SchedulingDashboardProps {
   onOpenFaceEnroll?: () => void;
 }
 
-type View = "checkin" | "daylog" | "employees" | "performance";
+type View = "checkin" | "daylog" | "employees" | "performance" | "timeoff";
 type Preset = "today" | "7d" | "30d" | "all" | "custom";
 
 const LUNCH_BREAK_HOURS = 1;
