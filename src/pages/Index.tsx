@@ -326,14 +326,28 @@ const Index = () => {
               </span>
             )}
             <SyncStatusPill className="hidden sm:inline-flex" />
-            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              Washflow Saas v{appVersion}
+            <button
+              type="button"
+              onClick={async () => {
+                setResyncing(true);
+                try {
+                  await forceResync();
+                } finally {
+                  setResyncing(false);
+                }
+              }}
+              disabled={resyncing}
+              className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Force refresh data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${resyncing ? "animate-spin" : ""}`} />
+              <span>Washflow Saas v{appVersion}</span>
               {isOutdated && (
                 <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-primary/10 text-primary text-[10px]" title="An update is available">
                   update
                 </span>
               )}
-            </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
