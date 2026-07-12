@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee,
-  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle,
+  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle, CalendarOff,
 } from "lucide-react";
 
 import { useScheduling } from "@/hooks/useScheduling";
