@@ -25,7 +25,9 @@ export interface TimeOffRequest {
   id: string; userId: string; staffName: string;
   startDate: string; endDate: string; reason: string;
   status: "pending" | "approved" | "rejected"; createdAt: string;
+  requestedDays: number;
 }
+
 
 function mapShift(r: any): Shift {
   return {
@@ -40,13 +42,22 @@ function mapTemplate(r: any): ShiftTemplate {
     daysOfWeek: r.days_of_week ?? [],
   };
 }
+function daysBetween(startDate: string, endDate: string) {
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+}
+
 function mapTimeOff(r: any): TimeOffRequest {
   return {
     id: r.id, userId: r.staff_user_id ?? r.user_id, staffName: r.staff_name ?? "",
     startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
     status: r.status ?? "pending", createdAt: r.created_at,
+    requestedDays: r.requested_days ?? daysBetween(r.start_date, r.end_date),
   };
 }
+
 
 export function useScheduling() {
   const { tenant } = useTenant();
@@ -139,13 +150,16 @@ export function useScheduling() {
   }) => {
     if (!tenant?.id || !user?.id) return;
     const uid = data.targetUserId || user.id;
+    const requestedDays = daysBetween(data.startDate, data.endDate);
     await offlineInsert("time_off_requests", tenant.id, {
       staff_user_id: uid,
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,
       status: "pending",
+      requested_days: requestedDays,
     });
+
     toast.success("Time-off request submitted");
   }, [tenant?.id, user]);
 
