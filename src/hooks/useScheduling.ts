@@ -150,13 +150,16 @@ export function useScheduling() {
   }) => {
     if (!tenant?.id || !user?.id) return;
     const uid = data.targetUserId || user.id;
+    const requestedDays = daysBetween(data.startDate, data.endDate);
     await offlineInsert("time_off_requests", tenant.id, {
       staff_user_id: uid,
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,
       status: "pending",
+      requested_days: requestedDays,
     });
+
     toast.success("Time-off request submitted");
   }, [tenant?.id, user]);
 
