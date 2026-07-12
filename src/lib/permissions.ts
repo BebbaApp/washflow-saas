@@ -66,12 +66,14 @@ export const PERMISSION_GROUPS: PermGroup[] = [
     key: "staff",
     label: "Staff & Scheduling",
     items: [
-      { key: "staff.view", label: "View Staff Schedule" },
+      { key: "staff.view", label: "View Staff Tab" },
       { key: "staff.checkin", label: "Staff Check-in Tab" },
       { key: "staff.daylog", label: "Day Log Tab" },
       { key: "staff.employees", label: "Employees Tab" },
       { key: "staff.performance", label: "Performance Tab" },
-      
+      { key: "staff.timeOff", label: "Time Off Tab" },
+      { key: "staff.timeOff.request", label: "Submit Time Off Request" },
+      { key: "staff.timeOff.approve", label: "Approve / Reject Time Off" },
     ],
   },
   {
