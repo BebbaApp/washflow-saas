@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
+import { usePermissions } from "@/hooks/usePermissions";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -75,8 +76,21 @@ function downloadBlob(name: string, blob: Blob) {
 export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDashboardProps) => {
   const { staffMembers, loading } = useScheduling();
   const { records } = useAttendance();
+  const { can } = usePermissions();
 
-  const [view, setView] = useState<View>("checkin");
+  const tabPerm: Record<View, string> = {
+    checkin: "staff.checkin",
+    daylog: "staff.daylog",
+    employees: "staff.employees",
+    performance: "staff.performance",
+  };
+  const allowedViews = (["checkin", "daylog", "employees", "performance"] as View[]).filter((v) => can(tabPerm[v]));
+  const defaultView: View = allowedViews[0] ?? "checkin";
+
+  const [view, setView] = useState<View>(defaultView);
+  useEffect(() => {
+    if (allowedViews.length && !allowedViews.includes(view)) setView(defaultView);
+  }, [allowedViews.join("|")]);
   const [preset, setPreset] = useState<Preset>("7d");
   // Pagination by 7-day windows: 0 = current, 1 = previous week, etc.
   const [weekOffset, setWeekOffset] = useState(0);
@@ -366,12 +380,12 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     toast.success("PDF exported");
   };
 
-  const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = [
-    { id: "checkin", label: "Staff Check-in", icon: UserCheck },
-    { id: "daylog", label: "Day Log", icon: Calendar },
-    { id: "employees", label: "Employees", icon: Users },
-    { id: "performance", label: "Performance", icon: Trophy },
-  ];
+  const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = ([
+    { id: "checkin" as View, label: "Staff Check-in", icon: UserCheck },
+    { id: "daylog" as View, label: "Day Log", icon: Calendar },
+    { id: "employees" as View, label: "Employees", icon: Users },
+    { id: "performance" as View, label: "Performance", icon: Trophy },
+  ]).filter((t) => allowedViews.includes(t.id));
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
