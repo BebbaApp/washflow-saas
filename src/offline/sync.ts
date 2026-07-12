@@ -168,7 +168,7 @@ function unsubscribeRealtime() {
   channels = [];
 }
 
-function sanitizePayloadForRemote(table: MirroredTable, payload: any) {
+function sanitizePayloadForRemote(table: string, payload: any) {
   if (table !== "time_off_requests" || !payload) return payload;
   const {
     updated_at: _updatedAt,
