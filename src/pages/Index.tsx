@@ -3,6 +3,7 @@ import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
   Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint, AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import type { StaffRole } from "@/hooks/useAuth";
