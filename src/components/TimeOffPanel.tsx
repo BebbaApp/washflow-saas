@@ -56,16 +56,32 @@ export function TimeOffPanel() {
     [staffMembers],
   );
 
-  const myRequests = useMemo(
-    () => timeOffRequests.filter((r) => r.userId === user?.id)
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
-    [timeOffRequests, user?.id],
+  const activeRequests = useMemo(
+    () => timeOffRequests
+      .filter((r) => r.status === "pending" || r.status === "approved")
+      .sort((a, b) => (a.startDate < b.startDate ? -1 : 1)),
+    [timeOffRequests],
   );
   const otherRequests = useMemo(
     () => timeOffRequests.filter((r) => r.userId !== user?.id)
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
     [timeOffRequests, user?.id],
   );
+
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const historyRequests = useMemo(() => {
+    return timeOffRequests
+      .filter((r) => {
+        if (historyFrom && r.endDate < historyFrom) return false;
+        if (historyTo && r.startDate > historyTo) return false;
+        return true;
+      })
+      .sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+  }, [timeOffRequests, historyFrom, historyTo]);
+
+  const staffNameFor = (r: TimeOffRequest) =>
+    r.staffName || staffMembers.find((s) => s.id === r.userId)?.name || "Staff";
 
   const submit = async () => {
     if (!targetUserId) { toast.error("Select an employee"); return; }
