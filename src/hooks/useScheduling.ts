@@ -42,13 +42,22 @@ function mapTemplate(r: any): ShiftTemplate {
     daysOfWeek: r.days_of_week ?? [],
   };
 }
+function daysBetween(startDate: string, endDate: string) {
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+}
+
 function mapTimeOff(r: any): TimeOffRequest {
   return {
     id: r.id, userId: r.staff_user_id ?? r.user_id, staffName: r.staff_name ?? "",
     startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
     status: r.status ?? "pending", createdAt: r.created_at,
+    requestedDays: r.requested_days ?? daysBetween(r.start_date, r.end_date),
   };
 }
+
 
 export function useScheduling() {
   const { tenant } = useTenant();
