@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee,
-  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle,
+  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle, CalendarOff,
 } from "lucide-react";
 
 import { useScheduling } from "@/hooks/useScheduling";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
+import { TimeOffPanel } from "@/components/TimeOffPanel";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +23,7 @@ interface SchedulingDashboardProps {
   onOpenFaceEnroll?: () => void;
 }
 
-type View = "checkin" | "daylog" | "employees" | "performance";
+type View = "checkin" | "daylog" | "employees" | "performance" | "timeoff";
 type Preset = "today" | "7d" | "30d" | "all" | "custom";
 
 const LUNCH_BREAK_HOURS = 1;
@@ -83,8 +84,9 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     daylog: "staff.daylog",
     employees: "staff.employees",
     performance: "staff.performance",
+    timeoff: "staff.timeOff",
   };
-  const allowedViews = (["checkin", "daylog", "employees", "performance"] as View[]).filter((v) => can(tabPerm[v]));
+  const allowedViews = (["checkin", "daylog", "employees", "performance", "timeoff"] as View[]).filter((v) => can(tabPerm[v]));
   const defaultView: View = allowedViews[0] ?? "checkin";
 
   const [view, setView] = useState<View>(defaultView);
@@ -385,6 +387,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     { id: "daylog" as View, label: "Day Log", icon: Calendar },
     { id: "employees" as View, label: "Employees", icon: Users },
     { id: "performance" as View, label: "Performance", icon: Trophy },
+    { id: "timeoff" as View, label: "Time Off", icon: CalendarOff },
   ]).filter((t) => allowedViews.includes(t.id));
 
   if (loading) {
@@ -490,6 +493,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 
       {/* CHECK-IN VIEW */}
       {view === "checkin" && <StaffCheckInPanel onOpenFaceEnroll={onOpenFaceEnroll} />}
+      {view === "timeoff" && <TimeOffPanel />}
 
       {/* DAY LOG VIEW */}
       {view === "daylog" && (
