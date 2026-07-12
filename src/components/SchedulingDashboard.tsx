@@ -585,6 +585,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
                         {r.status === "absent" && <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Absent</Badge>}
                         {r.status === "marked_absent" && <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Marked absent</Badge>}
                         {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
+                        {r.status === "time_off" && <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700"><CalendarOff className="w-3 h-3 mr-1" />Time Off</Badge>}
                       </td>
                     </tr>
                   ))}
