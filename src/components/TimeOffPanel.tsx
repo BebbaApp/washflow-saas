@@ -184,7 +184,7 @@ export function TimeOffPanel() {
               {otherRequests.map((r) => (
                 <li key={r.id} className="py-2 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{r.staffName || "Staff"}</p>
+                    <p className="text-sm font-medium truncate">{r.staffName || staffMembers.find((s) => s.id === r.userId)?.name || "Staff"}</p>
                     <p className="text-xs text-muted-foreground">
                       {fmt(r.startDate)} → {fmt(r.endDate)}
                       {r.reason ? ` · ${r.reason}` : ""}

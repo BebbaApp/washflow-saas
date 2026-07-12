@@ -139,17 +139,15 @@ export function useScheduling() {
   }) => {
     if (!tenant?.id || !user?.id) return;
     const uid = data.targetUserId || user.id;
-    const staff = staffMembers.find((s) => s.id === uid);
     await offlineInsert("time_off_requests", tenant.id, {
       user_id: uid,
-      staff_name: staff?.name ?? (uid === user.id ? (user.email ?? "") : ""),
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,
       status: "pending",
     });
     toast.success("Time-off request submitted");
-  }, [tenant?.id, user, staffMembers]);
+  }, [tenant?.id, user]);
 
   const updateTimeOffStatus = useCallback(async (requestId: string, status: "approved" | "rejected") => {
     if (!tenant?.id) return;
