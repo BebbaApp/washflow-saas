@@ -163,16 +163,58 @@ export function TimeOffPanel() {
       )}
 
       <div className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold mb-3">My Requests</h3>
-        {myRequests.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No requests yet.</p>
+        <h3 className="text-sm font-semibold mb-3">Time Off Requested</h3>
+        {activeRequests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No pending or approved requests.</p>
         ) : (
           <ul className="divide-y divide-border">
-            {myRequests.map((r) => (
+            {activeRequests.map((r) => (
               <li key={r.id} className="py-2 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">{fmt(r.startDate)} → {fmt(r.endDate)}</p>
-                  {r.reason && <p className="text-xs text-muted-foreground truncate">{r.reason}</p>}
+                  <p className="text-sm font-medium truncate">{staffNameFor(r)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fmt(r.startDate)} → {fmt(r.endDate)}
+                    {r.reason ? ` · ${r.reason}` : ""}
+                  </p>
+                </div>
+                <StatusBadge status={r.status} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h3 className="text-sm font-semibold">History</h3>
+          <div className="flex items-center gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">From</label>
+              <Input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="h-8" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">To</label>
+              <Input type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} className="h-8" />
+            </div>
+            {(historyFrom || historyTo) && (
+              <Button variant="ghost" size="sm" className="mt-4" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+        {historyRequests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No requests in this range.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {historyRequests.map((r) => (
+              <li key={r.id} className="py-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{staffNameFor(r)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fmt(r.startDate)} → {fmt(r.endDate)}
+                    {r.reason ? ` · ${r.reason}` : ""}
+                  </p>
                 </div>
                 <StatusBadge status={r.status} />
               </li>
