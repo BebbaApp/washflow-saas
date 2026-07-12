@@ -84,8 +84,9 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     daylog: "staff.daylog",
     employees: "staff.employees",
     performance: "staff.performance",
+    timeoff: "staff.timeOff",
   };
-  const allowedViews = (["checkin", "daylog", "employees", "performance"] as View[]).filter((v) => can(tabPerm[v]));
+  const allowedViews = (["checkin", "daylog", "employees", "performance", "timeoff"] as View[]).filter((v) => can(tabPerm[v]));
   const defaultView: View = allowedViews[0] ?? "checkin";
 
   const [view, setView] = useState<View>(defaultView);
