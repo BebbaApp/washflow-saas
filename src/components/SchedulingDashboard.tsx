@@ -820,6 +820,7 @@ function statusTone(row?: DayRow): string {
   if (!row) return "bg-muted/30 text-muted-foreground";
   if (row.status === "present") return "bg-success/15 border-success/40 text-foreground";
   if (row.status === "in_progress") return "bg-warning/15 border-warning/40 text-foreground";
+  if (row.status === "time_off") return "bg-blue-500/10 border-blue-500/40 text-foreground";
   if (row.status === "absent" || row.status === "marked_absent") return "bg-destructive/15 border-destructive/40 text-foreground";
   return "bg-muted/30 text-muted-foreground";
 }
