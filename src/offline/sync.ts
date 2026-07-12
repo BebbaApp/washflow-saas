@@ -10,7 +10,7 @@
 // payloads), last-write-wins on push (we send the local row; the server's
 // updated_at will reflect the winner on the next pull).
 
-import { supabase } from "@/integrations/supabase/client";
+import { clearLocalSupabaseSession, supabase } from "@/integrations/supabase/client";
 import {
   db,
   metaKey,
@@ -234,6 +234,16 @@ async function ensureSessionForTenant(tenantId: string) {
 
   let session = initial.session;
   if (!session) throw new Error("Cannot sync changes — please sign in again.");
+
+  const validated = await supabase.auth.getUser(session.access_token);
+  if (validated.error) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session) {
+      await clearLocalSupabaseSession();
+      throw new Error("Cannot sync changes — your session expired. Please sign in again, then retry sync.");
+    }
+    session = data.session;
+  }
 
   const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
   if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {

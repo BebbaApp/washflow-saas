@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { clearLocalSupabaseSession, supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { db } from "@/offline/db";
 
@@ -195,7 +195,7 @@ function useAuthInternal(): AuthContextValue {
           const isNetworkErr = validateErr && /fetch|network|failed to fetch|load failed/i.test(validateErr.message || "");
           if (validateErr && !isNetworkErr) {
             console.warn("[useAuth] Stale session detected, signing out:", validateErr.message);
-            supabase.auth.signOut().finally(() => {
+            clearLocalSupabaseSession().finally(() => {
               if (!cancelled && currentRequest === requestId) {
                 setAuthedEmail(null);
                 resolvedUserIdRef.current = null;
@@ -354,7 +354,7 @@ function useAuthInternal(): AuthContextValue {
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    await clearLocalSupabaseSession();
     resolvedUserIdRef.current = null;
     setAuthedUserId(null);
     setResolvedUser(null);
