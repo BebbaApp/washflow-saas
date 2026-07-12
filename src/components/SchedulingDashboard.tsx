@@ -387,6 +387,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     { id: "daylog" as View, label: "Day Log", icon: Calendar },
     { id: "employees" as View, label: "Employees", icon: Users },
     { id: "performance" as View, label: "Performance", icon: Trophy },
+    { id: "timeoff" as View, label: "Time Off", icon: CalendarOff },
   ]).filter((t) => allowedViews.includes(t.id));
 
   if (loading) {
