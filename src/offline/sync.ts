@@ -176,15 +176,18 @@ function sanitizePayloadForRemote(table: string, payload: any) {
     _op: _op,
     synced_at: _syncedAt,
     _deleted: _deleted,
-    updated_at: _updatedAt,
-    staff_name: _staffName,
-    user_id: legacyUserId,
     ...rest
   } = payload;
   if (table !== "time_off_requests") return rest;
+  const {
+    updated_at: _updatedAt,
+    staff_name: _staffName,
+    user_id: legacyUserId,
+    ...timeOffRest
+  } = rest;
   return {
-    ...rest,
-    ...(rest.staff_user_id ? {} : legacyUserId ? { staff_user_id: legacyUserId } : {}),
+    ...timeOffRest,
+    ...(timeOffRest.staff_user_id ? {} : legacyUserId ? { staff_user_id: legacyUserId } : {}),
   };
 }
 
@@ -275,7 +278,9 @@ async function drainOutbox() {
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
   const tenantId = currentTenant ?? items[0]?.tenant_id;
   if (tenantId) await recoverDirtyRows(tenantId);
-  const retryItems = await db.outbox.orderBy("created_at").limit(50).toArray();
+  const retryItems = tenantId
+    ? await db.outbox.where("tenant_id").equals(tenantId).sortBy("created_at").then((rows) => rows.slice(0, 50))
+    : await db.outbox.orderBy("created_at").limit(50).toArray();
   if (retryItems.length === 0) { emit(); return; }
   if (tenantId) await ensureSessionForTenant(tenantId);
   for (const it of retryItems) {
