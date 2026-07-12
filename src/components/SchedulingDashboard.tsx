@@ -916,6 +916,7 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                 <span className="font-medium">{d.getDate()}</span>
                 {inMonth && row && row.status === "present" && <CheckCircle2 className="w-3 h-3 text-success" />}
                 {inMonth && row && (row.status === "absent" || row.status === "marked_absent") && <XCircle className="w-3 h-3 text-destructive" />}
+                {inMonth && row && row.status === "time_off" && <CalendarOff className="w-3 h-3 text-blue-600" />}
                 {inMonth && row && row.status === "in_progress" && <Clock className="w-3 h-3 text-warning" />}
               </div>
               {inMonth && row && (row.status === "present" || row.status === "in_progress") && (
