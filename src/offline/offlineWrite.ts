@@ -82,9 +82,9 @@ export async function offlineUpdate(
   const existing = await (db as any)[table].get(id);
   const now = new Date().toISOString();
   const hasUpdatedAt = !TABLES_WITHOUT_UPDATED_AT.has(table);
-  const updated = { ...(existing ?? { id, tenant_id: tenantId }), ...patch, id, ...(hasUpdatedAt ? { updated_at: now } : {}) };
+  const updated = { ...(existing ?? { id, tenant_id: tenantId }), ...patch, id, tenant_id: tenantId, ...(hasUpdatedAt ? { updated_at: now } : {}) };
   await (db as any)[table].put({ ...updated, _dirty: 1, _op: "update" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: "update", payload: { id, ...patch, ...(hasUpdatedAt ? { updated_at: now } : {}) } });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: "update", payload: { id, tenant_id: tenantId, ...patch, ...(hasUpdatedAt ? { updated_at: now } : {}) } });
 }
 
 /**

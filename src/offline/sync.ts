@@ -23,6 +23,7 @@ import {
 type Channel = ReturnType<typeof supabase.channel>;
 
 const PAGE_SIZE = 1000;
+const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
 let currentTenant: string | null = null;
 let channels: Channel[] = [];
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -107,9 +108,11 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     }
     const rows = (data as any[]) ?? [];
     if (rows.length === 0) break;
-    await (db as any)[table].bulkPut(
-      rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })),
-    );
+    const tbl = (db as any)[table];
+    const normalizedRows = rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 }));
+    const existingRows = await tbl.bulkGet(normalizedRows.map((r: any) => r.id));
+    const safeRows = normalizedRows.filter((r: any, index: number) => existingRows[index]?._dirty !== 1);
+    if (safeRows.length > 0) await tbl.bulkPut(safeRows);
     for (const r of rows) {
       if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
     }
@@ -149,7 +152,11 @@ function subscribeRealtime(tenantId: string) {
               if (id) await tbl.delete(id);
             } else {
               const row = withLocalId(table, payload.new as BaseRow);
-              if (row?.id) await tbl.put({ ...row, _dirty: 0 });
+              if (row?.id) {
+                const existing = await tbl.get(row.id);
+                if (existing?._dirty === 1) return;
+                await tbl.put({ ...row, _dirty: 0 });
+              }
             }
           } catch (e) {
             console.warn("[sync] realtime apply failed", table, e);
@@ -169,17 +176,94 @@ function unsubscribeRealtime() {
 }
 
 function sanitizePayloadForRemote(table: string, payload: any) {
-  if (table !== "time_off_requests" || !payload) return payload;
+  if (!payload) return payload;
+  const {
+    _dirty: _dirty,
+    _op: _op,
+    synced_at: _syncedAt,
+    _deleted: _deleted,
+    ...rest
+  } = payload;
+  if (table !== "time_off_requests") return rest;
   const {
     updated_at: _updatedAt,
     staff_name: _staffName,
     user_id: legacyUserId,
-    ...rest
-  } = payload;
+    ...timeOffRest
+  } = rest;
   return {
-    ...rest,
-    ...(rest.staff_user_id ? {} : legacyUserId ? { staff_user_id: legacyUserId } : {}),
+    ...timeOffRest,
+    ...(timeOffRest.staff_user_id ? {} : legacyUserId ? { staff_user_id: legacyUserId } : {}),
   };
+}
+
+async function recoverDirtyRows(tenantId: string) {
+  const existing = await db.outbox.where("tenant_id").equals(tenantId).toArray();
+  const queued = new Set(existing.map((i) => `${i.table}:${(i.payload as any)?.id ?? ""}:${i.op}`));
+
+  for (const table of MIRRORED_TABLES) {
+    const rows = await (db as any)[table]
+      .where("tenant_id")
+      .equals(tenantId)
+      .and((row: any) => row?._dirty === 1)
+      .toArray();
+
+    for (const row of rows) {
+      if (!row?.id) continue;
+      const op = row._op === "insert" ? "insert" : "update";
+      const key = `${table}:${row.id}:${op}`;
+      if (queued.has(key)) continue;
+      await db.outbox.add({
+        tenant_id: tenantId,
+        table,
+        op,
+        payload: sanitizePayloadForRemote(table, row),
+        attempts: 0,
+        last_error: null,
+        created_at: Date.now(),
+      });
+      queued.add(key);
+    }
+  }
+}
+
+async function ensureSessionForTenant(tenantId: string) {
+  const { data: initial, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+
+  let session = initial.session;
+  if (!session) throw new Error("Cannot sync changes — please sign in again.");
+
+  const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
+  if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    session = data.session;
+    if (!session) throw new Error("Cannot sync changes — please sign in again.");
+  }
+
+  try { localStorage.setItem(ACTIVE_TENANT_KEY, tenantId); } catch { /* ignore */ }
+
+  const activeClaim = (session.user.app_metadata as any)?.active_tenant_id;
+  if (activeClaim !== tenantId) {
+    const { error } = await supabase.functions.invoke("switch-tenant", { body: { tenant_id: tenantId } });
+    if (error) throw error;
+    const { data, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) throw refreshError;
+    session = data.session;
+    if (!session) throw new Error("Cannot sync changes — please sign in again.");
+  }
+
+  return session;
+}
+
+function assertMutationReturnedRow(table: string, op: OutboxItem["op"], data: any) {
+  if (op === "insert") return;
+  if (data) return;
+  throw new Error(
+    `No remote ${table} row was ${op === "update" ? "updated" : "deleted"}. ` +
+    "The local change is still queued; refresh your session or switch to the correct workspace before retrying.",
+  );
 }
 
 /** Enqueue a local mutation. Hooks call this instead of writing to Supabase
@@ -198,11 +282,28 @@ function schedulePush(delay = 100) {
 async function drainOutbox() {
   if (!navigator.onLine) { setStatus("offline"); return; }
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
-  if (items.length === 0) { emit(); return; }
-  for (const it of items) {
+  const tenantId = currentTenant ?? items[0]?.tenant_id;
+  try {
+    if (tenantId) await recoverDirtyRows(tenantId);
+  } catch (e: any) {
+    setStatus("error", e?.message ?? String(e));
+    return;
+  }
+  const retryItems = tenantId
+    ? await db.outbox.where("tenant_id").equals(tenantId).sortBy("created_at").then((rows) => rows.slice(0, 50))
+    : await db.outbox.orderBy("created_at").limit(50).toArray();
+  if (retryItems.length === 0) { emit(); return; }
+  try {
+    if (tenantId) await ensureSessionForTenant(tenantId);
+  } catch (e: any) {
+    setStatus("error", e?.message ?? String(e));
+    return;
+  }
+  for (const it of retryItems) {
     try {
       const tbl = supabase.from(it.table as any);
       let error: any = null;
+      let data: any = null;
       if (it.op === "insert") {
         let payload: any = sanitizePayloadForRemote(it.table, it.payload);
         // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
@@ -224,15 +325,33 @@ async function drainOutbox() {
             } catch { /* ignore mirror update */ }
           }
         }
-        ({ error } = await tbl.insert(payload as any));
+        ({ data, error } = await (tbl.insert(payload as any) as any).select("id").maybeSingle());
       } else if (it.op === "update") {
         const payload = sanitizePayloadForRemote(it.table, it.payload);
-        ({ error } = await tbl.update(payload as any).eq("id", (payload as any).id));
+        ({ data, error } = await (tbl.update(payload as any) as any)
+          .eq("id", (payload as any).id)
+          .eq("tenant_id", it.tenant_id)
+          .select("id")
+          .maybeSingle());
       } else if (it.op === "delete") {
-        ({ error } = await tbl.delete().eq("id", (it.payload as any).id));
+        ({ data, error } = await (tbl.delete() as any)
+          .eq("id", (it.payload as any).id)
+          .eq("tenant_id", it.tenant_id)
+          .select("id")
+          .maybeSingle());
       }
       if (error) throw error;
+      assertMutationReturnedRow(it.table, it.op, data);
       await db.outbox.delete(it.id!);
+      if (it.op !== "delete") {
+        const id = (it.payload as any)?.id;
+        if (id) {
+          try {
+            const local = await (db as any)[it.table].get(id);
+            if (local) await (db as any)[it.table].put({ ...local, _dirty: 0, _op: undefined });
+          } catch { /* ignore local cleanup */ }
+        }
+      }
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       await db.outbox.update(it.id!, { attempts: it.attempts + 1, last_error: msg });
@@ -290,6 +409,7 @@ export async function purgeTenant(tenantId: string) {
 /** Force a full resync — clears the cursor and re-pulls everything. */
 export async function forceResync() {
   if (!currentTenant) return;
+  await drainOutbox();
   await db.sync_meta.where("key").startsWith(`${currentTenant}:`).delete();
   await initialPull(currentTenant);
 }

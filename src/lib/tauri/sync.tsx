@@ -54,7 +54,36 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
 
   // Get Supabase URL and anon key from env
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+  const ensureSessionForTenant = useCallback(async () => {
+    if (!tenant?.id) return null;
+    const { data: initial, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    let session = initial.session;
+    if (!session) return null;
+
+    const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
+    if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) throw error;
+      session = data.session;
+      if (!session) return null;
+    }
+
+    try { localStorage.setItem('lovable.active_tenant_id', tenant.id); } catch { /* ignore */ }
+
+    const activeClaim = (session.user.app_metadata as any)?.active_tenant_id;
+    if (activeClaim !== tenant.id) {
+      const { error } = await supabase.functions.invoke('switch-tenant', { body: { tenant_id: tenant.id } });
+      if (error) throw error;
+      const { data, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) throw refreshError;
+      session = data.session;
+    }
+
+    return session;
+  }, [tenant?.id]);
 
   // Pull all data from Supabase into SQLite
   const pullFromSupabase = useCallback(async (tenantId: string) => {
@@ -88,7 +117,7 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
   // so approvals/edits made in the installed app never reach the database.
   const pushToSupabase = useCallback(async (): Promise<void> => {
     if (!isTauri || !isOnline) return;
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await ensureSessionForTenant();
     const token = session?.access_token;
     if (!token) {
       console.warn('[TauriSync] Skipping push — no authenticated session');
@@ -99,7 +128,7 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
     if (result.synced > 0) {
       console.log(`[TauriSync] Pushed ${result.synced} records`);
     }
-  }, [isOnline, supabaseUrl]);
+  }, [isOnline, supabaseUrl, ensureSessionForTenant]);
 
   // Full sync: push queue first, then pull fresh data
   const forceSync = useCallback(async () => {
