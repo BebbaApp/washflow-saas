@@ -25,7 +25,9 @@ export interface TimeOffRequest {
   id: string; userId: string; staffName: string;
   startDate: string; endDate: string; reason: string;
   status: "pending" | "approved" | "rejected"; createdAt: string;
+  requestedDays: number;
 }
+
 
 function mapShift(r: any): Shift {
   return {
