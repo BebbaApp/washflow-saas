@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
+import { useLiveTable } from "@/offline/useLiveTable";
+import { offlineInsert, offlineUpdate, offlineDelete } from "@/offline/offlineWrite";
 
 export interface ServicePackage {
   id: string;
@@ -16,6 +18,7 @@ export interface ServicePackage {
 
 type Row = {
   id: string;
+  tenant_id: string;
   name: string;
   price: number | string;
   duration: string;
@@ -24,7 +27,7 @@ type Row = {
   vat_exempt: boolean;
   sort_order: number;
   created_at?: string;
-  tenant_id?: string;
+  updated_at?: string;
 };
 
 const fromRow = (r: Row): ServicePackage => ({
@@ -52,46 +55,7 @@ type ServiceWriteResponse = { service?: Row; error?: string };
 
 export function useServices() {
   const { tenant } = useTenant();
-  const [rows, setRows] = useState<Row[] | undefined>(undefined);
-
-  useEffect(() => {
-    if (!tenant?.id) { setRows([]); return; }
-    let cancelled = false;
-
-    const load = async () => {
-      const { data, error } = await supabase
-        .from("services")
-        .select("*")
-        .eq("tenant_id", tenant.id);
-      if (cancelled) return;
-      if (error) { toast.error(`Failed to load services: ${error.message}`); setRows([]); return; }
-      setRows((data ?? []) as Row[]);
-    };
-    void load();
-
-    const channel = supabase.channel(`services:${tenant.id}:${crypto.randomUUID()}`);
-
-    channel.on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "services", filter: `tenant_id=eq.${tenant.id}` },
-      (payload) => {
-        setRows((prev) => {
-          const list = prev ? [...prev] : [];
-          if (payload.eventType === "DELETE") {
-            return list.filter((r) => r.id !== (payload.old as any).id);
-          }
-          const next = payload.new as Row;
-          const idx = list.findIndex((r) => r.id === next.id);
-          if (idx >= 0) list[idx] = next; else list.push(next);
-          return list;
-        });
-      },
-    );
-
-    channel.subscribe();
-
-    return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, [tenant?.id]);
+  const rows = useLiveTable<Row & { _dirty?: 0 | 1 }>(tenant?.id, "services");
 
   const loading = rows === undefined;
 
@@ -109,35 +73,62 @@ export function useServices() {
   const updateService = async (id: string, updates: Partial<Omit<ServicePackage, "id">>) => {
     if (!tenant?.id) return;
     const patch = toRow(updates);
-    const data = await writeService("update", { action: "update", tenant_id: tenant.id, service_id: id, service: patch });
-    if (!data.service) throw new Error("Service update did not return a row");
-    setRows((prev) => {
-      const list = prev ? [...prev] : [];
-      const idx = list.findIndex((r) => r.id === id);
-      if (idx >= 0) list[idx] = data.service!; else list.push(data.service!);
-      return list;
-    });
+    try {
+      const data = await writeService("update", { action: "update", tenant_id: tenant.id, service_id: id, service: patch });
+      if (!data.service) throw new Error("Service update did not return a row");
+      // Sync engine's realtime channel will refresh Dexie; also apply locally for instant UI.
+      await offlineUpdate("services", tenant.id, id, patch);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        await offlineUpdate("services", tenant.id, id, patch);
+        toast.message("Saved locally — will sync when online");
+        return;
+      }
+      throw e;
+    }
   };
-
 
   const addService = async (service: Omit<ServicePackage, "id">) => {
     if (!tenant?.id) { toast.error("No workspace selected."); throw new Error("no_tenant"); }
     const payload = { tenant_id: tenant.id, ...toRow(service) };
-    const data = await writeService("add", { action: "create", tenant_id: tenant.id, service: payload });
-    if (!data.service) throw new Error("Service creation did not return a row");
-    setRows((prev) => [...(prev ?? []), data.service!]);
-    return fromRow(data.service);
+    try {
+      const data = await writeService("add", { action: "create", tenant_id: tenant.id, service: payload });
+      if (!data.service) throw new Error("Service creation did not return a row");
+      return fromRow(data.service);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        const row = await offlineInsert("services", tenant.id, payload);
+        toast.message("Saved locally — will sync when online");
+        return fromRow(row as Row);
+      }
+      throw e;
+    }
   };
 
   const removeService = async (id: string) => {
     if (!tenant?.id) return;
     const removed = services.find((s) => s.id === id);
-    await writeService("delete", { action: "delete", tenant_id: tenant.id, service_id: id });
-    setRows((prev) => (prev ?? []).filter((r) => r.id !== id));
+    try {
+      await writeService("delete", { action: "delete", tenant_id: tenant.id, service_id: id });
+      await offlineDelete("services", tenant.id, id);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        await offlineDelete("services", tenant.id, id);
+        toast.message("Removed locally — will sync when online");
+        return removed;
+      }
+      throw e;
+    }
     return removed;
   };
 
   return { services, loading, updateService, addService, removeService };
+}
+
+function isNetworkError(e: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  const msg = (e as { message?: string })?.message?.toLowerCase() ?? "";
+  return msg.includes("failed to fetch") || msg.includes("network") || msg.includes("load failed");
 }
 
 async function writeService(actionLabel: "add" | "update" | "delete", body: Record<string, unknown>): Promise<ServiceWriteResponse> {
@@ -151,8 +142,9 @@ async function writeService(actionLabel: "add" | "update" | "delete", body: Reco
         if (payload?.error) message = typeof payload.error === "string" ? payload.error : JSON.stringify(payload.error);
       } catch { /* keep default message */ }
     }
-    toast.error(`Failed to ${actionLabel} service: ${message}`);
-    throw new Error(message);
+    const err = new Error(message);
+    if (!isNetworkError(err)) toast.error(`Failed to ${actionLabel} service: ${message}`);
+    throw err;
   }
   if (data?.error) {
     toast.error(`Failed to ${actionLabel} service: ${data.error}`);
