@@ -13,19 +13,17 @@ CREATE POLICY "tenant write time_off_requests"
   FOR ALL
   TO authenticated
   USING (
-    tenant_id = public.current_tenant_id()
-    AND public.tenant_license_active(tenant_id)
+    public.tenant_license_active(tenant_id)
     AND (
-      public.is_tenant_member(tenant_id)
+      (tenant_id = public.current_tenant_id() AND public.is_tenant_member(tenant_id))
       OR public.is_platform_admin(auth.uid())
       OR public.is_super_admin(auth.uid())
     )
   )
   WITH CHECK (
-    tenant_id = public.current_tenant_id()
-    AND public.tenant_license_active(tenant_id)
+    public.tenant_license_active(tenant_id)
     AND (
-      public.is_tenant_member(tenant_id)
+      (tenant_id = public.current_tenant_id() AND public.is_tenant_member(tenant_id))
       OR public.is_platform_admin(auth.uid())
       OR public.is_super_admin(auth.uid())
     )
