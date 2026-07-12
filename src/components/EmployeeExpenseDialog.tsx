@@ -84,7 +84,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [comps, setComps] = useState<Compensation[]>([]);
-  const { records: liveAttendance } = useAttendance();
+  const [attendance, setAttendance] = useState<AttRow[]>([]);
   const [staffId, setStaffId] = useState("");
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
