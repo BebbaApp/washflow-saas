@@ -7,7 +7,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { db, isTauri } from './db';
 import { useTenant } from '@/hooks/useTenant';
-import { supabase } from '@/integrations/supabase/client';
+import { clearLocalSupabaseSession, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface SyncContextValue {
@@ -62,6 +62,16 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
 
     let session = initial.session;
     if (!session) return null;
+
+    const validated = await supabase.auth.getUser(session.access_token);
+    if (validated.error) {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error || !data.session) {
+        await clearLocalSupabaseSession();
+        throw new Error('Your session expired. Please sign in again, then retry sync.');
+      }
+      session = data.session;
+    }
 
     const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
     if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {
@@ -142,7 +152,7 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
       toast.success('Sync complete', { duration: 2000 });
     } catch (err) {
       console.error('[TauriSync] Sync error:', err);
-      toast.error('Sync failed — will retry');
+      toast.error(err instanceof Error ? err.message : 'Sync failed — will retry');
     } finally {
       setIsSyncing(false);
     }
