@@ -152,7 +152,7 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
       toast.success('Sync complete', { duration: 2000 });
     } catch (err) {
       console.error('[TauriSync] Sync error:', err);
-      toast.error('Sync failed — will retry');
+      toast.error(err instanceof Error ? err.message : 'Sync failed — will retry');
     } finally {
       setIsSyncing(false);
     }
