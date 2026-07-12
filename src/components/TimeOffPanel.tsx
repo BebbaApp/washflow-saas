@@ -147,8 +147,11 @@ export function TimeOffPanel() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">End date</label>
+              <label className="text-xs text-muted-foreground block mb-1">
+                End date {startDate && endDate && <span>({requestedDays} day{requestedDays !== 1 ? "s" : ""})</span>}
+              </label>
               <Input
+
                 type="date" value={endDate} min={startDate || minDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
