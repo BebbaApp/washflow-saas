@@ -184,7 +184,6 @@ export function getDefaultMatrix(): PermissionMatrix {
 
   deny("supervisor", [
     "services.delete", "inventory.delete", "expenses.delete",
-    "staff.deleteShift", "staff.timeOff.approve",
     "settings.view", "settings.workers", "settings.workers.delete",
     "settings.workers.compensation", "settings.workers.pin",
     "settings.appearance", "settings.currency", "settings.permissions",
