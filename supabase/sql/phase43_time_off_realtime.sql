@@ -14,4 +14,8 @@ BEGIN
   ) THEN
     EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.time_off_requests';
   END IF;
+EXCEPTION
+  WHEN duplicate_object THEN
+    -- Safe to ignore: the table is already registered for Realtime.
+    NULL;
 END $$;
