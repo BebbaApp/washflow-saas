@@ -291,14 +291,35 @@ async fn check_for_updates(app: tauri::AppHandle) {
             Ok(_) => {
                 update_banner(&app, "Installing update — app will restart", 100, "Done", "#0cd4c4", "#0d1b2a", false);
                 log("info", "Update successful; calling restart()");
-                // On Windows the NSIS installer needs the current process to
-                // exit so it can finish replacing files. The plugin already
-                // spawned the installer; simply exit and let NSIS relaunch
-                // the new binary. Do NOT run the uninstaller here — that
-                // wipes the just-installed files and leaves nothing on disk.
+                // On Windows, NSIS installer runs async — wait for it to finish
+                // before restarting, otherwise old binary restarts instead of new one
                 #[cfg(target_os = "windows")]
                 {
-                    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                    log("info", "Windows: looking for uninstaller...");
+                    // Run the existing uninstaller silently first so NSIS can replace files cleanly
+                    let install_dir = format!(
+                        "{}\\AppData\\Local\\Washflow",
+                        std::env::var("USERPROFILE").unwrap_or_default()
+                    );
+                    let uninst = format!("{}\\uninstall.exe", install_dir);
+                    if std::path::Path::new(&uninst).exists() {
+                        log("info", format!("Windows: running uninstaller: {}", uninst));
+                        let _ = std::process::Command::new(&uninst)
+                            .arg("/S")
+                            .spawn();
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        log("info", "Windows: uninstall complete, exiting for installer");
+                    } else {
+                        log("warn", format!("Windows: uninstaller not found at {}", uninst));
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    }
+                    // Launch the newly installed binary before exiting
+                    let new_exe = format!("{}\\AppData\\Local\\Washflow\\washflow.exe", std::env::var("USERPROFILE").unwrap_or_default());
+                    if std::path::Path::new(&new_exe).exists() {
+                        log("info", format!("Windows: spawning new binary: {}", new_exe));
+                        let _ = std::process::Command::new(&new_exe).spawn();
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    }
                     std::process::exit(0);
                 }
                 #[cfg(not(target_os = "windows"))]
