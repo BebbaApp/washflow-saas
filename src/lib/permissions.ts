@@ -171,18 +171,18 @@ export function getDefaultMatrix(): PermissionMatrix {
     "services.view",
     "history.view",
     "loyalty.view", "loyalty.redeem",
-    "staff.view", "staff.checkin", "staff.timeOff.request",
+    "staff.view", "staff.checkin",
     "attendance.view", "attendance.clock",
   ]);
 
   allow("washer", [
     "dashboard.view", "queue.view", "queue.start", "queue.complete",
-    "staff.view", "staff.checkin", "staff.timeOff.request",
+    "staff.view", "staff.checkin",
     "attendance.view", "attendance.clock",
   ]);
   allow("driver", [
     "dashboard.view", "queue.view", "queue.start", "queue.complete",
-    "staff.view", "staff.checkin", "staff.timeOff.request",
+    "staff.view", "staff.checkin",
     "attendance.view", "attendance.clock",
   ]);
 
