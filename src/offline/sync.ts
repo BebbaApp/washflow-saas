@@ -188,6 +188,7 @@ function sanitizePayloadForRemote(table: string, payload: any) {
   const {
     updated_at: _updatedAt,
     staff_name: _staffName,
+    requested_days: _requestedDays,
     user_id: legacyUserId,
     ...timeOffRest
   } = rest;
@@ -333,6 +334,25 @@ async function drainOutbox() {
           .eq("tenant_id", it.tenant_id)
           .select("id")
           .maybeSingle());
+        if (!error && !data && it.table === "time_off_requests") {
+          const local = await (db as any).time_off_requests.get((payload as any).id);
+          const recoveryPayload = sanitizePayloadForRemote(it.table, {
+            ...(local ?? {}),
+            ...payload,
+            tenant_id: it.tenant_id,
+          });
+          if (
+            recoveryPayload?.id &&
+            recoveryPayload?.tenant_id &&
+            recoveryPayload?.staff_user_id &&
+            recoveryPayload?.start_date &&
+            recoveryPayload?.end_date
+          ) {
+            ({ data, error } = await (tbl.upsert(recoveryPayload as any, { onConflict: "id" }) as any)
+              .select("id")
+              .maybeSingle());
+          }
+        }
       } else if (it.op === "delete") {
         ({ data, error } = await (tbl.delete() as any)
           .eq("id", (it.payload as any).id)
