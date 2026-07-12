@@ -380,12 +380,12 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     toast.success("PDF exported");
   };
 
-  const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = [
-    { id: "checkin", label: "Staff Check-in", icon: UserCheck },
-    { id: "daylog", label: "Day Log", icon: Calendar },
-    { id: "employees", label: "Employees", icon: Users },
-    { id: "performance", label: "Performance", icon: Trophy },
-  ];
+  const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = ([
+    { id: "checkin" as View, label: "Staff Check-in", icon: UserCheck },
+    { id: "daylog" as View, label: "Day Log", icon: Calendar },
+    { id: "employees" as View, label: "Employees", icon: Users },
+    { id: "performance" as View, label: "Performance", icon: Trophy },
+  ]).filter((t) => allowedViews.includes(t.id));
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
