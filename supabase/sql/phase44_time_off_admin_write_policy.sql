@@ -7,6 +7,17 @@
 -- updated".
 
 DROP POLICY IF EXISTS "tenant write time_off_requests" ON public.time_off_requests;
+DROP POLICY IF EXISTS "tenant read time_off_requests" ON public.time_off_requests;
+
+CREATE POLICY "tenant read time_off_requests"
+  ON public.time_off_requests
+  FOR SELECT
+  TO authenticated
+  USING (
+    (tenant_id = public.current_tenant_id() AND public.is_tenant_member(tenant_id))
+    OR public.is_platform_admin(auth.uid())
+    OR public.is_super_admin(auth.uid())
+  );
 
 CREATE POLICY "tenant write time_off_requests"
   ON public.time_off_requests
