@@ -853,6 +853,8 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                 </div>
                 {!row ? (
                   <p className="text-xs text-muted-foreground">—</p>
+                ) : row.status === "time_off" ? (
+                  <p className="text-xs font-medium">Time Off</p>
                 ) : row.status === "absent" || row.status === "marked_absent" ? (
                   <p className="text-xs font-medium">Absent</p>
                 ) : (
