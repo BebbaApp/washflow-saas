@@ -186,9 +186,10 @@ export function TimeOffPanel() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{staffNameFor(r)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {fmt(r.startDate)} → {fmt(r.endDate)}
+                    {fmt(r.startDate)} → {fmt(r.endDate)} ({r.requestedDays} day{r.requestedDays !== 1 ? "s" : ""})
                     {r.reason ? ` · ${r.reason}` : ""}
                   </p>
+
                 </div>
                 <StatusBadge status={r.status} />
               </li>
