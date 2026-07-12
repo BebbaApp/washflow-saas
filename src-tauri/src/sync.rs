@@ -19,6 +19,7 @@ fn clean_payload_for_remote(table: &str, payload: &Value) -> Value {
     if table == "time_off_requests" {
         map.remove("updated_at");
         map.remove("staff_name");
+        map.remove("requested_days");
         if !map.contains_key("staff_user_id") {
             if let Some(user_id) = map.remove("user_id") {
                 map.insert("staff_user_id".to_string(), user_id);
