@@ -108,9 +108,11 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     }
     const rows = (data as any[]) ?? [];
     if (rows.length === 0) break;
-    await (db as any)[table].bulkPut(
-      rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })),
-    );
+    const tbl = (db as any)[table];
+    const normalizedRows = rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 }));
+    const existingRows = await tbl.bulkGet(normalizedRows.map((r: any) => r.id));
+    const safeRows = normalizedRows.filter((r: any, index: number) => existingRows[index]?._dirty !== 1);
+    if (safeRows.length > 0) await tbl.bulkPut(safeRows);
     for (const r of rows) {
       if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
     }
@@ -150,7 +152,11 @@ function subscribeRealtime(tenantId: string) {
               if (id) await tbl.delete(id);
             } else {
               const row = withLocalId(table, payload.new as BaseRow);
-              if (row?.id) await tbl.put({ ...row, _dirty: 0 });
+              if (row?.id) {
+                const existing = await tbl.get(row.id);
+                if (existing?._dirty === 1) return;
+                await tbl.put({ ...row, _dirty: 0 });
+              }
             }
           } catch (e) {
             console.warn("[sync] realtime apply failed", table, e);
