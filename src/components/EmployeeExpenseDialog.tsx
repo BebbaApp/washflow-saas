@@ -134,21 +134,27 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     })();
   }, [open, tenant?.id]);
 
-  // Derive attendance for selected staff + month from the live records feed
-  // (same source as the Work log calendar). Using the shared cache avoids the
-  // per-dialog direct query that could return empty on some sessions.
-  const attendance = useMemo<AttRow[]>(() => {
-    if (!staffId) return [];
-    const fromMs = from.getTime();
-    const toMs = to.getTime();
-    return (liveAttendance || [])
-      .filter((r: any) => r.user_id === staffId)
-      .filter((r: any) => {
-        const t = new Date(r.created_at).getTime();
-        return t >= fromMs && t <= toMs;
-      })
-      .map((r: any) => ({ user_id: r.user_id, kind: r.kind, created_at: r.created_at }));
-  }, [liveAttendance, staffId, from, to]);
+  // Fetch attendance directly for the selected staff + month so busy tenants
+  // aren't limited by the shared attendance feed's 2,000-record cap.
+  useEffect(() => {
+    if (!staffId) { setAttendance([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .select("user_id, kind, created_at")
+        .eq("user_id", staffId)
+        .gte("created_at", from.toISOString())
+        .lte("created_at", to.toISOString())
+        .order("created_at", { ascending: true });
+      if (cancelled) return;
+      if (error) { setAttendance([]); return; }
+      setAttendance(((data as any[]) || []).map((r) => ({
+        user_id: r.user_id, kind: r.kind, created_at: r.created_at,
+      })));
+    })();
+    return () => { cancelled = true; };
+  }, [staffId, from, to]);
 
   // load tenant-wide order volumes per day for the month (drives busy/quiet classification)
   useEffect(() => {
