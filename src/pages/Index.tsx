@@ -3,6 +3,7 @@ import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
   Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint, AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import type { StaffRole } from "@/hooks/useAuth";
@@ -39,6 +40,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
 import { MobileBottomNav, type BottomNavItem } from "@/components/MobileBottomNav";
+import { forceResync } from "@/offline/sync";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
@@ -80,6 +82,7 @@ const Index = () => {
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [printPreviewId, setPrintPreviewId] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
   const { orders, addOrder, updateStatus, updateNotes } = useOrders();
   const { user, login, signup, logout, updateProfile, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
@@ -323,14 +326,28 @@ const Index = () => {
               </span>
             )}
             <SyncStatusPill className="hidden sm:inline-flex" />
-            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              Washflow Saas v{appVersion}
+            <button
+              type="button"
+              onClick={async () => {
+                setResyncing(true);
+                try {
+                  await forceResync();
+                } finally {
+                  setResyncing(false);
+                }
+              }}
+              disabled={resyncing}
+              className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Force refresh data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${resyncing ? "animate-spin" : ""}`} />
+              <span>Washflow Saas v{appVersion}</span>
               {isOutdated && (
                 <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-primary/10 text-primary text-[10px]" title="An update is available">
                   update
                 </span>
               )}
-            </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
