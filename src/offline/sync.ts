@@ -191,6 +191,13 @@ async function drainOutbox() {
       let error: any = null;
       if (it.op === "insert") {
         let payload: any = it.payload;
+        // Strip columns that no longer exist in the remote schema so stale
+        // outbox items (queued before a client-side field was removed) don't
+        // permanently block the queue with a schema-cache error.
+        if (it.table === "time_off_requests" && payload && "staff_name" in payload) {
+          const { staff_name: _drop, ...rest } = payload;
+          payload = rest;
+        }
         // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
         // server's canonical WO-XXX sequence before insert. If the RPC
         // fails we fall through and let Postgres reject the duplicate so
