@@ -51,6 +51,15 @@ export function TimeOffPanel() {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const requestedDays = useMemo(() => {
+    if (!startDate || !endDate || endDate < startDate) return 0;
+    const start = new Date(startDate + "T00:00:00");
+    const end = new Date(endDate + "T00:00:00");
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+  }, [startDate, endDate]);
+
+
   const sortedStaff = useMemo(
     () => [...staffMembers].sort((a, b) => a.name.localeCompare(b.name)),
     [staffMembers],
