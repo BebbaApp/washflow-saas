@@ -277,12 +277,22 @@ async function drainOutbox() {
   if (!navigator.onLine) { setStatus("offline"); return; }
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
   const tenantId = currentTenant ?? items[0]?.tenant_id;
-  if (tenantId) await recoverDirtyRows(tenantId);
+  try {
+    if (tenantId) await recoverDirtyRows(tenantId);
+  } catch (e: any) {
+    setStatus("error", e?.message ?? String(e));
+    return;
+  }
   const retryItems = tenantId
     ? await db.outbox.where("tenant_id").equals(tenantId).sortBy("created_at").then((rows) => rows.slice(0, 50))
     : await db.outbox.orderBy("created_at").limit(50).toArray();
   if (retryItems.length === 0) { emit(); return; }
-  if (tenantId) await ensureSessionForTenant(tenantId);
+  try {
+    if (tenantId) await ensureSessionForTenant(tenantId);
+  } catch (e: any) {
+    setStatus("error", e?.message ?? String(e));
+    return;
+  }
   for (const it of retryItems) {
     try {
       const tbl = supabase.from(it.table as any);
