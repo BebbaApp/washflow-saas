@@ -168,6 +168,20 @@ function unsubscribeRealtime() {
   channels = [];
 }
 
+function sanitizePayloadForRemote(table: MirroredTable, payload: any) {
+  if (table !== "time_off_requests" || !payload) return payload;
+  const {
+    updated_at: _updatedAt,
+    staff_name: _staffName,
+    user_id: legacyUserId,
+    ...rest
+  } = payload;
+  return {
+    ...rest,
+    ...(rest.staff_user_id ? {} : legacyUserId ? { staff_user_id: legacyUserId } : {}),
+  };
+}
+
 /** Enqueue a local mutation. Hooks call this instead of writing to Supabase
  *  directly so we can replay when offline. The local mirror should also be
  *  updated optimistically by the caller. */
@@ -190,14 +204,7 @@ async function drainOutbox() {
       const tbl = supabase.from(it.table as any);
       let error: any = null;
       if (it.op === "insert") {
-        let payload: any = it.payload;
-        // Strip columns that no longer exist in the remote schema so stale
-        // outbox items (queued before a client-side field was removed) don't
-        // permanently block the queue with a schema-cache error.
-        if (it.table === "time_off_requests" && payload && "staff_name" in payload) {
-          const { staff_name: _drop, ...rest } = payload;
-          payload = rest;
-        }
+        let payload: any = sanitizePayloadForRemote(it.table, it.payload);
         // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
         // server's canonical WO-XXX sequence before insert. If the RPC
         // fails we fall through and let Postgres reject the duplicate so
@@ -219,7 +226,8 @@ async function drainOutbox() {
         }
         ({ error } = await tbl.insert(payload as any));
       } else if (it.op === "update") {
-        ({ error } = await tbl.update(it.payload as any).eq("id", (it.payload as any).id));
+        const payload = sanitizePayloadForRemote(it.table, it.payload);
+        ({ error } = await tbl.update(payload as any).eq("id", (payload as any).id));
       } else if (it.op === "delete") {
         ({ error } = await tbl.delete().eq("id", (it.payload as any).id));
       }
