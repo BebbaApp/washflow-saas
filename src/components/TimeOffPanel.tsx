@@ -96,11 +96,7 @@ export function TimeOffPanel() {
 
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Employee</label>
-            <Select
-              value={targetUserId}
-              onValueChange={setTargetUserId}
-              disabled={!canApprove}
-            >
+            <Select value={targetUserId} onValueChange={setTargetUserId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select an employee" />
               </SelectTrigger>
@@ -115,11 +111,6 @@ export function TimeOffPanel() {
                 )}
               </SelectContent>
             </Select>
-            {!canApprove && (
-              <p className="text-[11px] text-muted-foreground mt-1">
-                You can only submit requests for yourself.
-              </p>
-            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

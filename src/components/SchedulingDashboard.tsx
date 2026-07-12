@@ -59,7 +59,7 @@ interface DayRow {
   hours: number;
   periods: Period[];
   periodCount: number;
-  status: "present" | "absent" | "in_progress" | "marked_absent";
+  status: "present" | "absent" | "in_progress" | "marked_absent" | "time_off";
 }
 
 function csvEscape(v: any): string {
@@ -75,7 +75,7 @@ function downloadBlob(name: string, blob: Blob) {
 }
 
 export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDashboardProps) => {
-  const { staffMembers, loading } = useScheduling();
+  const { staffMembers, loading, timeOffRequests } = useScheduling();
   const { records } = useAttendance();
   const { can } = usePermissions();
 
@@ -174,6 +174,20 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     [staffMembers, activeMap]
   );
 
+  // Approved time-off expanded per user/date
+  const approvedTimeOff = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of timeOffRequests) {
+      if (r.status !== "approved") continue;
+      const start = new Date(r.startDate + "T00:00:00");
+      const end = new Date(r.endDate + "T00:00:00");
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        s.add(`${r.userId}|${ymd(d)}`);
+      }
+    }
+    return s;
+  }, [timeOffRequests]);
+
   // === Build per-staff per-day rows from attendance records ===
   const dayRows = useMemo<DayRow[]>(() => {
     const dates = daysBetween(from, to);
@@ -211,12 +225,13 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
         const firstIn = recs.find((r) => r.kind === "check_in");
         const lastOut = [...recs].reverse().find((r) => r.kind === "check_out");
         if (!firstIn) {
+          const onTimeOff = approvedTimeOff.has(`${s.id}|${date}`);
           const wasMarked = markedAbsent.has(`${s.id}|${date}`);
           rows.push({
             user_id: s.id, staffName: s.name, date,
             start: null, end: null, hours: 0,
             periods: [], periodCount: 0,
-            status: wasMarked ? "marked_absent" : "absent",
+            status: onTimeOff ? "time_off" : (wasMarked ? "marked_absent" : "absent"),
           });
         } else {
           const start = new Date(firstIn.created_at);
@@ -234,7 +249,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     return rows.sort((a, b) =>
       b.date.localeCompare(a.date) || a.staffName.localeCompare(b.staffName)
     );
-  }, [records, activeStaff, from, to, markedAbsent]);
+  }, [records, activeStaff, from, to, markedAbsent, approvedTimeOff]);
 
   // === 7-day pagination for Day Log + Employee detail ===
   // Build descending list of unique dates in range and chunk into 7-day pages.
@@ -271,6 +286,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     return activeStaff.filter((s) => {
       const activeSince = s.createdAt ? s.createdAt.slice(0, 10) : todayKey;
       if (todayKey < activeSince) return false;
+      if (approvedTimeOff.has(`${s.id}|${todayKey}`)) return false;
       const has = records.some(
         (r) => r.user_id === s.id && r.created_at.slice(0, 10) === todayKey
       );
@@ -279,7 +295,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
       ...s,
       marked: markedAbsent.has(`${s.id}|${todayKey}`),
     }));
-  }, [activeStaff, records, todayKey, markedAbsent]);
+  }, [activeStaff, records, todayKey, markedAbsent, approvedTimeOff]);
 
   const [notifDismissed, setNotifDismissed] = useState(false);
   const [notifExpanded, setNotifExpanded] = useState(false);
@@ -570,6 +586,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
                         {r.status === "absent" && <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Absent</Badge>}
                         {r.status === "marked_absent" && <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Marked absent</Badge>}
                         {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
+                        {r.status === "time_off" && <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700"><CalendarOff className="w-3 h-3 mr-1" />Time Off</Badge>}
                       </td>
                     </tr>
                   ))}
@@ -804,6 +821,7 @@ function statusTone(row?: DayRow): string {
   if (!row) return "bg-muted/30 text-muted-foreground";
   if (row.status === "present") return "bg-success/15 border-success/40 text-foreground";
   if (row.status === "in_progress") return "bg-warning/15 border-warning/40 text-foreground";
+  if (row.status === "time_off") return "bg-blue-500/10 border-blue-500/40 text-foreground";
   if (row.status === "absent" || row.status === "marked_absent") return "bg-destructive/15 border-destructive/40 text-foreground";
   return "bg-muted/30 text-muted-foreground";
 }
@@ -836,6 +854,8 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                 </div>
                 {!row ? (
                   <p className="text-xs text-muted-foreground">—</p>
+                ) : row.status === "time_off" ? (
+                  <p className="text-xs font-medium">Time Off</p>
                 ) : row.status === "absent" || row.status === "marked_absent" ? (
                   <p className="text-xs font-medium">Absent</p>
                 ) : (
@@ -897,6 +917,7 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                 <span className="font-medium">{d.getDate()}</span>
                 {inMonth && row && row.status === "present" && <CheckCircle2 className="w-3 h-3 text-success" />}
                 {inMonth && row && (row.status === "absent" || row.status === "marked_absent") && <XCircle className="w-3 h-3 text-destructive" />}
+                {inMonth && row && row.status === "time_off" && <CalendarOff className="w-3 h-3 text-blue-600" />}
                 {inMonth && row && row.status === "in_progress" && <Clock className="w-3 h-3 text-warning" />}
               </div>
               {inMonth && row && (row.status === "present" || row.status === "in_progress") && (
