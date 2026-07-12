@@ -59,7 +59,7 @@ interface DayRow {
   hours: number;
   periods: Period[];
   periodCount: number;
-  status: "present" | "absent" | "in_progress" | "marked_absent";
+  status: "present" | "absent" | "in_progress" | "marked_absent" | "time_off";
 }
 
 function csvEscape(v: any): string {
