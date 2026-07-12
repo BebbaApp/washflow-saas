@@ -18,6 +18,7 @@ export interface ServicePackage {
 
 type Row = {
   id: string;
+  tenant_id: string;
   name: string;
   price: number | string;
   duration: string;
@@ -26,7 +27,7 @@ type Row = {
   vat_exempt: boolean;
   sort_order: number;
   created_at?: string;
-  tenant_id?: string;
+  updated_at?: string;
 };
 
 const fromRow = (r: Row): ServicePackage => ({
