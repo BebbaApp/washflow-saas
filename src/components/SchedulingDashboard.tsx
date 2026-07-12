@@ -493,6 +493,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 
       {/* CHECK-IN VIEW */}
       {view === "checkin" && <StaffCheckInPanel onOpenFaceEnroll={onOpenFaceEnroll} />}
+      {view === "timeoff" && <TimeOffPanel />}
 
       {/* DAY LOG VIEW */}
       {view === "daylog" && (
