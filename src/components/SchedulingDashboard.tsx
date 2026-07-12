@@ -76,8 +76,21 @@ function downloadBlob(name: string, blob: Blob) {
 export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDashboardProps) => {
   const { staffMembers, loading } = useScheduling();
   const { records } = useAttendance();
+  const { can } = usePermissions();
 
-  const [view, setView] = useState<View>("checkin");
+  const tabPerm: Record<View, string> = {
+    checkin: "staff.checkin",
+    daylog: "staff.daylog",
+    employees: "staff.employees",
+    performance: "staff.performance",
+  };
+  const allowedViews = (["checkin", "daylog", "employees", "performance"] as View[]).filter((v) => can(tabPerm[v]));
+  const defaultView: View = allowedViews[0] ?? "checkin";
+
+  const [view, setView] = useState<View>(defaultView);
+  useEffect(() => {
+    if (allowedViews.length && !allowedViews.includes(view)) setView(defaultView);
+  }, [allowedViews.join("|")]);
   const [preset, setPreset] = useState<Preset>("7d");
   // Pagination by 7-day windows: 0 = current, 1 = previous week, etc.
   const [weekOffset, setWeekOffset] = useState(0);
