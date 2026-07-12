@@ -135,13 +135,14 @@ export function useScheduling() {
   }, [tenant?.id]);
 
   const submitTimeOffRequest = useCallback(async (data: {
-    startDate: string; endDate: string; reason: string;
+    startDate: string; endDate: string; reason: string; targetUserId?: string;
   }) => {
     if (!tenant?.id || !user?.id) return;
-    const staff = staffMembers.find((s) => s.id === user.id);
+    const uid = data.targetUserId || user.id;
+    const staff = staffMembers.find((s) => s.id === uid);
     await offlineInsert("time_off_requests", tenant.id, {
-      user_id: user.id,
-      staff_name: staff?.name ?? user.email ?? "",
+      user_id: uid,
+      staff_name: staff?.name ?? (uid === user.id ? (user.email ?? "") : ""),
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,

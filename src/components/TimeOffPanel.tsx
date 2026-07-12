@@ -9,9 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 function fmt(d: string) {
   try { return new Date(d + "T00:00:00").toLocaleDateString(); } catch { return d; }
+}
+
+function todayYmd() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function StatusBadge({ status }: { status: TimeOffRequest["status"] }) {
@@ -31,12 +42,19 @@ export function TimeOffPanel() {
   const canRequest = can("staff.timeOff.request");
   const canApprove = can("staff.timeOff.approve");
 
-  const { timeOffRequests, submitTimeOffRequest, updateTimeOffStatus } = useScheduling();
+  const { staffMembers, timeOffRequests, submitTimeOffRequest, updateTimeOffStatus } = useScheduling();
 
+  const minDate = todayYmd();
+  const [targetUserId, setTargetUserId] = useState<string>(user?.id ?? "");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const sortedStaff = useMemo(
+    () => [...staffMembers].sort((a, b) => a.name.localeCompare(b.name)),
+    [staffMembers],
+  );
 
   const myRequests = useMemo(
     () => timeOffRequests.filter((r) => r.userId === user?.id)
@@ -50,12 +68,18 @@ export function TimeOffPanel() {
   );
 
   const submit = async () => {
+    if (!targetUserId) { toast.error("Select an employee"); return; }
     if (!startDate || !endDate) { toast.error("Pick start and end dates"); return; }
+    if (startDate < minDate) { toast.error("Start date must be in the future"); return; }
     if (endDate < startDate) { toast.error("End date must be after start date"); return; }
     setSubmitting(true);
     try {
-      await submitTimeOffRequest({ startDate, endDate, reason: reason.trim() });
+      await submitTimeOffRequest({
+        startDate, endDate, reason: reason.trim(),
+        targetUserId: targetUserId !== user?.id ? targetUserId : undefined,
+      });
       setStartDate(""); setEndDate(""); setReason("");
+      setTargetUserId(user?.id ?? "");
     } finally {
       setSubmitting(false);
     }
@@ -69,14 +93,49 @@ export function TimeOffPanel() {
             <Calendar className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Request Time Off</h3>
           </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Employee</label>
+            <Select
+              value={targetUserId}
+              onValueChange={setTargetUserId}
+              disabled={!canApprove}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedStaff.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}{s.id === user?.id ? " (you)" : ""}
+                  </SelectItem>
+                ))}
+                {sortedStaff.length === 0 && user?.id && (
+                  <SelectItem value={user.id}>You</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {!canApprove && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                You can only submit requests for yourself.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Start date</label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Input
+                type="date" value={startDate} min={minDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">End date</label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <Input
+                type="date" value={endDate} min={startDate || minDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
           </div>
           <div>
