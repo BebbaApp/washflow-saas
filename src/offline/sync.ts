@@ -170,17 +170,52 @@ function unsubscribeRealtime() {
 }
 
 function sanitizePayloadForRemote(table: string, payload: any) {
-  if (table !== "time_off_requests" || !payload) return payload;
+  if (!payload) return payload;
   const {
+    _dirty: _dirty,
+    _op: _op,
+    synced_at: _syncedAt,
+    _deleted: _deleted,
     updated_at: _updatedAt,
     staff_name: _staffName,
     user_id: legacyUserId,
     ...rest
   } = payload;
+  if (table !== "time_off_requests") return rest;
   return {
     ...rest,
     ...(rest.staff_user_id ? {} : legacyUserId ? { staff_user_id: legacyUserId } : {}),
   };
+}
+
+async function recoverDirtyRows(tenantId: string) {
+  const existing = await db.outbox.where("tenant_id").equals(tenantId).toArray();
+  const queued = new Set(existing.map((i) => `${i.table}:${(i.payload as any)?.id ?? ""}:${i.op}`));
+
+  for (const table of MIRRORED_TABLES) {
+    const rows = await (db as any)[table]
+      .where("tenant_id")
+      .equals(tenantId)
+      .and((row: any) => row?._dirty === 1)
+      .toArray();
+
+    for (const row of rows) {
+      if (!row?.id) continue;
+      const op = row._op === "insert" ? "insert" : "update";
+      const key = `${table}:${row.id}:${op}`;
+      if (queued.has(key)) continue;
+      await db.outbox.add({
+        tenant_id: tenantId,
+        table,
+        op,
+        payload: sanitizePayloadForRemote(table, row),
+        attempts: 0,
+        last_error: null,
+        created_at: Date.now(),
+      });
+      queued.add(key);
+    }
+  }
 }
 
 async function ensureSessionForTenant(tenantId: string) {
@@ -238,10 +273,12 @@ function schedulePush(delay = 100) {
 async function drainOutbox() {
   if (!navigator.onLine) { setStatus("offline"); return; }
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
-  if (items.length === 0) { emit(); return; }
   const tenantId = currentTenant ?? items[0]?.tenant_id;
+  if (tenantId) await recoverDirtyRows(tenantId);
+  const retryItems = await db.outbox.orderBy("created_at").limit(50).toArray();
+  if (retryItems.length === 0) { emit(); return; }
   if (tenantId) await ensureSessionForTenant(tenantId);
-  for (const it of items) {
+  for (const it of retryItems) {
     try {
       const tbl = supabase.from(it.table as any);
       let error: any = null;
@@ -285,6 +322,15 @@ async function drainOutbox() {
       if (error) throw error;
       assertMutationReturnedRow(it.table, it.op, data);
       await db.outbox.delete(it.id!);
+      if (it.op !== "delete") {
+        const id = (it.payload as any)?.id;
+        if (id) {
+          try {
+            const local = await (db as any)[it.table].get(id);
+            if (local) await (db as any)[it.table].put({ ...local, _dirty: 0, _op: undefined });
+          } catch { /* ignore local cleanup */ }
+        }
+      }
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       await db.outbox.update(it.id!, { attempts: it.attempts + 1, last_error: msg });
