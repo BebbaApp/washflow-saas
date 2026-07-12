@@ -82,15 +82,24 @@ export function TauriSyncProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isOnline]);
 
-  // Push queued mutations to Supabase
+  // Push queued mutations to Supabase.
+  // IMPORTANT: use the current user's access_token, not the anon key —
+  // otherwise all writes are anonymous and RLS silently rejects them,
+  // so approvals/edits made in the installed app never reach the database.
   const pushToSupabase = useCallback(async (): Promise<void> => {
     if (!isTauri || !isOnline) return;
-    const result = await db.triggerSync(supabaseUrl, supabaseKey);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      console.warn('[TauriSync] Skipping push — no authenticated session');
+      return;
+    }
+    const result = await db.triggerSync(supabaseUrl, token);
     setPendingCount(result.remaining);
     if (result.synced > 0) {
       console.log(`[TauriSync] Pushed ${result.synced} records`);
     }
-  }, [isOnline, supabaseUrl, supabaseKey]);
+  }, [isOnline, supabaseUrl]);
 
   // Full sync: push queue first, then pull fresh data
   const forceSync = useCallback(async () => {
