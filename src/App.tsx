@@ -56,6 +56,7 @@ const App = () => (
             <Sonner />
             <SyncBoot />
             <TauriStatusBar />
+            <IdleWarningDialog />
             <BrowserRouter>
               <GatedRoutes />
             </BrowserRouter>
