@@ -127,15 +127,10 @@ Deno.serve(async (req) => {
 
     const { tenant_id, table, op, payload } = parsed.data;
     const admin = createClient(supabaseUrl, serviceKey);
-    // Order UPDATEs run a database trigger that checks auth.uid() to decide
-    // whether notes/status fields may be changed. A pure service-role client
-    // bypasses RLS but leaves auth.uid() null inside that trigger, which makes
-    // legitimate admin/cashier note edits fail. Use the caller JWT for order
-    // writes so the trigger evaluates the real user, while keeping the service
-    // client for membership checks and read fallbacks.
-    const userScopedAdmin = createClient(supabaseUrl, serviceKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // NOTE: We use the service-role `admin` client for writes to bypass RLS.
+    // The edge function already validated tenant membership above via
+    // canWriteTenant, and the orders trigger is updated to trust the
+    // service-role context (auth.uid() null => edge-authorized).
     const access = op === "list"
       ? await canReadTenant(admin, tenant_id, userData.user.id)
       : await canWriteTenant(admin, tenant_id, userData.user.id);
@@ -173,7 +168,7 @@ Deno.serve(async (req) => {
         row = { ...row, order_number: orderNumber };
       }
     }
-    const writeClient = table === "orders" ? userScopedAdmin : admin;
+    const writeClient = admin;
     let result;
     if (op === "delete") {
       result = await writeClient
