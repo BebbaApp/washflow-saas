@@ -181,6 +181,62 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     return () => { cancelled = true; };
   }, [tenantId, enrollmentRows]);
 
+  // Live pull of attendance_records from the database whenever online, so the
+  // Day Log always reflects the server even if the background sync hasn't
+  // mirrored a row yet. Mirrored into Dexie so offline reads still work.
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+
+    const pullFromServer = async () => {
+      if (!navigator.onLine) return;
+      try {
+        const { data, error } = await supabase
+          .from("attendance_records")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        if (error) throw error;
+        const rows = (data as any[]) ?? [];
+        if (cancelled) return;
+        // Replace tenant's local mirror so deletions on the server are reflected.
+        await db.attendance_records.where("tenant_id").equals(tenantId).delete();
+        if (rows.length) {
+          await db.attendance_records.bulkPut(rows.map((r: any) => ({ ...r, _dirty: 0 })) as any);
+        }
+      } catch (e) {
+        console.warn("[attendance] direct pull failed", e);
+      }
+    };
+
+    pullFromServer();
+
+    if (navigator.onLine) {
+      ch = supabase
+        .channel(`attendance-live-${tenantId}-${crypto.randomUUID()}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "attendance_records", filter: `tenant_id=eq.${tenantId}` },
+          () => { void pullFromServer(); },
+        )
+        .subscribe();
+    }
+
+    const onOnline = () => { void pullFromServer(); };
+    const onVis = () => { if (document.visibilityState === "visible") void pullFromServer(); };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      cancelled = true;
+      if (ch) supabase.removeChannel(ch);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [tenantId]);
+
   // Audit log — fetch from Supabase when online, use localStorage cache when offline
   const [auditRows, setAuditRows] = useState<any[] | undefined>(undefined);
 
