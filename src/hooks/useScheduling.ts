@@ -40,11 +40,15 @@ function mapTemplate(r: any): ShiftTemplate {
     daysOfWeek: r.days_of_week ?? [],
   };
 }
-function mapTimeOff(r: any): TimeOffRequest {
+function mapTimeOff(r: any, nameByUser: Map<string, string>): TimeOffRequest {
+  const uid = r.staff_user_id ?? r.user_id;
+  const rawStatus = r.status ?? "pending";
+  const status: TimeOffRequest["status"] =
+    rawStatus === "denied" ? "rejected" : (rawStatus as TimeOffRequest["status"]);
   return {
-    id: r.id, userId: r.user_id, staffName: r.staff_name ?? "",
+    id: r.id, userId: uid, staffName: nameByUser.get(uid) ?? r.staff_name ?? "",
     startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
-    status: r.status ?? "pending", createdAt: r.created_at,
+    status, createdAt: r.created_at,
   };
 }
 
@@ -59,7 +63,14 @@ export function useScheduling() {
 
   const shifts = useMemo(() => (shiftRows ?? []).map(mapShift), [shiftRows]);
   const shiftTemplates = useMemo(() => (templateRows ?? []).map(mapTemplate), [templateRows]);
-  const timeOffRequests = useMemo(() => (timeOffRows ?? []).map(mapTimeOff), [timeOffRows]);
+  const nameByUser = useMemo(
+    () => new Map(staffMembers.map((s) => [s.id, s.name] as const)),
+    [staffMembers],
+  );
+  const timeOffRequests = useMemo(
+    () => (timeOffRows ?? []).map((r: any) => mapTimeOff(r, nameByUser)),
+    [timeOffRows, nameByUser],
+  );
   const loading = shiftRows === undefined;
 
   // Load staff — from Supabase when online, from local Dexie when offline
@@ -138,21 +149,28 @@ export function useScheduling() {
     startDate: string; endDate: string; reason: string;
   }) => {
     if (!tenant?.id || !user?.id) return;
-    const staff = staffMembers.find((s) => s.id === user.id);
     await offlineInsert("time_off_requests", tenant.id, {
-      user_id: user.id,
-      staff_name: staff?.name ?? user.email ?? "",
+      staff_user_id: user.id,
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,
       status: "pending",
     });
     toast.success("Time-off request submitted");
-  }, [tenant?.id, user, staffMembers]);
+  }, [tenant?.id, user]);
 
   const updateTimeOffStatus = useCallback(async (requestId: string, status: "approved" | "rejected") => {
     if (!tenant?.id) return;
-    await offlineUpdate("time_off_requests", tenant.id, requestId, { status });
+    const backendStatus = status === "rejected" ? "denied" : status;
+    const { data, error } = await supabase.functions.invoke("manage-staff", {
+      body: { action: "update_timeoff", tenant_id: tenant.id, request_id: requestId, status: backendStatus },
+    });
+    if (error || (data && data.error)) {
+      toast.error(data?.error ?? error?.message ?? "Failed to update request");
+      return;
+    }
+    // Reflect locally for immediate UI update; sync will reconcile
+    await offlineUpdate("time_off_requests", tenant.id, requestId, { status: backendStatus });
     toast.success(`Request ${status}`);
   }, [tenant?.id]);
 

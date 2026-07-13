@@ -8,7 +8,8 @@ const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff"];
+const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,6 +72,12 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     enroll_face: "enroll_face",
     face_enroll: "enroll_face",
     save_face: "enroll_face",
+
+    update_timeoff: "update_timeoff",
+    approve_timeoff: "update_timeoff",
+    deny_timeoff: "update_timeoff",
+    reject_timeoff: "update_timeoff",
+    timeoff_update: "update_timeoff",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
@@ -491,6 +498,31 @@ Deno.serve(async (req) => {
       });
       if (resendErr) return reply({ error: resendErr.message }, 500);
       return reply({ success: true, email_sent: true });
+    }
+
+    if (action === "update_timeoff") {
+      const { request_id, status } = body ?? {};
+      if (!request_id || (status !== "approved" && status !== "denied" && status !== "pending")) {
+        return reply({ error: "Missing request_id or invalid status" }, 400);
+      }
+      const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
+        tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
+      if (!canApprove) {
+        return reply({ error: "You do not have permission to approve time off" }, 403);
+      }
+      const { data: row, error: getErr } = await admin
+        .from("time_off_requests")
+        .select("id,tenant_id")
+        .eq("id", request_id)
+        .maybeSingle();
+      if (getErr || !row) return reply({ error: getErr?.message ?? "Request not found" }, 404);
+      if (row.tenant_id !== tenantId) return reply({ error: "Wrong tenant" }, 403);
+      const { error: updErr } = await admin
+        .from("time_off_requests")
+        .update({ status, reviewed_by: callerId })
+        .eq("id", request_id);
+      if (updErr) return reply({ error: updErr.message }, 500);
+      return reply({ success: true });
     }
 
     return reply({ error: "Unknown action" }, 400);
