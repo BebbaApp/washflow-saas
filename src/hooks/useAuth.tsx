@@ -292,7 +292,7 @@ function useAuthInternal(): AuthContextValue {
         const rememberMe = localStorage.getItem(REMEMBER_KEY) !== "false";
         const hasSessionMarker = sessionStorage.getItem(SESSION_ACTIVE_KEY) === "1";
         const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
-        const inactiveTooLong = lastActivity > 0 && (Date.now() - lastActivity) > INACTIVITY_LIMIT_MS;
+        const inactiveTooLong = lastActivity > 0 && (Date.now() - lastActivity) > sessionConfig.inactivityLimitMs;
         if ((!rememberMe && !hasSessionMarker) || inactiveTooLong) {
           await supabase.auth.signOut();
           try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
