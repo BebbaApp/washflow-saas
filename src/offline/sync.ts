@@ -608,6 +608,8 @@ export async function backgroundPull() {
   if (!currentTenant) return;
   if (!navigator.onLine) return;
   if (pulling) return;
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return;
   const t = currentTenant;
   pulling = true;
   try {
