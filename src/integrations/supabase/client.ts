@@ -12,29 +12,11 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // back as a 401 from any Edge Function invocation, and force a clean sign-out
 // so the app doesn't get stuck on a blank screen.
 let handlingStaleSession = false;
-export async function clearLocalSupabaseSession() {
-  try {
-    await supabase.auth.signOut({ scope: "local" });
-  } catch {
-    // If Supabase cannot clear its own storage, remove only auth-token entries.
-  }
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) keys.push(key);
-    }
-    keys.forEach((key) => localStorage.removeItem(key));
-  } catch {
-    // ignore storage failures
-  }
-}
-
 async function handleStaleSession() {
   if (handlingStaleSession) return;
   handlingStaleSession = true;
   try {
-    await clearLocalSupabaseSession();
+    await supabase.auth.signOut();
   } catch {
     // ignore
   } finally {
@@ -48,12 +30,6 @@ const customFetch: typeof fetch = async (input, init) => {
   const res = await fetch(input as any, init);
   try {
     const url = typeof input === "string" ? input : (input as Request).url;
-    if ((res.status === 401 || res.status === 403) && url.includes("/auth/v1/user")) {
-      const body = await res.clone().text();
-      if (/session_not_found|session.*does not exist/i.test(body)) {
-        void handleStaleSession();
-      }
-    }
     if (res.status === 401 && url.includes("/functions/v1/")) {
       // Server rejected the token. Try to refresh; if that also fails, the
       // session is truly invalid — sign out and bounce to /login so the user

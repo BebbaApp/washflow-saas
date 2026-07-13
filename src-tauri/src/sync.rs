@@ -5,46 +5,8 @@ use crate::database::get_db;
 use rusqlite::params;
 use serde_json::{json, Value};
 
-fn clean_payload_for_remote(table: &str, payload: &Value) -> Value {
-    let mut map = match payload.as_object() {
-        Some(obj) => obj.clone(),
-        None => return payload.clone(),
-    };
-
-    map.remove("_dirty");
-    map.remove("_op");
-    map.remove("_deleted");
-    map.remove("synced_at");
-
-    if table == "time_off_requests" {
-        map.remove("updated_at");
-        map.remove("staff_name");
-        map.remove("requested_days");
-        if !map.contains_key("staff_user_id") {
-            if let Some(user_id) = map.remove("user_id") {
-                map.insert("staff_user_id".to_string(), user_id);
-            }
-        } else {
-            map.remove("user_id");
-        }
-    }
-
-    Value::Object(map)
-}
-
-fn clear_dirty_flag(table: &str, record_id: &str) -> Result<(), String> {
-    let db = get_db().lock().map_err(|e| e.to_string())?;
-    let sql = format!("UPDATE {} SET _dirty = 0 WHERE id = ?1", table);
-    let _ = db.execute(&sql, params![record_id]);
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn trigger_sync(supabase_url: String, supabase_key: String) -> Result<Value, String> {
-    // supabase_key is the caller's access_token (user JWT) — used for both
-    // apikey and Authorization so PostgREST evaluates RLS as that user.
-    // Passing the anon key here would make every write anonymous and RLS
-    // would silently drop it.
     let queue = get_queue_items()?;
 
     if queue.is_empty() {
@@ -61,10 +23,9 @@ pub async fn trigger_sync(supabase_url: String, supabase_key: String) -> Result<
         let table = item["table_name"].as_str().unwrap_or("");
         let operation = item["operation"].as_str().unwrap_or("");
         let queue_id = item["id"].as_str().unwrap_or("");
-        let raw_payload: Value = serde_json::from_str(
+        let payload: Value = serde_json::from_str(
             item["payload"].as_str().unwrap_or("{}")
         ).unwrap_or(json!({}));
-        let payload = clean_payload_for_remote(table, &raw_payload);
 
         let url = format!("{}/rest/v1/{}", supabase_url, table);
 
@@ -74,41 +35,28 @@ pub async fn trigger_sync(supabase_url: String, supabase_key: String) -> Result<
                     .header("apikey", &supabase_key)
                     .header("Authorization", format!("Bearer {}", supabase_key))
                     .header("Content-Type", "application/json")
-                    .header("Prefer", "resolution=merge-duplicates,return=representation")
-                    .query(&[("select", "id")])
+                    .header("Prefer", "resolution=merge-duplicates")
                     .json(&payload)
                     .send()
                     .await
             }
             "UPDATE" => {
                 let record_id = payload["id"].as_str().unwrap_or("");
-                let tenant_id = payload["tenant_id"].as_str().unwrap_or("");
-                let update_url = if tenant_id.is_empty() {
-                    format!("{}?id=eq.{}&select=id", url, record_id)
-                } else {
-                    format!("{}?id=eq.{}&tenant_id=eq.{}&select=id", url, record_id, tenant_id)
-                };
+                let update_url = format!("{}?id=eq.{}", url, record_id);
                 client.patch(&update_url)
                     .header("apikey", &supabase_key)
                     .header("Authorization", format!("Bearer {}", supabase_key))
                     .header("Content-Type", "application/json")
-                    .header("Prefer", "return=representation")
                     .json(&payload)
                     .send()
                     .await
             }
             "DELETE" => {
                 let record_id = payload["id"].as_str().unwrap_or("");
-                let tenant_id = payload["tenant_id"].as_str().unwrap_or("");
-                let delete_url = if tenant_id.is_empty() {
-                    format!("{}?id=eq.{}&select=id", url, record_id)
-                } else {
-                    format!("{}?id=eq.{}&tenant_id=eq.{}&select=id", url, record_id, tenant_id)
-                };
+                let delete_url = format!("{}?id=eq.{}", url, record_id);
                 client.delete(&delete_url)
                     .header("apikey", &supabase_key)
                     .header("Authorization", format!("Bearer {}", supabase_key))
-                    .header("Prefer", "return=representation")
                     .send()
                     .await
             }
@@ -120,26 +68,9 @@ pub async fn trigger_sync(supabase_url: String, supabase_key: String) -> Result<
 
         match result {
             Ok(resp) if resp.status().is_success() || resp.status().as_u16() == 409 => {
-                let body = resp.text().await.unwrap_or_default();
-                let returned_rows: Value = serde_json::from_str(&body).unwrap_or(json!(null));
-                let touched = match returned_rows {
-                    Value::Array(ref arr) => !arr.is_empty(),
-                    Value::Object(_) => true,
-                    _ => operation == "INSERT" && body.is_empty(),
-                };
-                if operation != "INSERT" && !touched {
-                    let msg = format!("No remote {} row was {}. Keeping queued change for retry; check session/workspace.", table, operation.to_lowercase());
-                    println!("[Sync] ✗ {} {} - {}", operation, table, msg);
-                    increment_retries(queue_id, &msg)?;
-                    failed += 1;
-                } else {
-                    remove_queue_item(queue_id)?;
-                    if let Some(record_id) = payload["id"].as_str() {
-                        let _ = clear_dirty_flag(table, record_id);
-                    }
-                    synced += 1;
-                    println!("[Sync] ✓ {} {} {}", operation, table, queue_id);
-                }
+                remove_queue_item(queue_id)?;
+                synced += 1;
+                println!("[Sync] ✓ {} {} {}", operation, table, queue_id);
             }
             Ok(resp) => {
                 let status = resp.status().as_u16();
