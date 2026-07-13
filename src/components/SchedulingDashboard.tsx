@@ -841,10 +841,10 @@ const TimeOffPanel = ({ requests, staffMembers, canRequest, canApprove, onSubmit
     [staffMembers],
   );
 
-  // Requesters who cannot approve can only pick themselves. Approvers pick anyone.
+  // Any requester (Manager, Supervisor, Cashier, Admin) can request on behalf of anyone.
   const staffOptions = useMemo(
-    () => (canApprove ? sortedStaff : sortedStaff.filter((s) => s.id === user?.id)),
-    [sortedStaff, canApprove, user?.id],
+    () => (canRequest ? sortedStaff : sortedStaff.filter((s) => s.id === user?.id)),
+    [sortedStaff, canRequest, user?.id],
   );
 
   const dayCount = daysInclusive(start, end);
