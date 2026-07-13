@@ -35,7 +35,7 @@ const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
 const REMEMBER_KEY = "wf_remember_me";
 const SESSION_ACTIVE_KEY = "wf_session_active";
 const LAST_ACTIVITY_KEY = "wf_last_activity";
-const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
+const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
 
 function activeTenantIdFor(authUser: User): string | null {
   const claim = (authUser.app_metadata as any)?.active_tenant_id;
