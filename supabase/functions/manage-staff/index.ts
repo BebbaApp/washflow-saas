@@ -500,6 +500,31 @@ Deno.serve(async (req) => {
       return reply({ success: true, email_sent: true });
     }
 
+    if (action === "update_timeoff") {
+      const { request_id, status } = body ?? {};
+      if (!request_id || (status !== "approved" && status !== "denied" && status !== "pending")) {
+        return reply({ error: "Missing request_id or invalid status" }, 400);
+      }
+      const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
+        tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
+      if (!canApprove) {
+        return reply({ error: "You do not have permission to approve time off" }, 403);
+      }
+      const { data: row, error: getErr } = await admin
+        .from("time_off_requests")
+        .select("id,tenant_id")
+        .eq("id", request_id)
+        .maybeSingle();
+      if (getErr || !row) return reply({ error: getErr?.message ?? "Request not found" }, 404);
+      if (row.tenant_id !== tenantId) return reply({ error: "Wrong tenant" }, 403);
+      const { error: updErr } = await admin
+        .from("time_off_requests")
+        .update({ status, reviewed_by: callerId })
+        .eq("id", request_id);
+      if (updErr) return reply({ error: updErr.message }, 500);
+      return reply({ success: true });
+    }
+
     return reply({ error: "Unknown action" }, 400);
 
 
