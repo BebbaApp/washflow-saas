@@ -978,46 +978,47 @@ const TimeOffPanel = ({ requests, staffMembers, canRequest, canApprove, onSubmit
           <div className="space-y-2">
             {filtered.map((req) => {
               const days = daysInclusive(req.startDate, req.endDate);
+              const statusBadge =
+                req.status === "pending" ? <Badge variant="outline">Pending</Badge> :
+                req.status === "approved" ? <Badge className="bg-success/20 text-success hover:bg-success/20">Approved</Badge> :
+                <Badge variant="destructive">Rejected</Badge>;
               return (
                 <div key={req.id} className="rounded-lg border border-border bg-secondary/40 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm text-foreground truncate">{req.staffName || "Unknown"}</p>
-                        {req.status === "pending" && <Badge variant="outline">Pending</Badge>}
-                        {req.status === "approved" && <Badge className="bg-success/20 text-success hover:bg-success/20">Approved</Badge>}
-                        {req.status === "rejected" && <Badge variant="destructive">Rejected</Badge>}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-sm flex-wrap">
-                        <span className="text-foreground/80">{formatShortDate(req.startDate)}</span>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="text-foreground/80">{formatShortDate(req.endDate)}</span>
-                        <Badge variant="secondary" className="ml-1">{days} {days === 1 ? "day" : "days"}</Badge>
-                      </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                      <span className="font-semibold text-foreground">{req.staffName || "Unknown"}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-foreground/80">
+                        Date: {formatShortDate(req.startDate)} → {formatShortDate(req.endDate)}
+                      </span>
+                      <Badge variant="secondary">{days} {days === 1 ? "day" : "days"}</Badge>
                       {req.reason && (
-                        <p className="mt-1 text-xs text-muted-foreground italic">"{req.reason}"</p>
+                        <span className="text-muted-foreground italic">Note: "{req.reason}"</span>
                       )}
                     </div>
-                    {canApprove && req.status === "pending" && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-success hover:text-success"
-                          onClick={() => onUpdateStatus(req.id, "approved")}
-                        >
-                          <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => onUpdateStatus(req.id, "rejected")}
-                        >
-                          <XCircle className="w-4 h-4 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {statusBadge}
+                      {canApprove && req.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-success hover:text-success"
+                            onClick={() => onUpdateStatus(req.id, "approved")}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => onUpdateStatus(req.id, "rejected")}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
