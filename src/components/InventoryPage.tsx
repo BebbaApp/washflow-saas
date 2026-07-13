@@ -124,7 +124,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setSubtype(item.subtype ?? "");
     setRecMin(item.recommendedMin != null ? String(item.recommendedMin) : "");
     setRecMax(item.recommendedMax != null ? String(item.recommendedMax) : "");
-    setUnitCost(String(item.unitCost ?? 0));
+    setUnitCost(String((item.unitCost ?? 0) * item.quantity));
     setPackSize(item.packSize != null ? String(item.packSize) : "1");
     setSupplierId(item.supplierId ?? "__none");
     setExpenseCategory(item.expenseCategory ?? "__default");
