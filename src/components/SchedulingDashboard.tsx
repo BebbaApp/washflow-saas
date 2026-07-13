@@ -274,6 +274,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     return activeStaff.filter((s) => {
       const activeSince = s.createdAt ? s.createdAt.slice(0, 10) : todayKey;
       if (todayKey < activeSince) return false;
+      if (approvedTimeOff.has(`${s.id}|${todayKey}`)) return false;
       const has = records.some(
         (r) => r.user_id === s.id && r.created_at.slice(0, 10) === todayKey
       );
@@ -282,7 +283,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
       ...s,
       marked: markedAbsent.has(`${s.id}|${todayKey}`),
     }));
-  }, [activeStaff, records, todayKey, markedAbsent]);
+  }, [activeStaff, records, todayKey, markedAbsent, approvedTimeOff]);
 
   const [notifDismissed, setNotifDismissed] = useState(false);
   const [notifExpanded, setNotifExpanded] = useState(false);
