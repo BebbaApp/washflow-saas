@@ -58,6 +58,14 @@ const withLocalId = (table: MirroredTable, row: any) => {
 };
 
 const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => Promise<any[]>>> = {
+  orders: async (tenantId: string) => {
+    const { data, error } = await supabase.functions.invoke("sync-mutation", {
+      body: { action: "list", op: "list", table: "orders", tenant_id: tenantId, payload: {} },
+    });
+    if (error) throw error;
+    const rows = (data as any)?.rows;
+    return Array.isArray(rows) ? rows : [];
+  },
   attendance_records: async (tenantId: string) => {
     const { data, error } = await supabase.functions.invoke("manage-staff", {
       body: { action: "list_attendance_records", tenant_id: tenantId },
@@ -180,6 +188,13 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     if (since && hasUpdatedAt) q = q.or(`updated_at.gt.${since},updated_at.is.null`);
     const { data, error } = await q;
     if (error) {
+      const fallbackPull = edgeFallbackPullers[table];
+      if (fallbackPull && /permission|denied|policy|jwt|claim|rls/i.test(error.message)) {
+        const fallbackRows = await fallbackPull(tenantId);
+        await replacePulledRows(table, tenantId, fallbackRows);
+        await db.sync_meta.put({ key, last_pulled_at: new Date().toISOString() });
+        return;
+      }
       // Permission denied is expected for some tables (e.g. user without role) — skip silently.
       if (/permission|denied|policy/i.test(error.message)) return;
       throw new Error(`pull ${table}: ${error.message}`);
@@ -205,6 +220,16 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     from += PAGE_SIZE;
   }
   await db.sync_meta.put({ key, last_pulled_at: hasUpdatedAt ? highWater : new Date().toISOString() });
+}
+
+async function replacePulledRows(table: MirroredTable, tenantId: string, rows: any[]) {
+  const tbl = (db as any)[table];
+  const dirtyRows = await tbl.where("tenant_id").equals(tenantId).and((row: any) => row?._dirty === 1).toArray();
+  await tbl.where("tenant_id").equals(tenantId).and((row: any) => row?._dirty !== 1).delete();
+  if (rows.length > 0) {
+    await tbl.bulkPut(rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })));
+  }
+  if (dirtyRows.length > 0) await tbl.bulkPut(dirtyRows);
 }
 
 async function initialPull(tenantId: string) {
