@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +61,7 @@ interface DayRow {
   start: Date | null;
   end: Date | null;
   hours: number;
+  rawHours: number;
   periods: Period[];
   periodCount: number;
   status: "present" | "absent" | "in_progress" | "marked_absent" | "time_off";
@@ -219,7 +221,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           const wasMarked = markedAbsent.has(`${s.id}|${date}`);
           rows.push({
             user_id: s.id, staffName: s.name, date,
-            start: null, end: null, hours: 0,
+            start: null, end: null, hours: 0, rawHours: 0,
             periods: [], periodCount: 0,
             status: onApprovedLeave ? "time_off" : (wasMarked ? "marked_absent" : "absent"),
           });
@@ -230,7 +232,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           const hours = end ? Math.max(0, rawHours - LUNCH_BREAK_HOURS) : 0;
           const status: DayRow["status"] = end ? "present" : "in_progress";
           rows.push({
-            user_id: s.id, staffName: s.name, date, start, end, hours,
+            user_id: s.id, staffName: s.name, date, start, end, hours, rawHours,
             periods, periodCount: periods.length, status,
           });
         }
@@ -579,7 +581,30 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
                         {r.end ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "—"}
                       </td>
                       <td className="px-4 py-2">{r.periodCount}</td>
-                      <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
+                      <td className="px-4 py-2 font-medium">
+                        <TooltipProvider delayDuration={100}>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50">
+                                {r.hours > 0 ? r.hours.toFixed(2) : "—"}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="space-y-1 text-xs">
+                              {r.status === "in_progress" ? (
+                                <p>Day still in progress</p>
+                              ) : r.hours > 0 ? (
+                                <>
+                                  <p>Raw periods total: <span className="font-mono font-medium">{r.rawHours.toFixed(2)} h</span></p>
+                                  <p>Lunch deduction: <span className="font-mono font-medium">-{LUNCH_BREAK_HOURS} h</span></p>
+                                  <p className="border-t border-border pt-1">Net hours: <span className="font-mono font-medium">{r.hours.toFixed(2)} h</span></p>
+                                </>
+                              ) : (
+                                <p>No paid working periods</p>
+                              )}
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </td>
                       <td className="px-4 py-2">
                         {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20"><CheckCircle2 className="w-3 h-3 mr-1" />Present</Badge>}
                         {r.status === "absent" && <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Absent</Badge>}
