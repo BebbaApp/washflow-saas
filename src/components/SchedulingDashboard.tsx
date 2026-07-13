@@ -385,11 +385,13 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     toast.success("PDF exported");
   };
 
+  const showTimeOffTab = canRequestTimeOff || canApproveTimeOff;
   const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = [
     { id: "checkin", label: "Staff Check-in", icon: UserCheck },
     { id: "daylog", label: "Day Log", icon: Calendar },
     { id: "employees", label: "Employees", icon: Users },
     { id: "performance", label: "Performance", icon: Trophy },
+    ...(showTimeOffTab ? [{ id: "timeoff" as View, label: "Time Off", icon: Plane }] : []),
   ];
 
   if (loading) {
