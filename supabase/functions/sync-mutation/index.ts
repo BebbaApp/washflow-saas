@@ -382,6 +382,39 @@ async function ensureAppRole(
   return { ok: true };
 }
 
+async function updateOrderWithAuthContext(
+  dbUrl: string,
+  tenantId: string,
+  orderId: string,
+  userId: string,
+  patch: Record<string, unknown>,
+) {
+  const sql = postgres(dbUrl, { max: 1, prepare: false });
+  try {
+    const row = await sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${userId}, true)`;
+      await tx`select set_config('request.jwt.claim.role', 'authenticated', true)`;
+
+      const rows = await tx`
+        update public.orders
+        set
+          status = coalesce(${patch.status ?? null}::text, status),
+          notes = case when ${Object.prototype.hasOwnProperty.call(patch, "notes")} then ${patch.notes ?? null}::text else notes end,
+          completed_at = case when ${Object.prototype.hasOwnProperty.call(patch, "completed_at")} then ${patch.completed_at ?? null}::timestamptz else completed_at end,
+          wait_minutes = case when ${Object.prototype.hasOwnProperty.call(patch, "wait_minutes")} then ${patch.wait_minutes ?? null}::integer else wait_minutes end,
+          updated_at = coalesce(${patch.updated_at ?? null}::timestamptz, now())
+        where tenant_id = ${tenantId}::uuid
+          and id = ${orderId}::uuid
+        returning *
+      `;
+      return rows[0] ?? null;
+    });
+    return row;
+  } finally {
+    await sql.end({ timeout: 1 });
+  }
+}
+
 function sameValue(a: unknown, b: unknown) {
   if (a == null && b == null) return true;
   if (typeof a === "number" || typeof b === "number") return Number(a) === Number(b);
