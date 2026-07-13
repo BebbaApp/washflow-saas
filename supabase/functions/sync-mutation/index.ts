@@ -223,7 +223,7 @@ async function canWriteTenant(
   admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
-): Promise<{ ok: true; patch: Record<string, unknown>; requiresUserContext: boolean } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const [{ data: tenant }, { data: member }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
     admin.from("tenants").select("status,grace_period_ends_at").eq("id", tenantId).maybeSingle(),
     admin.from("tenant_members").select("tenant_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
@@ -250,7 +250,7 @@ async function canReadTenant(
   admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; patch: Record<string, unknown>; requiresUserContext: boolean } | { ok: false; status: number; error: string }> {
   const [{ data: tenant }, { data: member }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
     admin.from("tenants").select("id").eq("id", tenantId).maybeSingle(),
     admin.from("tenant_members").select("tenant_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
@@ -280,8 +280,8 @@ async function canUpdateOrder(
     .eq("id", orderId)
     .maybeSingle();
   if (existingError) return { ok: false, status: 500, error: existingError.message };
-  // Missing server row will be healed by the admin upsert path. The caller's
-  // tenant write access has already been checked by canWriteTenant().
+  // Missing server rows are stale local mutations. Let the caller return OK so
+  // the outbox can continue draining instead of getting stuck forever.
   if (!existing) return { ok: true, patch, requiresUserContext: false };
 
   const [{ data: roles }, { data: membership }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
