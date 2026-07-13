@@ -460,11 +460,28 @@ export async function startSync(tenantId: string) {
     try { await initialPull(tenantId); } finally { pulling = false; }
   }
   schedulePush(0);
+  startEdgePolling(tenantId);
+}
+
+/** Poll edge-fallback tables (currently `orders`) every few seconds so
+ *  inserts, updates and deletes made elsewhere show up quickly even when
+ *  RLS blocks realtime `postgres_changes` events for the current user. */
+function startEdgePolling(tenantId: string) {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  const POLL_MS = 8000;
+  pollTimer = setInterval(() => {
+    if (currentTenant !== tenantId) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (pulling) return;
+    void replaceTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
+  }, POLL_MS);
 }
 
 export function stopSync() {
   currentTenant = null;
   unsubscribeRealtime();
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   setStatus("idle");
 }
 
