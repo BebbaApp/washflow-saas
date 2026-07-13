@@ -80,6 +80,15 @@ const AUDIT_CACHE_KEY = "wf_audit_log_cache";
 const PROFILES_CACHE_KEY = "wf_attendance_profiles_cache";
 const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
 
+async function pullFaceEnrollmentsViaStaffFunction(tenantId: string) {
+  const { data, error } = await supabase.functions.invoke("manage-staff", {
+    body: { action: "list_face_enrollments", tenant_id: tenantId },
+  });
+  if (error) throw error;
+  const rows = (data as any)?.face_enrollments;
+  return Array.isArray(rows) ? rows : [];
+}
+
 function lsLoad<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -157,6 +166,20 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
 
   const recordRows = useLiveTable<any>(tenantId, "attendance_records");
   const enrollmentRows = useLiveTable<any>(tenantId, "staff_face_enrollments");
+
+  useEffect(() => {
+    if (!tenantId || !navigator.onLine || enrollmentRows === undefined || enrollmentRows.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await pullFaceEnrollmentsViaStaffFunction(tenantId);
+        if (!cancelled && rows.length > 0) {
+          await db.staff_face_enrollments.bulkPut(rows.map((r: any) => ({ ...r, _dirty: 0 })) as any);
+        }
+      } catch { /* direct sync will keep retrying */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId, enrollmentRows]);
 
   // Audit log — fetch from Supabase when online, use localStorage cache when offline
   const [auditRows, setAuditRows] = useState<any[] | undefined>(undefined);

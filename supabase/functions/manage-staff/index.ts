@@ -3,12 +3,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-2026-07-10-scoped-face-enrollment";
+const FUNCTION_VERSION = "manage-staff-2026-07-13-face-enrollment-sync-fallback";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
+const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
+const READ_ACTIONS = ["list", "list_face_enrollments"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
 
@@ -42,6 +43,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     list_users: "list",
     staff_list: "list",
     get_staff: "list",
+
+    list_face_enrollments: "list_face_enrollments",
+    list_enrollments: "list_face_enrollments",
+    face_enrollments: "list_face_enrollments",
+    enrollment_list: "list_face_enrollments",
 
     set_pin: "set_pin",
     save_pin: "set_pin",
@@ -187,12 +193,23 @@ Deno.serve(async (req) => {
       return reply({ error: "Unknown action", received: body?.action ?? null }, 400);
     }
 
-    if (action === "list" && !isTenantMember && !isPlatformAdmin) {
+    if (READ_ACTIONS.includes(action) && !isTenantMember && !isPlatformAdmin) {
       return reply({ error: "Only workspace members can view staff" }, 403);
     }
 
-    if (action !== "list" && !hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
+    if (!READ_ACTIONS.includes(action) && !hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
       return reply({ error: "Only admins or managers can manage staff" }, 403);
+    }
+
+    if (action === "list_face_enrollments") {
+      const { data, error } = await admin
+        .from("staff_face_enrollments")
+        .select("id,tenant_id,user_id,image_url,created_at,enrolled_by,is_active")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ face_enrollments: data ?? [] });
     }
 
     if (action === "list") {
