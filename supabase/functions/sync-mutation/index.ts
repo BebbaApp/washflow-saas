@@ -314,11 +314,8 @@ async function canUpdateOrder(
     // and platform admins are authorized through tenant_members/platform tables.
     // Ensure those authorized admins also satisfy the trigger when the update is
     // replayed with the caller JWT instead of the service role.
-    if (!roleSet.has("admin")) {
-      await admin
-        .from("user_roles")
-        .upsert({ user_id: userId, tenant_id: tenantId, role: "admin" }, { onConflict: "user_id,role", ignoreDuplicates: true });
-    }
+    const ensured = await ensureAppRole(admin, tenantId, userId, "admin");
+    if (!ensured.ok) return ensured;
     return { ok: true };
   }
 
@@ -339,6 +336,39 @@ async function canUpdateOrder(
   }
   if (changed("notes") && !canEditNotes) {
     return { ok: false, status: 403, error: "You do not have permission to edit order notes." };
+  }
+  if (changed("notes") && canEditNotes) {
+    const preferredRole = roleSet.has("supervisor")
+      ? "supervisor"
+      : roleSet.has("manager")
+        ? "manager"
+        : "cashier";
+    const ensured = await ensureAppRole(admin, tenantId, userId, preferredRole);
+    if (!ensured.ok) return ensured;
+  }
+  return { ok: true };
+}
+
+async function ensureAppRole(
+  admin: SupabaseAdmin,
+  tenantId: string,
+  userId: string,
+  role: "admin" | "supervisor" | "manager" | "cashier",
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const { data: existing, error: existingError } = await admin
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("role", role)
+    .maybeSingle();
+  if (existingError) return { ok: false, status: 500, error: existingError.message };
+  if (existing) return { ok: true };
+
+  const { error: insertError } = await admin
+    .from("user_roles")
+    .insert({ user_id: userId, tenant_id: tenantId, role });
+  if (insertError && insertError.code !== "23505") {
+    return { ok: false, status: 500, error: insertError.message };
   }
   return { ok: true };
 }
