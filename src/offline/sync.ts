@@ -121,9 +121,16 @@ async function pushMutationViaEdge(it: OutboxItem, payload: any) {
         }
       }
     } catch { /* ignore */ }
-    throw new Error(detail);
+    const wrapped = new Error(detail);
+    try { (wrapped as any).status = (error as any)?.context?.status; } catch { /* ignore */ }
+    throw wrapped;
   }
   return (data as any)?.row ?? null;
+}
+
+function isPermanentOutboxError(error: unknown) {
+  const message = (error as any)?.message ?? String(error);
+  return /do not have permission to edit order notes|field staff cannot modify order details|field staff cannot cancel orders/i.test(message);
 }
 
 async function markLocalMutationSynced(it: OutboxItem, syncedRow: any, payload: any) {
@@ -379,6 +386,12 @@ async function drainOutbox() {
       await db.outbox.delete(it.id!);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      if (isPermanentOutboxError(e)) {
+        console.warn("[sync] dropping invalid queued mutation", it.table, it.op, msg);
+        await db.outbox.delete(it.id!);
+        setStatus("online", null);
+        continue;
+      }
       await db.outbox.update(it.id!, { attempts: it.attempts + 1, last_error: msg });
       // Stop the loop on transient errors; retry with backoff.
       schedulePush(Math.min(30_000, 1000 * 2 ** Math.min(it.attempts, 5)));
