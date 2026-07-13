@@ -340,6 +340,13 @@ async function drainOutbox() {
 /** Start syncing for a tenant. Safe to call repeatedly; switching tenants
  *  swaps subscriptions and triggers a fresh pull. */
 export async function startSync(tenantId: string) {
+  // Guard: don't attempt any sync/edge calls without a valid session.
+  // Prevents 401 blank-screen errors on /login or after session expiry.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    setStatus("idle");
+    return;
+  }
   if (currentTenant === tenantId) {
     void ensureActiveTenantClaim(tenantId)
       .then((changed) => {
