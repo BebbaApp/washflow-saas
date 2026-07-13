@@ -885,7 +885,7 @@ const TimeOffPanel = ({ requests, staffMembers, canRequest, canApprove, onSubmit
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Employee</Label>
-              <Select value={staffUserId} onValueChange={setStaffUserId} disabled={!canApprove && staffOptions.length <= 1}>
+              <Select value={staffUserId} onValueChange={setStaffUserId} disabled={staffOptions.length <= 1}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an employee" />
                 </SelectTrigger>
@@ -898,9 +898,6 @@ const TimeOffPanel = ({ requests, staffMembers, canRequest, canApprove, onSubmit
                   ))}
                 </SelectContent>
               </Select>
-              {!canApprove && (
-                <p className="mt-1 text-[10px] text-muted-foreground">You can only request time off for yourself.</p>
-              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
