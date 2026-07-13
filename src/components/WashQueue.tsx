@@ -501,58 +501,48 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                 </div>
               )}
 
-              <div className="flex items-center gap-3">
-                <p className="text-sm font-semibold text-foreground">{o.service}</p>
-                <p className="text-sm font-bold text-primary">{formatPrice(o.servicePrice)}</p>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Phone className="w-3.5 h-3.5" />
-                {o.orderNumber}
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  {time}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-semibold text-foreground">{o.service}</p>
+                  <p className="text-sm font-bold text-primary">{formatPrice(o.servicePrice)}</p>
                 </div>
                 {onUpdateStatus && nextStatus && (() => {
                   const allowAction = nextStatus === "completed" ? canComplete : canStart;
                   if (!allowAction && !(o.status === "waiting" && canCancel)) return null;
                   return (
-                  <div className="flex items-center gap-2">
-                    {o.status === "waiting" && canCancel && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmCancelIds([o.id]); setCancelReason(""); setCancelReasonError(null); }}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 bg-destructive/10 text-destructive border border-destructive/20"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        Cancel
-                      </button>
-                    )}
-                    {allowAction && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onUpdateStatus(o.id, nextStatus); }}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 ${
-                        nextStatus === "completed"
-                          ? "bg-success text-success-foreground"
-                          : "bg-primary text-primary-foreground"
-                      }`}
-                    >
-                      {nextStatus === "completed" ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Complete
-                        </>
-                      ) : (
-                        <>
-                        <Play className="w-3.5 h-3.5" />
-                        Start
-                      </>
-                    )}
-                    </button>
-                    )}
-                  </div>
+                    <div className="flex items-center gap-2">
+                      {o.status === "waiting" && canCancel && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmCancelIds([o.id]); setCancelReason(""); setCancelReasonError(null); }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 bg-destructive/10 text-destructive border border-destructive/20"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Cancel
+                        </button>
+                      )}
+                      {allowAction && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onUpdateStatus(o.id, nextStatus); }}
+                          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 ${
+                            nextStatus === "completed"
+                              ? "bg-success text-success-foreground"
+                              : "bg-primary text-primary-foreground"
+                          }`}
+                        >
+                          {nextStatus === "completed" ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Complete
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5" />
+                              Start
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   );
                 })()}
               </div>
