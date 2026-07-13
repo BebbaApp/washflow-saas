@@ -234,6 +234,13 @@ function unsubscribeRealtime() {
   channels = [];
 }
 
+async function refreshRealtimeAuth() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (token) await supabase.realtime.setAuth(token);
+}
+
 async function ensureActiveTenantClaim(tenantId: string) {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
   const { data } = await supabase.auth.getSession();
@@ -247,6 +254,7 @@ async function ensureActiveTenantClaim(tenantId: string) {
 
   const { error: refreshErr } = await supabase.auth.refreshSession();
   if (refreshErr) throw refreshErr;
+  await refreshRealtimeAuth();
   return true;
 }
 
@@ -348,6 +356,7 @@ export async function startSync(tenantId: string) {
   currentTenant = tenantId;
   try {
     await ensureActiveTenantClaim(tenantId);
+    await refreshRealtimeAuth();
   } catch (e: any) {
     setStatus("error", e?.message ?? String(e));
   }
