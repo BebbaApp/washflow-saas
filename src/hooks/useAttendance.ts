@@ -89,6 +89,15 @@ async function pullFaceEnrollmentsViaStaffFunction(tenantId: string) {
   return Array.isArray(rows) ? rows : [];
 }
 
+async function pullAttendanceRecordsViaStaffFunction(tenantId: string) {
+  const { data, error } = await supabase.functions.invoke("manage-staff", {
+    body: { action: "list_attendance_records", tenant_id: tenantId },
+  });
+  if (error) throw error;
+  const rows = (data as any)?.attendance_records;
+  return Array.isArray(rows) ? rows : [];
+}
+
 function lsLoad<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -199,7 +208,11 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
           .order("created_at", { ascending: false })
           .limit(2000);
         if (error) throw error;
-        const rows = (data as any[]) ?? [];
+        let rows = (data as any[]) ?? [];
+        if (rows.length === 0) {
+          const fallbackRows = await pullAttendanceRecordsViaStaffFunction(tenantId);
+          if (fallbackRows.length > 0) rows = fallbackRows;
+        }
         if (cancelled) return;
         // Replace tenant's local mirror so deletions on the server are reflected.
         await db.attendance_records.where("tenant_id").equals(tenantId).delete();

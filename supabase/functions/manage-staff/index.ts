@@ -3,13 +3,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-2026-07-13-face-enrollment-sync-fallback";
+const FUNCTION_VERSION = "manage-staff-2026-07-13-attendance-sync-fallback";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
-const READ_ACTIONS = ["list", "list_face_enrollments"];
+const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
+const READ_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
 
@@ -48,6 +48,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     list_enrollments: "list_face_enrollments",
     face_enrollments: "list_face_enrollments",
     enrollment_list: "list_face_enrollments",
+
+    list_attendance_records: "list_attendance_records",
+    attendance_records: "list_attendance_records",
+    list_day_log: "list_attendance_records",
+    day_log: "list_attendance_records",
 
     set_pin: "set_pin",
     save_pin: "set_pin",
@@ -210,6 +215,18 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false });
       if (error) return reply({ error: error.message }, 500);
       return reply({ face_enrollments: data ?? [] });
+    }
+
+    if (action === "list_attendance_records") {
+      const limit = Math.max(1, Math.min(Number(body?.limit ?? 5000) || 5000, 10000));
+      const { data, error } = await admin
+        .from("attendance_records")
+        .select("id,tenant_id,user_id,kind,selfie_url,match_score,status,notes,created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ attendance_records: data ?? [] });
     }
 
     if (action === "list") {

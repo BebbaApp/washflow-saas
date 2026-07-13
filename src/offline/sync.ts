@@ -58,6 +58,14 @@ const withLocalId = (table: MirroredTable, row: any) => {
 };
 
 const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => Promise<any[]>>> = {
+  attendance_records: async (tenantId: string) => {
+    const { data, error } = await supabase.functions.invoke("manage-staff", {
+      body: { action: "list_attendance_records", tenant_id: tenantId },
+    });
+    if (error) throw error;
+    const rows = (data as any)?.attendance_records;
+    return Array.isArray(rows) ? rows : [];
+  },
   staff_face_enrollments: async (tenantId: string) => {
     const { data, error } = await supabase.functions.invoke("manage-staff", {
       body: { action: "list_face_enrollments", tenant_id: tenantId },
@@ -118,7 +126,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     }
     let rows = (data as any[]) ?? [];
     const fallbackPull = edgeFallbackPullers[table];
-    if (rows.length === 0 && !since && fallbackPull) {
+    if (rows.length === 0 && fallbackPull) {
       const fallbackRows = await fallbackPull(tenantId);
       if (fallbackRows.length > 0) rows = fallbackRows;
     }
@@ -377,6 +385,10 @@ export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
           }
         } else {
           server = count ?? 0;
+          const fallbackPull = edgeFallbackPullers[table];
+          if (server === 0 && fallbackPull) {
+            server = (await fallbackPull(t)).length;
+          }
         }
       } catch (e: any) {
         error = e?.message ?? String(e);
