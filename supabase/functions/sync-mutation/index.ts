@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
         row = { ...row, order_number: orderNumber };
       }
     }
-    const writeClient = table === "orders" ? userScopedAdmin : admin;
+    const writeClient = admin;
     let result;
     if (op === "delete") {
       result = await writeClient
