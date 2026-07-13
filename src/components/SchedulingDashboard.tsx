@@ -60,6 +60,7 @@ interface DayRow {
   start: Date | null;
   end: Date | null;
   hours: number;
+  rawHours: number;
   periods: Period[];
   periodCount: number;
   status: "present" | "absent" | "in_progress" | "marked_absent" | "time_off";
