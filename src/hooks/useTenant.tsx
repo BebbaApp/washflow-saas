@@ -179,19 +179,37 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Priority: ?tenant=<slug> URL param → JWT claim → localStorage → first membership
+    // Priority: ?tenant=<slug> URL param → explicit switch → localStorage → JWT claim → first membership.
+    // The selected workspace must then be written into app_metadata.active_tenant_id
+    // before SyncBoot starts pulling data, because RLS + Realtime read that JWT claim.
     let urlSlug: string | null = null;
     try { urlSlug = new URLSearchParams(window.location.search).get("tenant"); } catch { /* ignore */ }
     const urlMatchId = urlSlug ? list.find((m) => m.slug === urlSlug)?.id : undefined;
-    const jwtId = (user as any)?.app_metadata?.active_tenant_id as string | undefined;
+    const { data: sessionSnapshot } = await supabase.auth.getSession();
+    const jwtId = (sessionSnapshot.session?.user?.app_metadata as any)?.active_tenant_id as string | undefined;
     const storedId = readStoredTenant();
     const activeId =
       urlMatchId ??
       (preferredTenantId && list.find((m) => m.id === preferredTenantId)?.id) ??
-      (jwtId && list.find((m) => m.id === jwtId)?.id) ??
       (storedId && list.find((m) => m.id === storedId)?.id) ??
+      (jwtId && list.find((m) => m.id === jwtId)?.id) ??
       list[0].id;
     const activeRow = list.find((m) => m.id === activeId) ?? list[0];
+
+    if (jwtId !== activeRow.id) {
+      try {
+        const { error } = await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
+        if (error) throw new Error(error.message || "Server rejected the workspace sync");
+        const { error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr) throw refreshErr;
+        setSwitchError(null);
+      } catch (e: any) {
+        const msg = e?.message ?? "Workspace session sync failed";
+        console.warn("tenant claim sync failed", e);
+        setSwitchError(msg);
+      }
+    }
+
     writeStoredTenant(activeRow.id);
     setMyRole(activeRow.tenant_role);
 
@@ -218,18 +236,6 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
     // ---- Background revalidation (does not block the UI) ----
     void (async () => {
-      // Sync server-side active tenant when JWT claim is out of date.
-      const needsClaimSync =
-        (superAdmin && jwtId !== activeRow.id) ||
-        (urlMatchId && urlMatchId !== jwtId);
-      if (needsClaimSync) {
-        try {
-          await supabase.functions.invoke("switch-tenant", { body: { tenant_id: activeRow.id } });
-          await supabase.auth.refreshSession();
-        } catch (e) {
-          console.warn("tenant claim sync failed", e);
-        }
-      }
       if (urlMatchId) {
         try {
           const url = new URL(window.location.href);

@@ -234,6 +234,30 @@ function unsubscribeRealtime() {
   channels = [];
 }
 
+async function refreshRealtimeAuth() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (token) await supabase.realtime.setAuth(token);
+}
+
+async function ensureActiveTenantClaim(tenantId: string) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
+  const { data } = await supabase.auth.getSession();
+  const activeClaim = (data.session?.user?.app_metadata as any)?.active_tenant_id;
+  if (!data.session || activeClaim === tenantId) return false;
+
+  const { error } = await supabase.functions.invoke("switch-tenant", {
+    body: { tenant_id: tenantId },
+  });
+  if (error) throw new Error(error.message || "Workspace session sync failed");
+
+  const { error: refreshErr } = await supabase.auth.refreshSession();
+  if (refreshErr) throw refreshErr;
+  await refreshRealtimeAuth();
+  return true;
+}
+
 /** Enqueue a local mutation. Hooks call this instead of writing to Supabase
  *  directly so we can replay when offline. The local mirror should also be
  *  updated optimistically by the caller. */
@@ -316,8 +340,26 @@ async function drainOutbox() {
 /** Start syncing for a tenant. Safe to call repeatedly; switching tenants
  *  swaps subscriptions and triggers a fresh pull. */
 export async function startSync(tenantId: string) {
-  if (currentTenant === tenantId) return;
+  if (currentTenant === tenantId) {
+    void ensureActiveTenantClaim(tenantId)
+      .then((changed) => {
+        if (changed) {
+          subscribeRealtime(tenantId);
+          void backgroundPull();
+        }
+      })
+      .catch((e) => {
+        setStatus("error", e?.message ?? String(e));
+      });
+    return;
+  }
   currentTenant = tenantId;
+  try {
+    await ensureActiveTenantClaim(tenantId);
+    await refreshRealtimeAuth();
+  } catch (e: any) {
+    setStatus("error", e?.message ?? String(e));
+  }
   // One-shot cursor reset for clients that mirrored data before the
   // null-updated_at fix landed; ensures historical completed/cancelled rows
   // get pulled on next boot.
