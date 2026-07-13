@@ -76,6 +76,43 @@ const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => P
   },
 };
 
+const EDGE_SYNC_WRITE_TABLES = new Set<string>([
+  "expenses",
+  "inventory_items",
+  "inventory_transactions",
+]);
+
+async function pushMutationViaEdge(it: OutboxItem, payload: any) {
+  const { data, error } = await supabase.functions.invoke("sync-mutation", {
+    body: {
+      tenant_id: it.tenant_id,
+      table: it.table,
+      op: it.op,
+      payload,
+    },
+  });
+  if (error) throw error;
+  return (data as any)?.row ?? null;
+}
+
+async function markLocalMutationSynced(it: OutboxItem, syncedRow: any, payload: any) {
+  if (it.op === "delete") return;
+  if (!MIRRORED_TABLES.includes(it.table as MirroredTable)) return;
+  const table = it.table as MirroredTable;
+  const tbl = (db as any)[table];
+  const rowId = syncedRow?.id ?? payload?.id;
+  if (!tbl || !rowId) return;
+  const existing = await tbl.get(rowId);
+  const next = withLocalId(table, {
+    ...(existing ?? {}),
+    ...(syncedRow ?? payload),
+    tenant_id: (syncedRow ?? payload)?.tenant_id ?? it.tenant_id,
+    _dirty: 0 as 0,
+  });
+  delete (next as any)._op;
+  await tbl.put(next);
+}
+
 type Status = "idle" | "pulling" | "online" | "offline" | "error";
 type Listener = (s: { status: Status; pending: number; lastError?: string | null }) => void;
 const listeners = new Set<Listener>();
@@ -223,7 +260,12 @@ async function drainOutbox() {
         const { updated_at: _u, ...rest } = p;
         return rest;
       };
-      if (it.op === "insert") {
+      let syncedRow: any = null;
+      if (EDGE_SYNC_WRITE_TABLES.has(it.table)) {
+        let payload: any = stripUA(it.payload);
+        syncedRow = await pushMutationViaEdge(it, payload);
+        await markLocalMutationSynced(it, syncedRow, payload);
+      } else if (it.op === "insert") {
         let payload: any = stripUA(it.payload);
         // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
         // server's canonical WO-XXX sequence before insert. If the RPC
@@ -245,9 +287,11 @@ async function drainOutbox() {
           }
         }
         ({ error } = await tbl.insert(payload as any));
+        if (!error) await markLocalMutationSynced(it, null, payload);
       } else if (it.op === "update") {
         const payload = stripUA(it.payload);
         ({ error } = await tbl.update(payload as any).eq("id", (payload as any).id));
+        if (!error) await markLocalMutationSynced(it, null, payload);
       } else if (it.op === "delete") {
         ({ error } = await tbl.delete().eq("id", (it.payload as any).id));
       }
