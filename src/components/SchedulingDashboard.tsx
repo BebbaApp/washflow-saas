@@ -800,9 +800,10 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 // ============================================================
 interface TimeOffPanelProps {
   requests: ReturnType<typeof useScheduling>["timeOffRequests"];
+  staffMembers: ReturnType<typeof useScheduling>["staffMembers"];
   canRequest: boolean;
   canApprove: boolean;
-  onSubmit: (data: { startDate: string; endDate: string; reason: string }) => Promise<void> | void;
+  onSubmit: (data: { startDate: string; endDate: string; reason: string; staffUserId?: string }) => Promise<void> | void;
   onUpdateStatus: (id: string, status: "approved" | "rejected") => Promise<void> | void;
 }
 
