@@ -72,6 +72,12 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     enroll_face: "enroll_face",
     face_enroll: "enroll_face",
     save_face: "enroll_face",
+
+    update_timeoff: "update_timeoff",
+    approve_timeoff: "update_timeoff",
+    deny_timeoff: "update_timeoff",
+    reject_timeoff: "update_timeoff",
+    timeoff_update: "update_timeoff",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
