@@ -189,8 +189,14 @@ async function drainOutbox() {
     try {
       const tbl = supabase.from(it.table as any);
       let error: any = null;
+      const stripUA = (p: any) => {
+        if (!p || typeof p !== "object") return p;
+        if (!TABLES_WITHOUT_UPDATED_AT.has(it.table)) return p;
+        const { updated_at: _u, ...rest } = p;
+        return rest;
+      };
       if (it.op === "insert") {
-        let payload: any = it.payload;
+        let payload: any = stripUA(it.payload);
         // Reconcile offline-issued order numbers (WO-LOC-XXX) with the
         // server's canonical WO-XXX sequence before insert. If the RPC
         // fails we fall through and let Postgres reject the duplicate so
@@ -212,7 +218,8 @@ async function drainOutbox() {
         }
         ({ error } = await tbl.insert(payload as any));
       } else if (it.op === "update") {
-        ({ error } = await tbl.update(it.payload as any).eq("id", (it.payload as any).id));
+        const payload = stripUA(it.payload);
+        ({ error } = await tbl.update(payload as any).eq("id", (payload as any).id));
       } else if (it.op === "delete") {
         ({ error } = await tbl.delete().eq("id", (it.payload as any).id));
       }
