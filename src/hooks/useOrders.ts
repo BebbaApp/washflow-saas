@@ -141,11 +141,7 @@ export function useOrders() {
 
       const merged = { ...existing, ...patch };
       await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
-      // Send the FULL merged row so the edge function can heal (upsert) if
-      // the server doesn't yet have this order — otherwise a partial update
-      // against a missing row would silently no-op or fail validation.
-      const { _dirty, _op, ...serverRow } = merged as any;
-      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: serverRow });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: { id: orderId, ...patch } });
 
       toast.info(
         `📱 ${(existing as any).customer}: ${(existing as any).vehicle} is now "${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : "Waiting"}"`,
@@ -164,8 +160,7 @@ export function useOrders() {
       const value = trimmed.length ? trimmed : null;
       const merged: any = { ...existing, notes: value, updated_at: new Date().toISOString() };
       await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
-      const { _dirty, _op, ...serverRow } = merged;
-      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: serverRow });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: { id: orderId, notes: value, updated_at: merged.updated_at } });
       toast.success("Notes saved");
       return true;
     },

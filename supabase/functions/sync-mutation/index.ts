@@ -132,11 +132,10 @@ Deno.serve(async (req) => {
     const userScoped = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    // Inserts/deletes use the service-role client after tenant membership has
-    // been validated here, so offline-created rows are not blocked by stale JWT
-    // tenant claims. Order updates are authorized below before using the same
-    // service-role path, because PostgREST trigger auth context can be null or
-    // stale during offline sync replay.
+    // Writes are authorized in this function first. Most tables then use the
+    // service-role client so one bad RLS/JWT claim cannot poison the offline
+    // queue. Order updates that intentionally edit protected fields still use
+    // the user-scoped client because the database trigger audits auth.uid().
     const access = op === "list"
       ? await canReadTenant(admin, tenant_id, userData.user.id)
       : await canWriteTenant(admin, tenant_id, userData.user.id);
@@ -174,7 +173,7 @@ Deno.serve(async (req) => {
         row = { ...row, order_number: orderNumber };
       }
     }
-    const writeClient = table === "orders" && op === "update" ? userScoped : admin;
+    let writeClient = admin;
     let result;
     if (op === "delete") {
       result = await writeClient
@@ -185,31 +184,25 @@ Deno.serve(async (req) => {
         .select("*")
         .maybeSingle();
     } else if (op === "update") {
-      const { id: _id, tenant_id: _tenant, ...patch } = row as Record<string, unknown>;
+      let { id: _id, tenant_id: _tenant, ...patch } = row as Record<string, unknown>;
       if (Object.keys(patch).length === 0) return json({ error: "No changes supplied" }, 400);
       if (table === "orders") {
         const orderAccess = await canUpdateOrder(admin, tenant_id, userData.user.id, userData.user.email ?? null, patch, id);
         if (!orderAccess.ok) return json({ error: orderAccess.error }, orderAccess.status);
+        patch = orderAccess.patch;
+        if (Object.keys(patch).length === 0) return json({ ok: true, row: null, skipped: true });
+        if (orderAccess.requiresUserContext) writeClient = userScoped;
       }
-      // Try a scoped UPDATE first. If no row matches (returning null with no
-      // error), the local mirror has a row the server never saw — heal it by
-      // upserting the merged row so status/notes changes don't get stuck.
-      const upd = await writeClient
+      // Partial updates are intentional. If the target row no longer exists or
+      // belongs to another workspace, treat the mutation as stale instead of
+      // blocking every later outbox item behind it.
+      result = await writeClient
         .from(table)
         .update(patch)
         .eq("tenant_id", tenant_id)
         .eq("id", id)
         .select("*")
         .maybeSingle();
-      if (!upd.error && !upd.data) {
-        result = await admin
-          .from(table)
-          .upsert(row, { onConflict: "id" })
-          .select("*")
-          .single();
-      } else {
-        result = upd;
-      }
     } else {
       result = await writeClient
         .from(table)
@@ -230,7 +223,7 @@ async function canWriteTenant(
   admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; patch: Record<string, unknown>; requiresUserContext: boolean } | { ok: false; status: number; error: string }> {
   const [{ data: tenant }, { data: member }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
     admin.from("tenants").select("status,grace_period_ends_at").eq("id", tenantId).maybeSingle(),
     admin.from("tenant_members").select("tenant_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
@@ -289,7 +282,7 @@ async function canUpdateOrder(
   if (existingError) return { ok: false, status: 500, error: existingError.message };
   // Missing server row will be healed by the admin upsert path. The caller's
   // tenant write access has already been checked by canWriteTenant().
-  if (!existing) return { ok: true };
+  if (!existing) return { ok: true, patch, requiresUserContext: false };
 
   const [{ data: roles }, { data: membership }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
     admin.from("user_roles").select("role,tenant_id").eq("user_id", userId),
@@ -307,46 +300,56 @@ async function canUpdateOrder(
   const isGlobalAdmin = !!platformAdmin || !!superAdmin || userEmail?.toLowerCase() === "postfastbiz@gmail.com";
   const isAdminLike = isGlobalAdmin || tenantRole === "owner" || tenantRole === "admin" || roleSet.has("admin");
   const canEditNotes = isAdminLike || roleSet.has("supervisor") || roleSet.has("manager") || roleSet.has("cashier");
+  const canCancel = canEditNotes;
   const isFieldOnly = (roleSet.has("washer") || roleSet.has("driver")) && !canEditNotes;
 
-  if (isAdminLike) {
-    // The database trigger checks `user_roles` app roles, while tenant owners
-    // and platform admins are authorized through tenant_members/platform tables.
-    // Ensure those authorized admins also satisfy the trigger when the update is
-    // replayed with the caller JWT instead of the service role.
-    const ensured = await ensureAppRole(admin, tenantId, userId, "admin");
-    if (!ensured.ok) return ensured;
-    return { ok: true };
-  }
-
   const changed = (column: string) => Object.prototype.hasOwnProperty.call(patch, column) && !sameValue((patch as any)[column], (existing as any)[column]);
-  if (isFieldOnly) {
-    const restricted = ["customer", "customer_id", "customer_phone", "plate", "vehicle", "service", "service_price", "notes", "order_number", "created_by", "created_at"];
-    if (restricted.some(changed)) {
-      return { ok: false, status: 403, error: "Field staff cannot modify order details (only status/completion)." };
+  const pickAllowedOrderPatch = (allowed: string[]) => {
+    const next: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(patch, key)) next[key] = patch[key];
     }
+    return next;
+  };
+  const changedKeys = Object.keys(patch).filter(changed);
+  const protectedKeys = ["customer", "customer_id", "customer_phone", "plate", "vehicle", "service", "service_price", "notes", "order_number", "created_by", "created_at"];
+  const statusOnlyPatch = pickAllowedOrderPatch(["status", "completed_at", "wait_minutes", "updated_at"]);
+
+  if (isFieldOnly) {
     if (changed("status") && patch.status === "cancelled") {
       return { ok: false, status: 403, error: "Field staff cannot cancel orders." };
     }
-    return { ok: true };
+    const hasAllowedStatusWork = Object.keys(statusOnlyPatch).length > 0;
+    const onlyProtectedChanges = changedKeys.length > 0 && changedKeys.every((key) => protectedKeys.includes(key));
+    if (!hasAllowedStatusWork && onlyProtectedChanges) {
+      return { ok: false, status: 403, error: "Field staff cannot modify order details (only status/completion)." };
+    }
+    return { ok: true, patch: statusOnlyPatch, requiresUserContext: false };
   }
 
-  if (changed("status") && patch.status === "cancelled" && !canEditNotes) {
+  if (changed("status") && patch.status === "cancelled" && !canCancel) {
     return { ok: false, status: 403, error: "You do not have permission to cancel orders." };
   }
   if (changed("notes") && !canEditNotes) {
-    return { ok: false, status: 403, error: "You do not have permission to edit order notes." };
+    const withoutNotes = { ...patch };
+    delete withoutNotes.notes;
+    const hasOtherChange = Object.keys(withoutNotes).some(changed);
+    if (!hasOtherChange) return { ok: false, status: 403, error: "You do not have permission to edit order notes." };
+    return { ok: true, patch: withoutNotes, requiresUserContext: false };
   }
-  if (changed("notes") && canEditNotes) {
-    const preferredRole = roleSet.has("supervisor")
-      ? "supervisor"
-      : roleSet.has("manager")
-        ? "manager"
-        : "cashier";
+  const needsTriggerAuth = changed("notes") || (changed("status") && patch.status === "cancelled");
+  if (needsTriggerAuth && canEditNotes) {
+    const preferredRole = isAdminLike
+      ? "admin"
+      : roleSet.has("supervisor")
+        ? "supervisor"
+        : roleSet.has("manager")
+          ? "manager"
+          : "cashier";
     const ensured = await ensureAppRole(admin, tenantId, userId, preferredRole);
     if (!ensured.ok) return ensured;
   }
-  return { ok: true };
+  return { ok: true, patch, requiresUserContext: needsTriggerAuth };
 }
 
 async function ensureAppRole(
