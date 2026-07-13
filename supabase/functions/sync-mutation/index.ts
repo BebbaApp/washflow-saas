@@ -43,14 +43,9 @@ const OrderInsertSchema = z.object({
   updated_at: timestampText.optional(),
 }).strip();
 
-const OrderUpdateSchema = z.object({
-  id: uuid,
-  status: z.enum(["waiting", "in-progress", "completed", "cancelled"]).optional(),
-  notes: optionalText(1000),
-  wait_minutes: numberValue.int().min(0).nullable().optional(),
-  completed_at: timestampText.nullable().optional(),
-  updated_at: timestampText.optional(),
-}).strip();
+// Accept the full order shape (all optional) on update so callers can send a
+// merged row. sync-mutation heals missing-server-row cases by upserting.
+const OrderUpdateSchema = OrderInsertSchema.partial().extend({ id: uuid }).strip();
 
 const ExpenseInsertSchema = z.object({
   id: uuid.optional(),
