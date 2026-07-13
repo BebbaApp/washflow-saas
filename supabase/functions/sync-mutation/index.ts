@@ -127,10 +127,13 @@ Deno.serve(async (req) => {
 
     const { tenant_id, table, op, payload } = parsed.data;
     const admin = createClient(supabaseUrl, serviceKey);
-    // NOTE: We use the service-role `admin` client for writes to bypass RLS.
-    // The edge function already validated tenant membership above via
-    // canWriteTenant, and the orders trigger is updated to trust the
-    // service-role context (auth.uid() null => edge-authorized).
+    const userScoped = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    // Inserts/deletes use the service-role client after tenant membership has
+    // been validated here, so offline-created rows are not blocked by stale JWT
+    // tenant claims. Order updates use the caller-scoped client so database
+    // triggers can evaluate auth.uid() and role permissions for note edits.
     const access = op === "list"
       ? await canReadTenant(admin, tenant_id, userData.user.id)
       : await canWriteTenant(admin, tenant_id, userData.user.id);
@@ -168,7 +171,7 @@ Deno.serve(async (req) => {
         row = { ...row, order_number: orderNumber };
       }
     }
-    const writeClient = admin;
+    const writeClient = table === "orders" && op === "update" ? userScoped : admin;
     let result;
     if (op === "delete") {
       result = await writeClient
@@ -192,7 +195,7 @@ Deno.serve(async (req) => {
         .select("*")
         .maybeSingle();
       if (!upd.error && !upd.data) {
-        result = await writeClient
+        result = await admin
           .from(table)
           .upsert(row, { onConflict: "id" })
           .select("*")
