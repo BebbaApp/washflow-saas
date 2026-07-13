@@ -8,7 +8,7 @@ const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 
 const corsHeaders = {
