@@ -35,6 +35,16 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   updateProfile: (updates: { name?: string; phone?: string }) => Promise<string | null>;
   refresh: () => Promise<void>;
+  /** True while the idle-warning modal should be visible. */
+  idleWarning: boolean;
+  /** Seconds remaining before auto-logout when the warning is shown. */
+  idleSecondsLeft: number;
+  /** One-click extend: resets the idle timer across all tabs. */
+  extendSession: () => void;
+  /** Current tunables (from localStorage or DEFAULT_SESSION_CONFIG). */
+  sessionConfig: SessionConfig;
+  /** Update tunables at runtime; persists to localStorage. */
+  updateSessionConfig: (cfg: Partial<SessionConfig>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
