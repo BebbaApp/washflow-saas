@@ -334,6 +334,23 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Hash className="w-3 h-3" />
                           {o.plate}
+                          {o.customerPhone && (
+                            <>
+                              <span className="mx-1 text-border">/</span>
+                              <Phone className="w-3 h-3" />
+                              <span className="truncate">{formatPhone(o.customerPhone)}</span>
+                            </>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-3 mt-1">
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {o.orderNumber}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(o.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -347,22 +364,10 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
                       <Gift className="w-3 h-3" /> FREE WASH REWARD
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground capitalize">
                       {o.service} <span className="text-primary ml-1">{formatPrice(o.servicePrice)}</span>
                     </p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-muted-foreground flex items-center gap-3">
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {o.orderNumber}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); onUpdateStatus(o.id, isWaiting ? "in-progress" : "completed"); }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity ${
