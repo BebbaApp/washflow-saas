@@ -581,7 +581,30 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
                         {r.end ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "—"}
                       </td>
                       <td className="px-4 py-2">{r.periodCount}</td>
-                      <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
+                      <td className="px-4 py-2 font-medium">
+                        <TooltipProvider delayDuration={100}>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50">
+                                {r.hours > 0 ? r.hours.toFixed(2) : "—"}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="space-y-1 text-xs">
+                              {r.status === "in_progress" ? (
+                                <p>Day still in progress</p>
+                              ) : r.hours > 0 ? (
+                                <>
+                                  <p>Raw periods total: <span className="font-mono font-medium">{r.rawHours.toFixed(2)} h</span></p>
+                                  <p>Lunch deduction: <span className="font-mono font-medium">-{LUNCH_BREAK_HOURS} h</span></p>
+                                  <p className="border-t border-border pt-1">Net hours: <span className="font-mono font-medium">{r.hours.toFixed(2)} h</span></p>
+                                </>
+                              ) : (
+                                <p>No paid working periods</p>
+                              )}
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </td>
                       <td className="px-4 py-2">
                         {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20"><CheckCircle2 className="w-3 h-3 mr-1" />Present</Badge>}
                         {r.status === "absent" && <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Absent</Badge>}
