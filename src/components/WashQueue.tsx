@@ -461,19 +461,32 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                   <div className="text-2xl leading-none mt-0.5">🚗</div>
                   <div className="min-w-0">
                     <p className="text-base font-bold text-foreground truncate">{o.customer}</p>
-                    {o.customerPhone && (
-                      <a
-                        href={`tel:${telHref(o.customerPhone)}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs text-muted-foreground flex items-center gap-1 mt-1 hover:text-foreground truncate"
-                      >
-                        <Phone className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{formatPhone(o.customerPhone)}</span>
-                      </a>
-                    )}
                     <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                       <Hash className="w-3 h-3" />
                       {o.plate}
+                      {o.customerPhone && (
+                        <>
+                          <span className="mx-1 text-border">/</span>
+                          <Phone className="w-3 h-3 shrink-0" />
+                          <a
+                            href={`tel:${telHref(o.customerPhone)}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-foreground truncate"
+                          >
+                            {formatPhone(o.customerPhone)}
+                          </a>
+                        </>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-3 mt-1">
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {o.orderNumber}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {time}
+                      </span>
                     </p>
                   </div>
                 </div>
