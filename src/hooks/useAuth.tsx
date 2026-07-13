@@ -1,7 +1,14 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { db } from "@/offline/db";
+import {
+  LAST_ACTIVITY_KEY,
+  SESSION_CHANNEL,
+  loadSessionConfig,
+  saveSessionConfig,
+  type SessionConfig,
+} from "@/lib/auth/sessionConfig";
 
 export type StaffRole = "admin" | "supervisor" | "washer" | "driver" | "manager" | "cashier";
 
@@ -28,14 +35,22 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   updateProfile: (updates: { name?: string; phone?: string }) => Promise<string | null>;
   refresh: () => Promise<void>;
+  /** True while the idle-warning modal should be visible. */
+  idleWarning: boolean;
+  /** Seconds remaining before auto-logout when the warning is shown. */
+  idleSecondsLeft: number;
+  /** One-click extend: resets the idle timer across all tabs. */
+  extendSession: () => void;
+  /** Current tunables (from localStorage or DEFAULT_SESSION_CONFIG). */
+  sessionConfig: SessionConfig;
+  /** Update tunables at runtime; persists to localStorage. */
+  updateSessionConfig: (cfg: Partial<SessionConfig>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
 const REMEMBER_KEY = "wf_remember_me";
 const SESSION_ACTIVE_KEY = "wf_session_active";
-const LAST_ACTIVITY_KEY = "wf_last_activity";
-const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
 
 function activeTenantIdFor(authUser: User): string | null {
   const claim = (authUser.app_metadata as any)?.active_tenant_id;
@@ -64,9 +79,23 @@ function useAuthInternal(): AuthContextValue {
   const resolvedUserIdRef = useRef<string | null>(null);
   const userRef = useRef<StaffUser | null>(null);
 
+  const [sessionConfig, setSessionConfig] = useState<SessionConfig>(() => loadSessionConfig());
+  const [idleWarning, setIdleWarning] = useState(false);
+  const [idleSecondsLeft, setIdleSecondsLeft] = useState(0);
+  const bumpRef = useRef<() => void>(() => {});
+
   const setResolvedUser = useCallback((next: StaffUser | null) => {
     userRef.current = next;
     setUser(next);
+  }, []);
+
+  const updateSessionConfig = useCallback((cfg: Partial<SessionConfig>) => {
+    saveSessionConfig(cfg);
+    setSessionConfig((prev) => ({ ...prev, ...cfg }));
+  }, []);
+
+  const extendSession = useCallback(() => {
+    bumpRef.current();
   }, []);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
@@ -263,7 +292,7 @@ function useAuthInternal(): AuthContextValue {
         const rememberMe = localStorage.getItem(REMEMBER_KEY) !== "false";
         const hasSessionMarker = sessionStorage.getItem(SESSION_ACTIVE_KEY) === "1";
         const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
-        const inactiveTooLong = lastActivity > 0 && (Date.now() - lastActivity) > INACTIVITY_LIMIT_MS;
+        const inactiveTooLong = lastActivity > 0 && (Date.now() - lastActivity) > sessionConfig.inactivityLimitMs;
         if ((!rememberMe && !hasSessionMarker) || inactiveTooLong) {
           await supabase.auth.signOut();
           try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
@@ -285,47 +314,111 @@ function useAuthInternal(): AuthContextValue {
     };
   }, [fetchProfile, setResolvedUser]);
 
-  // Auto-logout after 15 minutes of true inactivity. Any real user interaction
-  // resets the timer; the timestamp is persisted so a reload mid-inactivity
-  // still enforces the limit (see the mount effect above).
-  //
-  // Listens to a broad set of input signals across mouse, keyboard, touch,
-  // pointer, wheel, scroll, and tab visibility/focus so working users never
-  // get logged out mid-task. Also runs a keepalive that refreshes the
-  // Supabase access token every few minutes while the user is active, so
-  // background sync/polling never hits a 401 from an expired JWT.
+  // Idle lifecycle: activity listeners, cross-tab sync, warning modal, and
+  // JWT keepalive. Any real user interaction in ANY tab defers logout in ALL
+  // tabs via BroadcastChannel + a shared localStorage timestamp (fallback
+  // storage event). A warning modal appears `warningMs` before the logout
+  // fires so the user can extend the session with one click.
   useEffect(() => {
     if (!user) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let lastBump = 0;
-    const BUMP_THROTTLE_MS = 1000;
+    const { inactivityLimitMs, warningMs, keepaliveMs, bumpThrottleMs } = sessionConfig;
 
-    const bump = () => {
-      const now = Date.now();
-      if (now - lastBump < BUMP_THROTTLE_MS) return;
-      lastBump = now;
-      try { localStorage.setItem(LAST_ACTIVITY_KEY, String(now)); } catch { /* ignore */ }
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(async () => {
+    let logoutTimer: ReturnType<typeof setTimeout> | null = null;
+    let warnTimer: ReturnType<typeof setTimeout> | null = null;
+    let countdownTimer: ReturnType<typeof setInterval> | null = null;
+    let lastBump = 0;
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== "undefined") channel = new BroadcastChannel(SESSION_CHANNEL);
+    } catch { /* ignore */ }
+
+    const clearTimers = () => {
+      if (logoutTimer) { clearTimeout(logoutTimer); logoutTimer = null; }
+      if (warnTimer) { clearTimeout(warnTimer); warnTimer = null; }
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    };
+
+    const scheduleFrom = (activityTs: number) => {
+      clearTimers();
+      const elapsed = Date.now() - activityTs;
+      const untilWarn = Math.max(0, inactivityLimitMs - warningMs - elapsed);
+      const untilLogout = Math.max(0, inactivityLimitMs - elapsed);
+
+      warnTimer = setTimeout(() => {
+        setIdleWarning(true);
+        setIdleSecondsLeft(Math.ceil(warningMs / 1000));
+        countdownTimer = setInterval(() => {
+          setIdleSecondsLeft((s) => (s > 0 ? s - 1 : 0));
+        }, 1000);
+      }, untilWarn);
+
+      logoutTimer = setTimeout(async () => {
         try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
+        setIdleWarning(false);
         await supabase.auth.signOut();
         resolvedUserIdRef.current = null;
         setAuthedUserId(null);
         setAuthedEmail(null);
         setResolvedUser(null);
-      }, INACTIVITY_LIMIT_MS);
+      }, untilLogout);
     };
+
+    const applyActivity = (ts: number, broadcast: boolean) => {
+      try { localStorage.setItem(LAST_ACTIVITY_KEY, String(ts)); } catch { /* ignore */ }
+      setIdleWarning(false);
+      setIdleSecondsLeft(0);
+      scheduleFrom(ts);
+      if (broadcast) {
+        try { channel?.postMessage({ type: "activity", ts }); } catch { /* ignore */ }
+      }
+    };
+
+    const bump = () => {
+      const now = Date.now();
+      if (now - lastBump < bumpThrottleMs) return;
+      lastBump = now;
+      applyActivity(now, true);
+    };
+
+    // Expose bump() for the one-click "Stay signed in" extend action.
+    bumpRef.current = bump;
+
+    const onRemoteActivity = (ts: number) => {
+      if (!Number.isFinite(ts)) return;
+      lastBump = ts; // treat as recent so local bumps stay throttled
+      setIdleWarning(false);
+      setIdleSecondsLeft(0);
+      scheduleFrom(ts);
+    };
+
+    const onChannelMessage = (ev: MessageEvent) => {
+      if (ev?.data?.type === "activity") onRemoteActivity(Number(ev.data.ts));
+    };
+    channel?.addEventListener("message", onChannelMessage);
+
+    // Fallback for browsers without BroadcastChannel: listen to storage events.
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key !== LAST_ACTIVITY_KEY || !ev.newValue) return;
+      onRemoteActivity(Number(ev.newValue));
+    };
+    window.addEventListener("storage", onStorage);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         bump();
-        // Proactively refresh on tab focus so any queued sync/poll fires
-        // against a fresh token instead of a stale one.
         supabase.auth.refreshSession().catch(() => { /* ignore */ });
       }
     };
 
-    bump();
+    // Seed from the shared timestamp if another tab was recently active,
+    // otherwise start a fresh window now.
+    const seed = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
+    if (seed && Date.now() - seed < inactivityLimitMs) {
+      scheduleFrom(seed);
+    } else {
+      applyActivity(Date.now(), true);
+    }
 
     const winEvents = [
       "mousemove", "mousedown", "mouseup", "click",
@@ -339,23 +432,24 @@ function useAuthInternal(): AuthContextValue {
     winEvents.forEach((ev) => window.addEventListener(ev, bump, listenerOpts));
     document.addEventListener("visibilitychange", onVisibility);
 
-    // Keepalive: refresh the Supabase access token every 4 minutes while the
-    // user is active. Supabase JWTs live 1h by default; refreshing well before
-    // expiry covers clock skew and prevents 401s in background sync/polling.
-    const KEEPALIVE_MS = 4 * 60 * 1000;
+    // Keepalive: refresh the Supabase access token on a schedule so background
+    // sync/polling never hits a 401 from an expired JWT.
     const keepalive = setInterval(() => {
       const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
-      if (last && Date.now() - last > INACTIVITY_LIMIT_MS) return;
+      if (last && Date.now() - last > inactivityLimitMs) return;
       supabase.auth.refreshSession().catch(() => { /* ignore transient errors */ });
-    }, KEEPALIVE_MS);
+    }, keepaliveMs);
 
     return () => {
-      if (timer) clearTimeout(timer);
+      clearTimers();
       clearInterval(keepalive);
       winEvents.forEach((ev) => window.removeEventListener(ev, bump, listenerOpts));
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
+      channel?.removeEventListener("message", onChannelMessage);
+      try { channel?.close(); } catch { /* ignore */ }
     };
-  }, [user, setResolvedUser]);
+  }, [user, setResolvedUser, sessionConfig]);
 
 
 
@@ -432,6 +526,7 @@ function useAuthInternal(): AuthContextValue {
     isAdmin: user?.role === "admin",
     authedNoRole: !!authedEmail && !user,
     login, signup, logout, updateProfile, refresh,
+    idleWarning, idleSecondsLeft, extendSession, sessionConfig, updateSessionConfig,
   };
 }
 
