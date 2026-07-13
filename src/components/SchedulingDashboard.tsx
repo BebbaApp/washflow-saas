@@ -389,13 +389,22 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
   };
 
   const showTimeOffTab = canRequestTimeOff || canApproveTimeOff;
+  const canDayLog = can("staff.daylog");
+  const canEmployees = can("staff.employees");
+  const canPerformance = can("staff.performance");
   const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = [
     { id: "checkin", label: "Staff Check-in", icon: UserCheck },
-    { id: "daylog", label: "Day Log", icon: Calendar },
-    { id: "employees", label: "Employees", icon: Users },
-    { id: "performance", label: "Performance", icon: Trophy },
+    ...(canDayLog ? [{ id: "daylog" as View, label: "Day Log", icon: Calendar }] : []),
+    ...(canEmployees ? [{ id: "employees" as View, label: "Employees", icon: Users }] : []),
+    ...(canPerformance ? [{ id: "performance" as View, label: "Performance", icon: Trophy }] : []),
     ...(showTimeOffTab ? [{ id: "timeoff" as View, label: "Time Off", icon: Plane }] : []),
   ];
+
+  // If the current view is hidden by permissions, fall back to check-in.
+  useEffect(() => {
+    if (!viewTabs.some((t) => t.id === view)) setView("checkin");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canDayLog, canEmployees, canPerformance, showTimeOffTab]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
