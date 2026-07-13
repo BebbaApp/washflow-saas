@@ -127,6 +127,15 @@ Deno.serve(async (req) => {
 
     const { tenant_id, table, op, payload } = parsed.data;
     const admin = createClient(supabaseUrl, serviceKey);
+    // Order UPDATEs run a database trigger that checks auth.uid() to decide
+    // whether notes/status fields may be changed. A pure service-role client
+    // bypasses RLS but leaves auth.uid() null inside that trigger, which makes
+    // legitimate admin/cashier note edits fail. Use the caller JWT for order
+    // writes so the trigger evaluates the real user, while keeping the service
+    // client for membership checks and read fallbacks.
+    const userScopedAdmin = createClient(supabaseUrl, serviceKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
     const access = op === "list"
       ? await canReadTenant(admin, tenant_id, userData.user.id)
       : await canWriteTenant(admin, tenant_id, userData.user.id);
@@ -164,9 +173,10 @@ Deno.serve(async (req) => {
         row = { ...row, order_number: orderNumber };
       }
     }
+    const writeClient = table === "orders" ? userScopedAdmin : admin;
     let result;
     if (op === "delete") {
-      result = await admin
+      result = await writeClient
         .from(table)
         .delete()
         .eq("tenant_id", tenant_id)
@@ -179,7 +189,7 @@ Deno.serve(async (req) => {
       // Try a scoped UPDATE first. If no row matches (returning null with no
       // error), the local mirror has a row the server never saw — heal it by
       // upserting the merged row so status/notes changes don't get stuck.
-      const upd = await admin
+      const upd = await writeClient
         .from(table)
         .update(patch)
         .eq("tenant_id", tenant_id)
@@ -187,7 +197,7 @@ Deno.serve(async (req) => {
         .select("*")
         .maybeSingle();
       if (!upd.error && !upd.data) {
-        result = await admin
+        result = await writeClient
           .from(table)
           .upsert(row, { onConflict: "id" })
           .select("*")
@@ -196,7 +206,7 @@ Deno.serve(async (req) => {
         result = upd;
       }
     } else {
-      result = await admin
+      result = await writeClient
         .from(table)
         .upsert(row, { onConflict: "id" })
         .select("*")
