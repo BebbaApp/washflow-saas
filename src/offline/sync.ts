@@ -527,7 +527,7 @@ function startEdgePolling(tenantId: string) {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     if (pulling) return;
-    void replaceTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
+    void reconcileTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
   }, POLL_MS);
 }
 
