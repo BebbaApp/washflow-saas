@@ -10,6 +10,7 @@ const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
 const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
+const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
