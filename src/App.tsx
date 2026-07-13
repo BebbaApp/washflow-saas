@@ -15,6 +15,7 @@ import Platform from "./pages/Platform";
 import NotFound from "./pages/NotFound";
 import { SyncBoot } from "./offline/SyncBoot";
 import { TauriStatusBar } from "./components/TauriStatusBar";
+import { IdleWarningDialog } from "./components/IdleWarningDialog";
 
 const queryClient = new QueryClient({
   defaultOptions: {
