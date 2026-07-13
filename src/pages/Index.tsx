@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AndroidUpdateDialog } from "@/components/AndroidUpdateDialog";
 import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
@@ -558,6 +559,7 @@ const Index = () => {
           reason={user.phone ? "edit" : "missing_phone"}
         />
       )}
+      <AndroidUpdateDialog />
     </div>
   );
 };
