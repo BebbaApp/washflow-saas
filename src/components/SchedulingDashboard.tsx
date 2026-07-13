@@ -164,6 +164,18 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     [staffMembers, activeMap]
   );
 
+  // Approved time-off dates keyed by "userId|date"
+  const approvedTimeOff = useMemo(() => {
+    const s = new Set<string>();
+    for (const req of timeOffRequests) {
+      if (req.status !== "approved") continue;
+      for (const d of daysBetween(req.startDate, req.endDate)) {
+        s.add(`${req.userId}|${d}`);
+      }
+    }
+    return s;
+  }, [timeOffRequests]);
+
   // === Build per-staff per-day rows from attendance records ===
   const dayRows = useMemo<DayRow[]>(() => {
     const dates = daysBetween(from, to);
@@ -200,13 +212,14 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 
         const firstIn = recs.find((r) => r.kind === "check_in");
         const lastOut = [...recs].reverse().find((r) => r.kind === "check_out");
+        const onApprovedLeave = approvedTimeOff.has(`${s.id}|${date}`);
         if (!firstIn) {
           const wasMarked = markedAbsent.has(`${s.id}|${date}`);
           rows.push({
             user_id: s.id, staffName: s.name, date,
             start: null, end: null, hours: 0,
             periods: [], periodCount: 0,
-            status: wasMarked ? "marked_absent" : "absent",
+            status: onApprovedLeave ? "time_off" : (wasMarked ? "marked_absent" : "absent"),
           });
         } else {
           const start = new Date(firstIn.created_at);
