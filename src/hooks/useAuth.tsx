@@ -1,7 +1,14 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { db } from "@/offline/db";
+import {
+  LAST_ACTIVITY_KEY,
+  SESSION_CHANNEL,
+  loadSessionConfig,
+  saveSessionConfig,
+  type SessionConfig,
+} from "@/lib/auth/sessionConfig";
 
 export type StaffRole = "admin" | "supervisor" | "washer" | "driver" | "manager" | "cashier";
 
