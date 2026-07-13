@@ -408,6 +408,10 @@ function schedulePush(delay = 100) {
 
 async function drainOutbox() {
   if (!navigator.onLine) { setStatus("offline"); return; }
+  // Bail if there's no session — otherwise every edge call 401s and the
+  // customFetch stale-session handler force-signs-out into a blank screen.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) { setStatus("idle"); return; }
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
   if (items.length === 0) { emit(); return; }
   for (const it of items) {
