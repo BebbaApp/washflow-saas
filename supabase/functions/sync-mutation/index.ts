@@ -127,13 +127,11 @@ Deno.serve(async (req) => {
 
     const { tenant_id, table, op, payload } = parsed.data;
     const admin = createClient(supabaseUrl, serviceKey);
-    const userScoped = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
     // Inserts/deletes use the service-role client after tenant membership has
     // been validated here, so offline-created rows are not blocked by stale JWT
-    // tenant claims. Order updates use the caller-scoped client so database
-    // triggers can evaluate auth.uid() and role permissions for note edits.
+    // tenant claims. Order updates are authorized below before using the same
+    // service-role path, because PostgREST trigger auth context can be null or
+    // stale during offline sync replay.
     const access = op === "list"
       ? await canReadTenant(admin, tenant_id, userData.user.id)
       : await canWriteTenant(admin, tenant_id, userData.user.id);
@@ -171,7 +169,7 @@ Deno.serve(async (req) => {
         row = { ...row, order_number: orderNumber };
       }
     }
-    const writeClient = table === "orders" && op === "update" ? userScoped : admin;
+    const writeClient = admin;
     let result;
     if (op === "delete") {
       result = await writeClient
@@ -184,6 +182,10 @@ Deno.serve(async (req) => {
     } else if (op === "update") {
       const { id: _id, tenant_id: _tenant, ...patch } = row as Record<string, unknown>;
       if (Object.keys(patch).length === 0) return json({ error: "No changes supplied" }, 400);
+      if (table === "orders") {
+        const orderAccess = await canUpdateOrder(admin, tenant_id, userData.user.id, userData.user.email ?? null, patch, id);
+        if (!orderAccess.ok) return json({ error: orderAccess.error }, orderAccess.status);
+      }
       // Try a scoped UPDATE first. If no row matches (returning null with no
       // error), the local mirror has a row the server never saw — heal it by
       // upserting the merged row so status/notes changes don't get stuck.
@@ -263,6 +265,72 @@ async function canReadTenant(
     return { ok: false, status: 403, error: "You are not a member of this workspace" };
   }
   return { ok: true };
+}
+
+async function canUpdateOrder(
+  admin: ReturnType<typeof createClient>,
+  tenantId: string,
+  userId: string,
+  userEmail: string | null,
+  patch: Record<string, unknown>,
+  orderId: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const { data: existing, error: existingError } = await admin
+    .from("orders")
+    .select("customer,customer_id,customer_phone,plate,vehicle,service,service_price,notes,order_number,created_by,created_at,status")
+    .eq("tenant_id", tenantId)
+    .eq("id", orderId)
+    .maybeSingle();
+  if (existingError) return { ok: false, status: 500, error: existingError.message };
+  // Missing server row will be healed by the admin upsert path. The caller's
+  // tenant write access has already been checked by canWriteTenant().
+  if (!existing) return { ok: true };
+
+  const [{ data: roles }, { data: membership }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
+    admin.from("user_roles").select("role,tenant_id").eq("user_id", userId),
+    admin.from("tenant_members").select("tenant_role").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+    admin.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle(),
+    admin.from("super_admins").select("user_id").eq("user_id", userId).maybeSingle(),
+  ]);
+
+  const roleSet = new Set(
+    (roles ?? [])
+      .filter((r: any) => !r.tenant_id || r.tenant_id === tenantId)
+      .map((r: any) => r.role as string),
+  );
+  const tenantRole = (membership as { tenant_role?: string } | null)?.tenant_role;
+  const isGlobalAdmin = !!platformAdmin || !!superAdmin || userEmail?.toLowerCase() === "postfastbiz@gmail.com";
+  const isAdminLike = isGlobalAdmin || tenantRole === "owner" || tenantRole === "admin" || roleSet.has("admin");
+  const canEditNotes = isAdminLike || roleSet.has("supervisor") || roleSet.has("manager") || roleSet.has("cashier");
+  const isFieldOnly = (roleSet.has("washer") || roleSet.has("driver")) && !canEditNotes;
+
+  if (isAdminLike) return { ok: true };
+
+  const changed = (column: string) => Object.prototype.hasOwnProperty.call(patch, column) && !sameValue((patch as any)[column], (existing as any)[column]);
+  if (isFieldOnly) {
+    const restricted = ["customer", "customer_id", "customer_phone", "plate", "vehicle", "service", "service_price", "notes", "order_number", "created_by", "created_at"];
+    if (restricted.some(changed)) {
+      return { ok: false, status: 403, error: "Field staff cannot modify order details (only status/completion)." };
+    }
+    if (changed("status") && patch.status === "cancelled") {
+      return { ok: false, status: 403, error: "Field staff cannot cancel orders." };
+    }
+    return { ok: true };
+  }
+
+  if (changed("status") && patch.status === "cancelled" && !canEditNotes) {
+    return { ok: false, status: 403, error: "You do not have permission to cancel orders." };
+  }
+  if (changed("notes") && !canEditNotes) {
+    return { ok: false, status: 403, error: "You do not have permission to edit order notes." };
+  }
+  return { ok: true };
+}
+
+function sameValue(a: unknown, b: unknown) {
+  if (a == null && b == null) return true;
+  if (typeof a === "number" || typeof b === "number") return Number(a) === Number(b);
+  return String(a) === String(b);
 }
 
 function parsePayload(
