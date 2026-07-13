@@ -18,10 +18,11 @@ const RECENT_ENROLLMENT_TTL_MS = 24 * 60 * 60 * 1000;
 const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
-  if (!enrollment?.user_id || !enrollment?.image_url) return false;
-  const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
-  return clean.startsWith(`${enrollment.user_id}/`) ||
-    (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+  // Trust RLS/edge-function scoping — any row with a user_id + image_url counts
+  // as enrolled. The previous strict prefix match rejected legacy rows whose
+  // image_url used a different storage layout, making every staff member show
+  // "Not enrolled" even when a face was on file.
+  return !!enrollment?.user_id && !!enrollment?.image_url;
 }
 
 function readLastFaceEnrollment(tenantId?: string | null): string | null {

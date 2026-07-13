@@ -207,9 +207,10 @@ Deno.serve(async (req) => {
         ...superAdminIds,
       ]);
       const enrollmentBelongsToUser = (e: any) => {
-        if (!e?.user_id || !e?.image_url) return false;
-        const clean = String(e.image_url).replace(/^.*attendance-selfies\//, "");
-        return clean.startsWith(`${e.user_id}/`) || clean.startsWith(`${tenantId}/${e.user_id}/`);
+        // Trust the tenant-scoped query above — any row with user_id + image_url
+        // is a valid enrollment. Strict path-prefix checks previously excluded
+        // legacy rows and made every staff member appear "Not enrolled".
+        return !!e?.user_id && !!e?.image_url;
       };
       const enrolledFaceIds = new Set<string>((faceEnrollments ?? [])
         .filter(enrollmentBelongsToUser)
