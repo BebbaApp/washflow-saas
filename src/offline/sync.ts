@@ -332,7 +332,9 @@ export async function getStorageEstimate(): Promise<{ usage?: number; quota?: nu
   return null;
 }
 
-/** Prune oldest rows from high-volume tables to free space. Returns rows removed. */
+/** Prune oldest rows from high-volume tables to free space. Returns rows removed.
+ *  After pruning, the cleared tables are re-pulled from the server so the UI
+ *  doesn't sit on a hollowed-out local cache until the next full boot. */
 export async function pruneLocalCache(opts: { keepOrders?: number; keepTx?: number; keepLoyalty?: number } = {}) {
   if (!currentTenant) return 0;
   const t = currentTenant;
@@ -348,14 +350,26 @@ export async function pruneLocalCache(opts: { keepOrders?: number; keepTx?: numb
     await (db as any)[table].bulkDelete(toDelete);
     removed += toDelete.length;
   };
+  const targets: MirroredTable[] = ["orders", "inventory_transactions", "loyalty_transactions"];
   await prune("orders", keepOrders);
   await prune("inventory_transactions", keepTx);
   await prune("loyalty_transactions", keepLoyalty);
-  await db.sync_meta.where("key").anyOf([
-    metaKey(t, "orders"), metaKey(t, "inventory_transactions"), metaKey(t, "loyalty_transactions"),
-  ]).delete();
+  // Reset cursors so the next pull fetches everything again from the server.
+  await db.sync_meta.where("key").anyOf(targets.map((tbl) => metaKey(t, tbl))).delete();
+  // Kick off a fresh pull immediately so the UI re-hydrates from the server
+  // rather than showing an empty cache until the app is reloaded.
+  setStatus("pulling");
+  try {
+    await Promise.all(targets.map((tbl) => pullTable(t, tbl).catch((e) => {
+      console.warn("[sync] post-prune pull failed", tbl, e);
+    })));
+    setStatus("online", null);
+  } catch (e: any) {
+    setStatus("error", e?.message ?? String(e));
+  }
   return removed;
 }
+
 
 // Auto-drain when connectivity returns / tab regains focus.
 if (typeof window !== "undefined") {
