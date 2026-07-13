@@ -2,6 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 
+type SupabaseAdmin = ReturnType<typeof createClient<any>>;
+
 const TABLES = ["orders", "expenses", "inventory_items", "inventory_transactions"] as const;
 const OPS = ["insert", "update", "delete", "list"] as const;
 
@@ -222,7 +224,7 @@ Deno.serve(async (req) => {
 });
 
 async function canWriteTenant(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
@@ -249,7 +251,7 @@ async function canWriteTenant(
 }
 
 async function canReadTenant(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
@@ -268,7 +270,7 @@ async function canReadTenant(
 }
 
 async function canUpdateOrder(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
   userEmail: string | null,
