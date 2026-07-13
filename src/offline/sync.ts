@@ -125,10 +125,14 @@ async function pullTable(tenantId: string, table: MirroredTable) {
       throw new Error(`pull ${table}: ${error.message}`);
     }
     let rows = (data as any[]) ?? [];
+    let usedFallback = false;
     const fallbackPull = edgeFallbackPullers[table];
     if (rows.length === 0 && fallbackPull) {
       const fallbackRows = await fallbackPull(tenantId);
-      if (fallbackRows.length > 0) rows = fallbackRows;
+      if (fallbackRows.length > 0) {
+        rows = fallbackRows;
+        usedFallback = true;
+      }
     }
     if (rows.length === 0) break;
     await (db as any)[table].bulkPut(
@@ -137,7 +141,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     for (const r of rows) {
       if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
     }
-    if (rows.length < PAGE_SIZE) break;
+    if (usedFallback || rows.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
   await db.sync_meta.put({ key, last_pulled_at: hasUpdatedAt ? highWater : new Date().toISOString() });
