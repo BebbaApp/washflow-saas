@@ -40,11 +40,13 @@ function mapTemplate(r: any): ShiftTemplate {
     daysOfWeek: r.days_of_week ?? [],
   };
 }
-function mapTimeOff(r: any): TimeOffRequest {
+function mapTimeOff(r: any, nameByUser: Map<string, string>): TimeOffRequest {
+  const uid = r.staff_user_id ?? r.user_id;
   return {
-    id: r.id, userId: r.user_id, staffName: r.staff_name ?? "",
+    id: r.id, userId: uid, staffName: nameByUser.get(uid) ?? r.staff_name ?? "",
     startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
-    status: r.status ?? "pending", createdAt: r.created_at,
+    status: (r.status === "rejected" ? "rejected" : r.status) ?? "pending",
+    createdAt: r.created_at,
   };
 }
 
