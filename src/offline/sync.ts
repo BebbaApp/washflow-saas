@@ -232,6 +232,14 @@ async function replacePulledRows(table: MirroredTable, tenantId: string, rows: a
   if (dirtyRows.length > 0) await tbl.bulkPut(dirtyRows);
 }
 
+async function replaceTableFromFallback(table: MirroredTable, tenantId: string) {
+  const fallbackPull = edgeFallbackPullers[table];
+  if (!fallbackPull) return;
+  const rows = await fallbackPull(tenantId);
+  await replacePulledRows(table, tenantId, rows);
+  await db.sync_meta.put({ key: metaKey(tenantId, table), last_pulled_at: new Date().toISOString() });
+}
+
 async function initialPull(tenantId: string) {
   setStatus("pulling");
   try {
@@ -471,6 +479,11 @@ export async function forceResync() {
     await db.sync_meta.where("key").startsWith(`${t}:`).delete();
     // Also re-subscribe realtime so any missed channels reconnect cleanly.
     subscribeRealtime(t);
+    await Promise.all((Object.keys(edgeFallbackPullers) as MirroredTable[]).map((tbl) => (
+      replaceTableFromFallback(tbl, t).catch((e) => {
+        console.warn("[sync] fallback resync failed", tbl, e);
+      })
+    )));
     await initialPull(t);
   } finally {
     pulling = false;
