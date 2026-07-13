@@ -429,7 +429,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visible.map((o) => {
-          const time = new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          const time = new Date(o.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
           const nextStatus: WashStatus | null =
             o.status === "waiting" ? "in-progress" : o.status === "in-progress" ? "completed" : null;
           return (
