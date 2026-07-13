@@ -299,7 +299,9 @@ export async function purgeTenant(tenantId: string) {
 export async function forceResync() {
   if (!currentTenant) return;
   const t = currentTenant;
-  await Promise.all(MIRRORED_TABLES.map((tbl) => (db as any)[tbl].where("tenant_id").equals(t).delete()));
+  await Promise.all(MIRRORED_TABLES.map((tbl) => (
+    db as any
+  )[tbl].where("tenant_id").equals(t).and((row: any) => row?._dirty !== 1).delete()));
   await db.sync_meta.where("key").startsWith(`${t}:`).delete();
   await initialPull(t);
 }
