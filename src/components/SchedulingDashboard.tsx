@@ -231,7 +231,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           const hours = end ? Math.max(0, rawHours - LUNCH_BREAK_HOURS) : 0;
           const status: DayRow["status"] = end ? "present" : "in_progress";
           rows.push({
-            user_id: s.id, staffName: s.name, date, start, end, hours,
+            user_id: s.id, staffName: s.name, date, start, end, hours, rawHours,
             periods, periodCount: periods.length, status,
           });
         }
