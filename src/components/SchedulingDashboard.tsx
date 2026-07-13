@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee,
-  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle,
+  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle, Plane,
 } from "lucide-react";
 
 import { useScheduling } from "@/hooks/useScheduling";
 import { useAttendance, type AttendanceRecord } from "@/hooks/useAttendance";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
@@ -21,7 +24,7 @@ interface SchedulingDashboardProps {
   onOpenFaceEnroll?: () => void;
 }
 
-type View = "checkin" | "daylog" | "employees" | "performance";
+type View = "checkin" | "daylog" | "employees" | "performance" | "timeoff";
 type Preset = "today" | "7d" | "30d" | "all" | "custom";
 
 const LUNCH_BREAK_HOURS = 1;
