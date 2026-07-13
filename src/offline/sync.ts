@@ -456,10 +456,11 @@ export async function purgeTenant(tenantId: string) {
   await db.outbox.where("tenant_id").equals(tenantId).delete();
 }
 
-/** Force a full resync — clears every non-dirty local row and re-pulls the
- *  entire tenant dataset from the server. Pending writes (`_dirty === 1`) are
- *  preserved so offline edits are not lost. Safe to call while another pull
- *  is running — it awaits the in-flight one first. */
+/** Force a full resync — resets pull cursors and re-pulls the entire tenant
+ *  dataset from the server without first deleting visible local data. This is
+ *  intentionally non-destructive: if a table is temporarily hidden by RLS/JWT
+ *  claim drift, the queue should not go blank while the retry path repairs it.
+ *  Pending writes (`_dirty === 1`) are preserved. */
 export async function forceResync() {
   if (!currentTenant) return;
   const t = currentTenant;
@@ -467,9 +468,6 @@ export async function forceResync() {
   while (pulling) await new Promise((r) => setTimeout(r, 100));
   pulling = true;
   try {
-    await Promise.all(MIRRORED_TABLES.map((tbl) => (
-      db as any
-    )[tbl].where("tenant_id").equals(t).and((row: any) => row?._dirty !== 1).delete()));
     await db.sync_meta.where("key").startsWith(`${t}:`).delete();
     // Also re-subscribe realtime so any missed channels reconnect cleanly.
     subscribeRealtime(t);
