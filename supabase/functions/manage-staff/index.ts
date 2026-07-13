@@ -544,8 +544,10 @@ Deno.serve(async (req) => {
       const isSelf = staff_user_id === callerId;
       const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
         tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
-      if (!isSelf && !canApprove) {
-        return reply({ error: "You can only request time off for yourself" }, 403);
+      const canRequestForOthers = canApprove ||
+        tenantRoles.some((r: any) => TIMEOFF_REQUESTER_ROLES.includes(r.role));
+      if (!isSelf && !canRequestForOthers) {
+        return reply({ error: "You do not have permission to request time off for others" }, 403);
       }
       if (!isTenantMember && !isPlatformAdmin) {
         return reply({ error: "Not a member of this workspace" }, 403);
