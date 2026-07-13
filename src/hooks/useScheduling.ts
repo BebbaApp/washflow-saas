@@ -147,21 +147,28 @@ export function useScheduling() {
     startDate: string; endDate: string; reason: string;
   }) => {
     if (!tenant?.id || !user?.id) return;
-    const staff = staffMembers.find((s) => s.id === user.id);
     await offlineInsert("time_off_requests", tenant.id, {
-      user_id: user.id,
-      staff_name: staff?.name ?? user.email ?? "",
+      staff_user_id: user.id,
       start_date: data.startDate,
       end_date: data.endDate,
       reason: data.reason,
       status: "pending",
     });
     toast.success("Time-off request submitted");
-  }, [tenant?.id, user, staffMembers]);
+  }, [tenant?.id, user]);
 
   const updateTimeOffStatus = useCallback(async (requestId: string, status: "approved" | "rejected") => {
     if (!tenant?.id) return;
-    await offlineUpdate("time_off_requests", tenant.id, requestId, { status });
+    const backendStatus = status === "rejected" ? "denied" : status;
+    const { data, error } = await supabase.functions.invoke("manage-staff", {
+      body: { action: "update_timeoff", tenant_id: tenant.id, request_id: requestId, status: backendStatus },
+    });
+    if (error || (data && data.error)) {
+      toast.error(data?.error ?? error?.message ?? "Failed to update request");
+      return;
+    }
+    // Reflect locally for immediate UI update; sync will reconcile
+    await offlineUpdate("time_off_requests", tenant.id, requestId, { status: backendStatus });
     toast.success(`Request ${status}`);
   }, [tenant?.id]);
 
