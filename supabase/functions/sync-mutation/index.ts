@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import postgres from "npm:postgres@3";
 import { z } from "npm:zod@3";
 
 type SupabaseAdmin = ReturnType<typeof createClient<any>>;
@@ -114,6 +115,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const dbUrl = Deno.env.get("SUPABASE_DB_URL");
     if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Function is not configured" }, 500);
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -191,7 +193,11 @@ Deno.serve(async (req) => {
         if (!orderAccess.ok) return json({ error: orderAccess.error }, orderAccess.status);
         patch = orderAccess.patch;
         if (Object.keys(patch).length === 0) return json({ ok: true, row: null, skipped: true });
-        if (orderAccess.requiresUserContext) writeClient = userScoped;
+        if (orderAccess.requiresUserContext) {
+          if (!dbUrl) return json({ error: "Function is not configured for order approvals" }, 500);
+          const row = await updateOrderWithAuthContext(dbUrl, tenant_id, id, userData.user.id, patch);
+          return json({ ok: true, row });
+        }
       }
       // Partial updates are intentional. If the target row no longer exists or
       // belongs to another workspace, treat the mutation as stale instead of
