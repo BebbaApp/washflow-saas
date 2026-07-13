@@ -7,6 +7,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { InventoryTrendsPanel } from "@/components/InventoryTrendsPanel";
 import { usePermissions } from "@/hooks/usePermissions";
+import { formatPhone } from "@/lib/phone";
 
 interface DashboardOverviewProps {
   orders: WashOrder[];
