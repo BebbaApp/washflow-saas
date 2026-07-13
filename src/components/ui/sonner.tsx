@@ -18,14 +18,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           toast:
             "pointer-events-auto w-[min(92vw,420px)] rounded-2xl border px-4 py-3 text-sm font-medium shadow-2xl backdrop-blur-xl flex items-start gap-3 bg-card text-card-foreground border-border",
-          title: "font-semibold tracking-tight",
-          description: "text-xs mt-0.5 opacity-90",
+          title: "font-semibold tracking-tight text-current",
+          description: "text-xs mt-0.5 opacity-90 text-current",
           actionButton: "bg-white/20 text-current rounded-md px-2 py-1 text-xs",
           cancelButton: "bg-black/20 text-current rounded-md px-2 py-1 text-xs",
-          success: "bg-emerald-600 text-white border-emerald-500",
-          error: "bg-red-600 text-white border-red-500",
-          warning: "bg-amber-500 text-white border-amber-400",
-          info: "bg-sky-600 text-white border-sky-500",
+          success: "!bg-emerald-600 !text-white !border-emerald-500",
+          error: "!bg-red-600 !text-white !border-red-500",
+          warning: "!bg-amber-500 !text-white !border-amber-400",
+          info: "!bg-sky-600 !text-white !border-sky-500",
         },
       }}
       {...props}
