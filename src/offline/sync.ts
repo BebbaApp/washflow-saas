@@ -58,6 +58,14 @@ const withLocalId = (table: MirroredTable, row: any) => {
 };
 
 const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => Promise<any[]>>> = {
+  attendance_records: async (tenantId: string) => {
+    const { data, error } = await supabase.functions.invoke("manage-staff", {
+      body: { action: "list_attendance_records", tenant_id: tenantId },
+    });
+    if (error) throw error;
+    const rows = (data as any)?.attendance_records;
+    return Array.isArray(rows) ? rows : [];
+  },
   staff_face_enrollments: async (tenantId: string) => {
     const { data, error } = await supabase.functions.invoke("manage-staff", {
       body: { action: "list_face_enrollments", tenant_id: tenantId },
@@ -117,10 +125,14 @@ async function pullTable(tenantId: string, table: MirroredTable) {
       throw new Error(`pull ${table}: ${error.message}`);
     }
     let rows = (data as any[]) ?? [];
+    let usedFallback = false;
     const fallbackPull = edgeFallbackPullers[table];
-    if (rows.length === 0 && !since && fallbackPull) {
+    if (rows.length === 0 && fallbackPull) {
       const fallbackRows = await fallbackPull(tenantId);
-      if (fallbackRows.length > 0) rows = fallbackRows;
+      if (fallbackRows.length > 0) {
+        rows = fallbackRows;
+        usedFallback = true;
+      }
     }
     if (rows.length === 0) break;
     await (db as any)[table].bulkPut(
@@ -129,7 +141,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     for (const r of rows) {
       if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
     }
-    if (rows.length < PAGE_SIZE) break;
+    if (usedFallback || rows.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
   await db.sync_meta.put({ key, last_pulled_at: hasUpdatedAt ? highWater : new Date().toISOString() });
@@ -377,6 +389,10 @@ export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
           }
         } else {
           server = count ?? 0;
+          const fallbackPull = edgeFallbackPullers[table];
+          if (server === 0 && fallbackPull) {
+            server = (await fallbackPull(t)).length;
+          }
         }
       } catch (e: any) {
         error = e?.message ?? String(e);
