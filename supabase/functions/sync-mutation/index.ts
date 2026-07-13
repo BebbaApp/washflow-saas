@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import postgres from "npm:postgres@3";
 import { z } from "npm:zod@3";
 
 type SupabaseAdmin = ReturnType<typeof createClient<any>>;
@@ -114,6 +115,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const dbUrl = Deno.env.get("SUPABASE_DB_URL");
     if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Function is not configured" }, 500);
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -191,7 +193,11 @@ Deno.serve(async (req) => {
         if (!orderAccess.ok) return json({ error: orderAccess.error }, orderAccess.status);
         patch = orderAccess.patch;
         if (Object.keys(patch).length === 0) return json({ ok: true, row: null, skipped: true });
-        if (orderAccess.requiresUserContext) writeClient = userScoped;
+        if (orderAccess.requiresUserContext) {
+          if (!dbUrl) return json({ error: "Function is not configured for order approvals" }, 500);
+          const row = await updateOrderWithAuthContext(dbUrl, tenant_id, id, userData.user.id, patch);
+          return json({ ok: true, row });
+        }
       }
       // Partial updates are intentional. If the target row no longer exists or
       // belongs to another workspace, treat the mutation as stale instead of
@@ -374,6 +380,39 @@ async function ensureAppRole(
     return { ok: false, status: 500, error: insertError.message };
   }
   return { ok: true };
+}
+
+async function updateOrderWithAuthContext(
+  dbUrl: string,
+  tenantId: string,
+  orderId: string,
+  userId: string,
+  patch: Record<string, unknown>,
+) {
+  const sql = postgres(dbUrl, { max: 1, prepare: false });
+  try {
+    const row = await sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${userId}, true)`;
+      await tx`select set_config('request.jwt.claim.role', 'authenticated', true)`;
+
+      const rows = await tx`
+        update public.orders
+        set
+          status = coalesce(${patch.status ?? null}::text, status),
+          notes = case when ${Object.prototype.hasOwnProperty.call(patch, "notes")} then ${patch.notes ?? null}::text else notes end,
+          completed_at = case when ${Object.prototype.hasOwnProperty.call(patch, "completed_at")} then ${patch.completed_at ?? null}::timestamptz else completed_at end,
+          wait_minutes = case when ${Object.prototype.hasOwnProperty.call(patch, "wait_minutes")} then ${patch.wait_minutes ?? null}::integer else wait_minutes end,
+          updated_at = coalesce(${patch.updated_at ?? null}::timestamptz, now())
+        where tenant_id = ${tenantId}::uuid
+          and id = ${orderId}::uuid
+        returning *
+      `;
+      return rows[0] ?? null;
+    });
+    return row;
+  } finally {
+    await sql.end({ timeout: 1 });
+  }
 }
 
 function sameValue(a: unknown, b: unknown) {
