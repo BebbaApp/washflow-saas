@@ -26,6 +26,7 @@ const PAGE_SIZE = 1000;
 let currentTenant: string | null = null;
 let channels: Channel[] = [];
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 let pulling = false;
 
 const TABLES_WITHOUT_UPDATED_AT = new Set<MirroredTable>([
