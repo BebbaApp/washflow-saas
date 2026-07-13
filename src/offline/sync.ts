@@ -180,6 +180,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
   const key = metaKey(tenantId, table);
   const meta = await db.sync_meta.get(key);
   const since = meta?.last_pulled_at;
+  const pendingIds = await getPendingMutationIds(table, tenantId);
 
   // Page through rows for the tenant. We order by id (stable across pages even
   // when updated_at is null) and, on incremental pulls, include rows whose
@@ -218,9 +219,11 @@ async function pullTable(tenantId: string, table: MirroredTable) {
       }
     }
     if (rows.length === 0) break;
-    await (db as any)[table].bulkPut(
-      rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })),
-    );
+    const rowsToPut = rows
+      .map((r) => withLocalId(table, r))
+      .filter((r) => r?.id && !pendingIds.has(String(r.id)))
+      .map((r) => ({ ...r, _dirty: 0 as 0 }));
+    if (rowsToPut.length > 0) await (db as any)[table].bulkPut(rowsToPut);
     for (const r of rows) {
       if (r?.updated_at && r.updated_at > highWater) highWater = r.updated_at;
     }
@@ -230,12 +233,36 @@ async function pullTable(tenantId: string, table: MirroredTable) {
   await db.sync_meta.put({ key, last_pulled_at: hasUpdatedAt ? highWater : new Date().toISOString() });
 }
 
+async function getPendingMutationIds(table: MirroredTable, tenantId: string) {
+  const pendingIds = new Set<string>();
+  const pending = await db.outbox.where("tenant_id").equals(tenantId).toArray();
+  for (const it of pending) {
+    if (it.table !== table) continue;
+    const id = (it.payload as any)?.id;
+    if (id) pendingIds.add(String(id));
+  }
+  return pendingIds;
+}
+
 async function replacePulledRows(table: MirroredTable, tenantId: string, rows: any[]) {
   const tbl = (db as any)[table];
-  const dirtyRows = await tbl.where("tenant_id").equals(tenantId).and((row: any) => row?._dirty === 1).toArray();
-  await tbl.where("tenant_id").equals(tenantId).and((row: any) => row?._dirty !== 1).delete();
+  const pendingIds = await getPendingMutationIds(table, tenantId);
+  const dirtyRows = await tbl
+    .where("tenant_id")
+    .equals(tenantId)
+    .and((row: any) => row?._dirty === 1 && pendingIds.has(String(row.id)))
+    .toArray();
+  await tbl
+    .where("tenant_id")
+    .equals(tenantId)
+    .and((row: any) => row?._dirty !== 1 || !pendingIds.has(String(row.id)))
+    .delete();
   if (rows.length > 0) {
-    await tbl.bulkPut(rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })));
+    const rowsToPut = rows
+      .map((r) => withLocalId(table, r))
+      .filter((r) => r?.id && !pendingIds.has(String(r.id)))
+      .map((r) => ({ ...r, _dirty: 0 as 0 }));
+    if (rowsToPut.length > 0) await tbl.bulkPut(rowsToPut);
   }
   if (dirtyRows.length > 0) await tbl.bulkPut(dirtyRows);
 }
@@ -259,13 +286,7 @@ async function reconcileTableFromFallback(table: MirroredTable, tenantId: string
   const serverRows = await fallbackPull(tenantId);
   const tbl = (db as any)[table];
 
-  const pendingIds = new Set<string>();
-  const pending = await db.outbox.where("tenant_id").equals(tenantId).toArray();
-  for (const it of pending) {
-    if (it.table !== table) continue;
-    const id = (it.payload as any)?.id;
-    if (id) pendingIds.add(String(id));
-  }
+  const pendingIds = await getPendingMutationIds(table, tenantId);
 
   const local: any[] = await tbl.where("tenant_id").equals(tenantId).toArray();
   const localById = new Map<string, any>(local.map((r) => [String(r.id), r]));
@@ -282,7 +303,6 @@ async function reconcileTableFromFallback(table: MirroredTable, tenantId: string
     const sameUpdated =
       existing && r.updated_at && existing.updated_at && existing.updated_at === r.updated_at;
     if (existing && existing._dirty !== 1 && sameUpdated) continue;
-    if (existing?._dirty === 1) continue;
     toPut.push({ ...r, _dirty: 0 as 0 });
   }
 
@@ -290,7 +310,6 @@ async function reconcileTableFromFallback(table: MirroredTable, tenantId: string
   for (const row of local) {
     const id = String(row.id);
     if (serverIds.has(id)) continue;
-    if (row._dirty === 1) continue;
     if (pendingIds.has(id)) continue;
     toDelete.push(id);
   }
