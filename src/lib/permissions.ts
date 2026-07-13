@@ -67,9 +67,6 @@ export const PERMISSION_GROUPS: PermGroup[] = [
     label: "Staff & Scheduling",
     items: [
       { key: "staff.view", label: "View Staff Schedule" },
-      { key: "staff.createShift", label: "Create Shifts" },
-      { key: "staff.editShift", label: "Edit Shifts" },
-      { key: "staff.deleteShift", label: "Delete Shifts" },
       { key: "staff.timeOff.request", label: "Request Time Off" },
       { key: "staff.timeOff.approve", label: "Approve Time Off" },
     ],
@@ -188,7 +185,7 @@ export function getDefaultMatrix(): PermissionMatrix {
 
   deny("supervisor", [
     "services.delete", "inventory.delete", "expenses.delete",
-    "staff.deleteShift", "staff.timeOff.approve",
+    "staff.timeOff.approve",
     "settings.view", "settings.workers", "settings.workers.delete",
     "settings.workers.compensation", "settings.workers.pin",
     "settings.appearance", "settings.currency", "settings.permissions",
