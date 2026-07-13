@@ -422,11 +422,18 @@ export async function pruneLocalCache(opts: { keepOrders?: number; keepTx?: numb
 }
 
 
-// Auto-drain when connectivity returns / tab regains focus.
+// Auto-drain and refresh when connectivity returns / tab regains focus.
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => { setStatus("online", null); schedulePush(0); });
+  window.addEventListener("online", () => {
+    setStatus("online", null);
+    schedulePush(0);
+    void backgroundPull();
+  });
   window.addEventListener("offline", () => setStatus("offline"));
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") schedulePush(0);
+    if (document.visibilityState === "visible") {
+      schedulePush(0);
+      void backgroundPull();
+    }
   });
 }
