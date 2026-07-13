@@ -108,6 +108,6 @@ export async function offlineUpsert(
   const existing = await (db as any)[table].get(row.id);
   const merged = { ...(existing ?? {}), ...row };
   await (db as any)[table].put({ ...merged, _dirty: 1, _op: existing ? "update" : "insert" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: existing ? "update" : "insert", payload: merged });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: existing ? "update" : "insert", payload: stripUpdatedAt(table, merged) });
   return merged;
 }
