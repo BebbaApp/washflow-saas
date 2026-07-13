@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 
-const TABLES = ["expenses", "inventory_items", "inventory_transactions"] as const;
+const TABLES = ["orders", "expenses", "inventory_items", "inventory_transactions"] as const;
 const OPS = ["insert", "update", "delete"] as const;
 
 const BodySchema = z.object({
@@ -23,6 +23,34 @@ const numberValue = z.coerce.number().finite();
 const timestampText = z.string().trim().min(1).max(80);
 
 const DeleteSchema = z.object({ id: uuid }).strip();
+
+const OrderInsertSchema = z.object({
+  id: uuid.optional(),
+  order_number: z.string().trim().max(40).optional(),
+  customer: text(180),
+  customer_phone: optionalText(40),
+  customer_id: nullableUuid,
+  vehicle: text(180),
+  plate: text(80),
+  service: text(180),
+  service_price: numberValue.min(0).optional(),
+  status: z.enum(["waiting", "in-progress", "completed", "cancelled"]).optional(),
+  notes: optionalText(1000),
+  wait_minutes: numberValue.int().min(0).nullable().optional(),
+  completed_at: timestampText.nullable().optional(),
+  created_by: nullableUuid,
+  created_at: timestampText.optional(),
+  updated_at: timestampText.optional(),
+}).strip();
+
+const OrderUpdateSchema = z.object({
+  id: uuid,
+  status: z.enum(["waiting", "in-progress", "completed", "cancelled"]).optional(),
+  notes: optionalText(1000),
+  wait_minutes: numberValue.int().min(0).nullable().optional(),
+  completed_at: timestampText.nullable().optional(),
+  updated_at: timestampText.optional(),
+}).strip();
 
 const ExpenseInsertSchema = z.object({
   id: uuid.optional(),
@@ -110,7 +138,15 @@ Deno.serve(async (req) => {
     const clean = parsePayload(table, op, payload, tenant_id, userData.user.id);
     if (!clean.ok) return json({ error: clean.error }, 400);
 
-    const { id, row } = clean.value;
+    let { id, row } = clean.value;
+    if (table === "orders" && op === "insert") {
+      const existingNumber = typeof row.order_number === "string" ? row.order_number : "";
+      if (!existingNumber || /^WO-/i.test(existingNumber)) {
+        const { data: orderNumber, error: orderNumberError } = await admin.rpc("next_order_number");
+        if (orderNumberError) return json({ error: orderNumberError.message }, 500);
+        row = { ...row, order_number: orderNumber };
+      }
+    }
     let result;
     if (op === "delete") {
       result = await admin
@@ -187,7 +223,9 @@ function parsePayload(
   }
 
   const schema =
-    table === "expenses"
+    table === "orders"
+      ? op === "insert" ? OrderInsertSchema : OrderUpdateSchema
+      : table === "expenses"
       ? op === "insert" ? ExpenseInsertSchema : ExpenseUpdateSchema
       : table === "inventory_items"
         ? op === "insert" ? InventoryItemInsertSchema : InventoryItemUpdateSchema
@@ -196,7 +234,7 @@ function parsePayload(
   const parsed = schema.safeParse(payload);
   if (!parsed.success) return { ok: false, error: parsed.error.flatten().fieldErrors };
   const id = (parsed.data as { id?: string }).id ?? crypto.randomUUID();
-  const createdBy = table === "expenses" && op === "insert"
+  const createdBy = (table === "expenses" || table === "orders") && op === "insert"
     ? { created_by: (parsed.data as { created_by?: string | null }).created_by ?? userId }
     : {};
   return {
