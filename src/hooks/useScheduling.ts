@@ -42,11 +42,13 @@ function mapTemplate(r: any): ShiftTemplate {
 }
 function mapTimeOff(r: any, nameByUser: Map<string, string>): TimeOffRequest {
   const uid = r.staff_user_id ?? r.user_id;
+  const rawStatus = r.status ?? "pending";
+  const status: TimeOffRequest["status"] =
+    rawStatus === "denied" ? "rejected" : (rawStatus as TimeOffRequest["status"]);
   return {
     id: r.id, userId: uid, staffName: nameByUser.get(uid) ?? r.staff_name ?? "",
     startDate: r.start_date, endDate: r.end_date, reason: r.reason ?? "",
-    status: (r.status === "rejected" ? "rejected" : r.status) ?? "pending",
-    createdAt: r.created_at,
+    status, createdAt: r.created_at,
   };
 }
 
