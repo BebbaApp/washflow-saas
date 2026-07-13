@@ -133,14 +133,19 @@ export function useOrders() {
       const existing = (await db.orders.get(orderId)) as any;
       if (!existing) return;
 
-      const updates: any = { id: orderId, status: newStatus, updated_at: new Date().toISOString() };
+      const patch: any = { status: newStatus, updated_at: new Date().toISOString() };
       if (newStatus === "completed") {
-        updates.completed_at = new Date().toISOString();
-        updates.wait_minutes = Math.round((Date.now() - new Date(existing.created_at as string).getTime()) / 60000);
+        patch.completed_at = new Date().toISOString();
+        patch.wait_minutes = Math.round((Date.now() - new Date(existing.created_at as string).getTime()) / 60000);
       }
 
-      await db.orders.put({ ...existing, ...updates, _dirty: 1, _op: "update" });
-      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: updates });
+      const merged = { ...existing, ...patch };
+      await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
+      // Send the FULL merged row so the edge function can heal (upsert) if
+      // the server doesn't yet have this order — otherwise a partial update
+      // against a missing row would silently no-op or fail validation.
+      const { _dirty, _op, ...serverRow } = merged as any;
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: serverRow });
 
       toast.info(
         `📱 ${(existing as any).customer}: ${(existing as any).vehicle} is now "${newStatus === "in-progress" ? "In Progress" : newStatus === "completed" ? "Completed" : "Waiting"}"`,
@@ -157,9 +162,10 @@ export function useOrders() {
       if (!existing) return false;
       const trimmed = notes.trim();
       const value = trimmed.length ? trimmed : null;
-      const updates: any = { id: orderId, notes: value, updated_at: new Date().toISOString() };
-      await db.orders.put({ ...existing, ...updates, _dirty: 1, _op: "update" });
-      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: updates });
+      const merged: any = { ...existing, notes: value, updated_at: new Date().toISOString() };
+      await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
+      const { _dirty, _op, ...serverRow } = merged;
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: serverRow });
       toast.success("Notes saved");
       return true;
     },
