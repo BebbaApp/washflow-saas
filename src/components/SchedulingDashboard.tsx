@@ -220,7 +220,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           const wasMarked = markedAbsent.has(`${s.id}|${date}`);
           rows.push({
             user_id: s.id, staffName: s.name, date,
-            start: null, end: null, hours: 0,
+            start: null, end: null, hours: 0, rawHours: 0,
             periods: [], periodCount: 0,
             status: onApprovedLeave ? "time_off" : (wasMarked ? "marked_absent" : "absent"),
           });
