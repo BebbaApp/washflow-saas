@@ -248,6 +248,59 @@ async function replaceTableFromFallback(table: MirroredTable, tenantId: string) 
   await db.sync_meta.put({ key: metaKey(tenantId, table), last_pulled_at: new Date().toISOString() });
 }
 
+/** Non-destructive reconciliation used by the periodic edge poll: only writes
+ *  rows whose `updated_at` differs from the local copy, and only deletes rows
+ *  the server no longer has that also have no pending outbox mutation. This
+ *  avoids the flicker of wholesale delete+refill on every poll and prevents
+ *  locally-deleted rows from reappearing while their delete is still queued. */
+async function reconcileTableFromFallback(table: MirroredTable, tenantId: string) {
+  const fallbackPull = edgeFallbackPullers[table];
+  if (!fallbackPull) return;
+  const serverRows = await fallbackPull(tenantId);
+  const tbl = (db as any)[table];
+
+  const pendingIds = new Set<string>();
+  const pending = await db.outbox.where("tenant_id").equals(tenantId).toArray();
+  for (const it of pending) {
+    if (it.table !== table) continue;
+    const id = (it.payload as any)?.id;
+    if (id) pendingIds.add(String(id));
+  }
+
+  const local: any[] = await tbl.where("tenant_id").equals(tenantId).toArray();
+  const localById = new Map<string, any>(local.map((r) => [String(r.id), r]));
+  const serverIds = new Set<string>();
+  const toPut: any[] = [];
+
+  for (const raw of serverRows) {
+    const r = withLocalId(table, raw);
+    if (!r?.id) continue;
+    const id = String(r.id);
+    serverIds.add(id);
+    if (pendingIds.has(id)) continue; // don't clobber optimistic local writes
+    const existing = localById.get(id);
+    const sameUpdated =
+      existing && r.updated_at && existing.updated_at && existing.updated_at === r.updated_at;
+    if (existing && existing._dirty !== 1 && sameUpdated) continue;
+    if (existing?._dirty === 1) continue;
+    toPut.push({ ...r, _dirty: 0 as 0 });
+  }
+
+  const toDelete: string[] = [];
+  for (const row of local) {
+    const id = String(row.id);
+    if (serverIds.has(id)) continue;
+    if (row._dirty === 1) continue;
+    if (pendingIds.has(id)) continue;
+    toDelete.push(id);
+  }
+
+  if (toPut.length > 0) await tbl.bulkPut(toPut);
+  if (toDelete.length > 0) await tbl.bulkDelete(toDelete);
+  await db.sync_meta.put({ key: metaKey(tenantId, table), last_pulled_at: new Date().toISOString() });
+}
+
+
 async function initialPull(tenantId: string) {
   setStatus("pulling");
   try {
@@ -474,7 +527,7 @@ function startEdgePolling(tenantId: string) {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     if (pulling) return;
-    void replaceTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
+    void reconcileTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
   }, POLL_MS);
 }
 
