@@ -63,7 +63,7 @@ export async function offlineInsert(
   });
 
   await (db as any)[table].put({ ...row, _dirty: 1, _op: "insert" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: "insert", payload: row });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: "insert", payload: stripUpdatedAt(table, row) });
   return row;
 }
 
