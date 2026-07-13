@@ -3,13 +3,13 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 
 const TABLES = ["orders", "expenses", "inventory_items", "inventory_transactions"] as const;
-const OPS = ["insert", "update", "delete"] as const;
+const OPS = ["insert", "update", "delete", "list"] as const;
 
 const BodySchema = z.object({
   tenant_id: z.string().uuid(),
   table: z.enum(TABLES),
   op: z.enum(OPS),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.unknown()).optional().default({}),
 });
 
 const uuid = z.string().uuid();
@@ -127,8 +127,30 @@ Deno.serve(async (req) => {
 
     const { tenant_id, table, op, payload } = parsed.data;
     const admin = createClient(supabaseUrl, serviceKey);
-    const access = await canWriteTenant(admin, tenant_id, userData.user.id);
+    const access = op === "list"
+      ? await canReadTenant(admin, tenant_id, userData.user.id)
+      : await canWriteTenant(admin, tenant_id, userData.user.id);
     if (!access.ok) return json({ error: access.error }, access.status);
+
+    if (op === "list") {
+      const rows: unknown[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const result = await admin
+          .from(table)
+          .select("*")
+          .eq("tenant_id", tenant_id)
+          .order(table === "orders" ? "created_at" : "id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (result.error) return json({ error: result.error.message }, 500);
+        const batch = result.data ?? [];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      return json({ ok: true, rows });
+    }
 
     const clean = parsePayload(table, op, payload, tenant_id, userData.user.id);
     if (!clean.ok) return json({ error: clean.error }, 400);
@@ -213,6 +235,25 @@ async function canWriteTenant(
     status === "active" ||
     (status === "past_due" && !!grace && new Date(grace).getTime() > Date.now());
   if (!active) return { ok: false, status: 403, error: "Workspace license is not active" };
+  return { ok: true };
+}
+
+async function canReadTenant(
+  admin: ReturnType<typeof createClient>,
+  tenantId: string,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const [{ data: tenant }, { data: member }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
+    admin.from("tenants").select("id").eq("id", tenantId).maybeSingle(),
+    admin.from("tenant_members").select("tenant_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+    admin.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle(),
+    admin.from("super_admins").select("user_id").eq("user_id", userId).maybeSingle(),
+  ]);
+
+  if (!tenant) return { ok: false, status: 404, error: "Workspace not found" };
+  if (!member && !platformAdmin && !superAdmin) {
+    return { ok: false, status: 403, error: "You are not a member of this workspace" };
+  }
   return { ok: true };
 }
 

@@ -58,6 +58,14 @@ const withLocalId = (table: MirroredTable, row: any) => {
 };
 
 const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => Promise<any[]>>> = {
+  orders: async (tenantId: string) => {
+    const { data, error } = await supabase.functions.invoke("sync-mutation", {
+      body: { action: "list", op: "list", table: "orders", tenant_id: tenantId, payload: {} },
+    });
+    if (error) throw error;
+    const rows = (data as any)?.rows;
+    return Array.isArray(rows) ? rows : [];
+  },
   attendance_records: async (tenantId: string) => {
     const { data, error } = await supabase.functions.invoke("manage-staff", {
       body: { action: "list_attendance_records", tenant_id: tenantId },
@@ -180,6 +188,13 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     if (since && hasUpdatedAt) q = q.or(`updated_at.gt.${since},updated_at.is.null`);
     const { data, error } = await q;
     if (error) {
+      const fallbackPull = edgeFallbackPullers[table];
+      if (fallbackPull && /permission|denied|policy|jwt|claim|rls/i.test(error.message)) {
+        const fallbackRows = await fallbackPull(tenantId);
+        await replacePulledRows(table, tenantId, fallbackRows);
+        await db.sync_meta.put({ key, last_pulled_at: new Date().toISOString() });
+        return;
+      }
       // Permission denied is expected for some tables (e.g. user without role) — skip silently.
       if (/permission|denied|policy/i.test(error.message)) return;
       throw new Error(`pull ${table}: ${error.message}`);
@@ -187,7 +202,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     let rows = (data as any[]) ?? [];
     let usedFallback = false;
     const fallbackPull = edgeFallbackPullers[table];
-    if (rows.length === 0 && fallbackPull) {
+    if ((rows.length === 0 || table === "orders") && fallbackPull) {
       const fallbackRows = await fallbackPull(tenantId);
       if (fallbackRows.length > 0) {
         rows = fallbackRows;
@@ -205,6 +220,24 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     from += PAGE_SIZE;
   }
   await db.sync_meta.put({ key, last_pulled_at: hasUpdatedAt ? highWater : new Date().toISOString() });
+}
+
+async function replacePulledRows(table: MirroredTable, tenantId: string, rows: any[]) {
+  const tbl = (db as any)[table];
+  const dirtyRows = await tbl.where("tenant_id").equals(tenantId).and((row: any) => row?._dirty === 1).toArray();
+  await tbl.where("tenant_id").equals(tenantId).and((row: any) => row?._dirty !== 1).delete();
+  if (rows.length > 0) {
+    await tbl.bulkPut(rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })));
+  }
+  if (dirtyRows.length > 0) await tbl.bulkPut(dirtyRows);
+}
+
+async function replaceTableFromFallback(table: MirroredTable, tenantId: string) {
+  const fallbackPull = edgeFallbackPullers[table];
+  if (!fallbackPull) return;
+  const rows = await fallbackPull(tenantId);
+  await replacePulledRows(table, tenantId, rows);
+  await db.sync_meta.put({ key: metaKey(tenantId, table), last_pulled_at: new Date().toISOString() });
 }
 
 async function initialPull(tenantId: string) {
@@ -431,10 +464,11 @@ export async function purgeTenant(tenantId: string) {
   await db.outbox.where("tenant_id").equals(tenantId).delete();
 }
 
-/** Force a full resync — clears every non-dirty local row and re-pulls the
- *  entire tenant dataset from the server. Pending writes (`_dirty === 1`) are
- *  preserved so offline edits are not lost. Safe to call while another pull
- *  is running — it awaits the in-flight one first. */
+/** Force a full resync — resets pull cursors and re-pulls the entire tenant
+ *  dataset from the server without first deleting visible local data. This is
+ *  intentionally non-destructive: if a table is temporarily hidden by RLS/JWT
+ *  claim drift, the queue should not go blank while the retry path repairs it.
+ *  Pending writes (`_dirty === 1`) are preserved. */
 export async function forceResync() {
   if (!currentTenant) return;
   const t = currentTenant;
@@ -442,12 +476,14 @@ export async function forceResync() {
   while (pulling) await new Promise((r) => setTimeout(r, 100));
   pulling = true;
   try {
-    await Promise.all(MIRRORED_TABLES.map((tbl) => (
-      db as any
-    )[tbl].where("tenant_id").equals(t).and((row: any) => row?._dirty !== 1).delete()));
     await db.sync_meta.where("key").startsWith(`${t}:`).delete();
     // Also re-subscribe realtime so any missed channels reconnect cleanly.
     subscribeRealtime(t);
+    await Promise.all((Object.keys(edgeFallbackPullers) as MirroredTable[]).map((tbl) => (
+      replaceTableFromFallback(tbl, t).catch((e) => {
+        console.warn("[sync] fallback resync failed", tbl, e);
+      })
+    )));
     await initialPull(t);
   } finally {
     pulling = false;
@@ -514,8 +550,9 @@ export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
         } else {
           server = count ?? 0;
           const fallbackPull = edgeFallbackPullers[table];
-          if (server === 0 && fallbackPull) {
-            server = (await fallbackPull(t)).length;
+          if (fallbackPull) {
+            const fallbackCount = (await fallbackPull(t)).length;
+            if (server === null || fallbackCount > server) server = fallbackCount;
           }
         }
       } catch (e: any) {
