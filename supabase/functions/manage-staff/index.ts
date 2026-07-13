@@ -10,6 +10,7 @@ const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
 const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
+const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -543,8 +544,10 @@ Deno.serve(async (req) => {
       const isSelf = staff_user_id === callerId;
       const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
         tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
-      if (!isSelf && !canApprove) {
-        return reply({ error: "You can only request time off for yourself" }, 403);
+      const canRequestForOthers = canApprove ||
+        tenantRoles.some((r: any) => TIMEOFF_REQUESTER_ROLES.includes(r.role));
+      if (!isSelf && !canRequestForOthers) {
+        return reply({ error: "You do not have permission to request time off for others" }, 403);
       }
       if (!isTenantMember && !isPlatformAdmin) {
         return reply({ error: "Not a member of this workspace" }, 403);
