@@ -676,7 +676,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
 
             {Number(unitCost) > 0 && Number(quantity) > 0 && !editing && (
               <p className="text-[11px] text-info">
-                Capturing this item will auto-log an expense of {formatPrice(Number(unitCost) * Number(quantity))}.
+                Capturing this item will auto-log an expense of {formatPrice(Number(unitCost))}.
               </p>
             )}
 
