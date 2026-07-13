@@ -237,7 +237,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     return rows.sort((a, b) =>
       b.date.localeCompare(a.date) || a.staffName.localeCompare(b.staffName)
     );
-  }, [records, activeStaff, from, to, markedAbsent]);
+  }, [records, activeStaff, from, to, markedAbsent, approvedTimeOff]);
 
   // === 7-day pagination for Day Log + Employee detail ===
   // Build descending list of unique dates in range and chunk into 7-day pages.
