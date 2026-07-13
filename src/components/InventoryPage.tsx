@@ -149,11 +149,12 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     if (!trimmed) return toast.error("Name is required");
     const q = Number(quantity);
     const t = Number(threshold);
-    const uc = Number(unitCost);
+    const purchasePrice = Number(unitCost);
+    const unitPrice = q > 0 ? purchasePrice / q : 0;
     const ps = packSize === "" ? 1 : Number(packSize);
     if (Number.isNaN(q) || q < 0) return toast.error("Quantity must be positive");
     if (Number.isNaN(t) || t < 0) return toast.error("Threshold must be positive");
-    if (Number.isNaN(uc) || uc < 0) return toast.error("Unit cost must be ≥ 0");
+    if (Number.isNaN(purchasePrice) || purchasePrice < 0) return toast.error("Purchase price must be ≥ 0");
     if (Number.isNaN(ps) || ps <= 0) return toast.error("Each must be greater than 0");
     const minN = recMin === "" ? undefined : Number(recMin);
     const maxN = recMax === "" ? undefined : Number(recMax);
@@ -171,7 +172,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       subtype: subtype.trim() || undefined,
       recommendedMin: minN,
       recommendedMax: maxN,
-      unitCost: uc,
+      unitCost: unitPrice,
       packSize: ps,
       supplierId: supplierId === "__none" ? undefined : supplierId,
       expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
@@ -182,7 +183,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       toast.success("Item updated");
     } else {
       addItem(payload);
-      toast.success(uc > 0 && q > 0 ? `Item added · expense ${formatPrice(uc * q)} logged` : "Item added");
+      toast.success(purchasePrice > 0 && q > 0 ? `Item added · expense ${formatPrice(purchasePrice)} logged` : "Item added");
     }
     onAddOpenChange(false);
     resetForm();
