@@ -181,11 +181,14 @@ export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) 
     const ids = new Set<string>();
     if (directEnrollmentIds !== null) directEnrollmentIds.forEach((id) => ids.add(id));
     recentEnrollmentIds.forEach((id) => ids.add(id));
+    staff
+      .filter((s) => s.has_face_enrollment)
+      .forEach((s) => ids.add(s.user_id));
     enrollments
       .filter(enrollmentImageBelongsToUser)
       .forEach((e) => ids.add(e.user_id));
     return ids;
-  }, [directEnrollmentIds, enrollments, recentEnrollmentIds]);
+  }, [directEnrollmentIds, enrollments, recentEnrollmentIds, staff]);
 
   // Refresh when a face enrollment happens elsewhere in the app, and poll for
   // a few seconds so the check-in button flips on even if realtime is delayed.
