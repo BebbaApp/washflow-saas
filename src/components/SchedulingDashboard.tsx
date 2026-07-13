@@ -76,7 +76,10 @@ function downloadBlob(name: string, blob: Blob) {
 }
 
 export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDashboardProps) => {
-  const { staffMembers, loading } = useScheduling();
+  const { staffMembers, loading, timeOffRequests, submitTimeOffRequest, updateTimeOffStatus } = useScheduling();
+  const { can } = usePermissions();
+  const canRequestTimeOff = can("staff.timeOff.request");
+  const canApproveTimeOff = can("staff.timeOff.approve");
   const { records } = useAttendance();
 
   const [view, setView] = useState<View>("checkin");
