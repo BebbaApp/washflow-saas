@@ -159,13 +159,25 @@ Deno.serve(async (req) => {
     } else if (op === "update") {
       const { id: _id, tenant_id: _tenant, ...patch } = row as Record<string, unknown>;
       if (Object.keys(patch).length === 0) return json({ error: "No changes supplied" }, 400);
-      result = await admin
+      // Try a scoped UPDATE first. If no row matches (returning null with no
+      // error), the local mirror has a row the server never saw — heal it by
+      // upserting the merged row so status/notes changes don't get stuck.
+      const upd = await admin
         .from(table)
         .update(patch)
         .eq("tenant_id", tenant_id)
         .eq("id", id)
         .select("*")
         .maybeSingle();
+      if (!upd.error && !upd.data) {
+        result = await admin
+          .from(table)
+          .upsert(row, { onConflict: "id" })
+          .select("*")
+          .single();
+      } else {
+        result = upd;
+      }
     } else {
       result = await admin
         .from(table)
