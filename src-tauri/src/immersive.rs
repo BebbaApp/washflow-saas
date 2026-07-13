@@ -24,7 +24,7 @@ fn apply<R: tauri::Runtime>(app: &AppHandle<R>, on: bool) -> Result<(), String> 
     #[cfg(desktop)]
     let _ = win.set_decorations(!on);
 
-    win.set_fullscreen(on).map_err(|e| e.to_string())?;
+    
 
     IMMERSIVE.store(on, Ordering::SeqCst);
     Ok(())
