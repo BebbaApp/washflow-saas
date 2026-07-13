@@ -3,12 +3,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import bcrypt from "npm:bcryptjs@2.4.3";
 
-const FUNCTION_VERSION = "manage-staff-2026-07-10-scoped-face-enrollment";
+const FUNCTION_VERSION = "manage-staff-2026-07-13-attendance-sync-fallback";
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification"];
+const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
+const READ_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records"];
+const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
+const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +44,16 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     staff_list: "list",
     get_staff: "list",
 
+    list_face_enrollments: "list_face_enrollments",
+    list_enrollments: "list_face_enrollments",
+    face_enrollments: "list_face_enrollments",
+    enrollment_list: "list_face_enrollments",
+
+    list_attendance_records: "list_attendance_records",
+    attendance_records: "list_attendance_records",
+    list_day_log: "list_attendance_records",
+    day_log: "list_attendance_records",
+
     set_pin: "set_pin",
     save_pin: "set_pin",
     update_pin: "set_pin",
@@ -71,6 +84,17 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     enroll_face: "enroll_face",
     face_enroll: "enroll_face",
     save_face: "enroll_face",
+
+    update_timeoff: "update_timeoff",
+    approve_timeoff: "update_timeoff",
+    deny_timeoff: "update_timeoff",
+    reject_timeoff: "update_timeoff",
+    timeoff_update: "update_timeoff",
+
+    create_timeoff: "create_timeoff",
+    request_timeoff: "create_timeoff",
+    submit_timeoff: "create_timeoff",
+    timeoff_create: "create_timeoff",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
@@ -174,12 +198,35 @@ Deno.serve(async (req) => {
       return reply({ error: "Unknown action", received: body?.action ?? null }, 400);
     }
 
-    if (action === "list" && !isTenantMember && !isPlatformAdmin) {
+    if (READ_ACTIONS.includes(action) && !isTenantMember && !isPlatformAdmin) {
       return reply({ error: "Only workspace members can view staff" }, 403);
     }
 
-    if (action !== "list" && !hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
+    if (!READ_ACTIONS.includes(action) && !hasStaffManagerRole && !isTenantAdmin && !isPlatformAdmin) {
       return reply({ error: "Only admins or managers can manage staff" }, 403);
+    }
+
+    if (action === "list_face_enrollments") {
+      const { data, error } = await admin
+        .from("staff_face_enrollments")
+        .select("id,tenant_id,user_id,image_url,created_at,enrolled_by,is_active")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ face_enrollments: data ?? [] });
+    }
+
+    if (action === "list_attendance_records") {
+      const limit = Math.max(1, Math.min(Number(body?.limit ?? 5000) || 5000, 10000));
+      const { data, error } = await admin
+        .from("attendance_records")
+        .select("id,tenant_id,user_id,kind,selfie_url,match_score,status,notes,created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) return reply({ error: error.message }, 500);
+      return reply({ attendance_records: data ?? [] });
     }
 
     if (action === "list") {
@@ -207,9 +254,10 @@ Deno.serve(async (req) => {
         ...superAdminIds,
       ]);
       const enrollmentBelongsToUser = (e: any) => {
-        if (!e?.user_id || !e?.image_url) return false;
-        const clean = String(e.image_url).replace(/^.*attendance-selfies\//, "");
-        return clean.startsWith(`${e.user_id}/`) || clean.startsWith(`${tenantId}/${e.user_id}/`);
+        // Trust the tenant-scoped query above — any row with user_id + image_url
+        // is a valid enrollment. Strict path-prefix checks previously excluded
+        // legacy rows and made every staff member appear "Not enrolled".
+        return !!e?.user_id && !!e?.image_url;
       };
       const enrolledFaceIds = new Set<string>((faceEnrollments ?? [])
         .filter(enrollmentBelongsToUser)
@@ -490,6 +538,77 @@ Deno.serve(async (req) => {
       });
       if (resendErr) return reply({ error: resendErr.message }, 500);
       return reply({ success: true, email_sent: true });
+    }
+
+    if (action === "update_timeoff") {
+      const { request_id, status } = body ?? {};
+      if (!request_id || (status !== "approved" && status !== "denied" && status !== "pending")) {
+        return reply({ error: "Missing request_id or invalid status" }, 400);
+      }
+      const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
+        tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
+      if (!canApprove) {
+        return reply({ error: "You do not have permission to approve time off" }, 403);
+      }
+      const { data: row, error: getErr } = await admin
+        .from("time_off_requests")
+        .select("id,tenant_id")
+        .eq("id", request_id)
+        .maybeSingle();
+      if (getErr || !row) return reply({ error: getErr?.message ?? "Request not found" }, 404);
+      if (row.tenant_id !== tenantId) return reply({ error: "Wrong tenant" }, 403);
+      const { error: updErr } = await admin
+        .from("time_off_requests")
+        .update({ status, reviewed_by: callerId })
+        .eq("id", request_id);
+      if (updErr) return reply({ error: updErr.message }, 500);
+      return reply({ success: true });
+    }
+
+    if (action === "create_timeoff") {
+      const { staff_user_id, start_date, end_date, reason } = body ?? {};
+      if (!staff_user_id || !start_date || !end_date) {
+        return reply({ error: "Missing staff_user_id, start_date or end_date" }, 400);
+      }
+      if (String(end_date) < String(start_date)) {
+        return reply({ error: "end_date must be on or after start_date" }, 400);
+      }
+      // Requesting for self is always OK (if the user is a workspace member).
+      // Requesting for someone else requires an approver role.
+      const isSelf = staff_user_id === callerId;
+      const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
+        tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
+      const canRequestForOthers = canApprove ||
+        tenantRoles.some((r: any) => TIMEOFF_REQUESTER_ROLES.includes(r.role));
+      if (!isSelf && !canRequestForOthers) {
+        return reply({ error: "You do not have permission to request time off for others" }, 403);
+      }
+      if (!isTenantMember && !isPlatformAdmin) {
+        return reply({ error: "Not a member of this workspace" }, 403);
+      }
+      // Verify the target is a member of this tenant.
+      const { data: targetMember } = await admin
+        .from("tenant_members")
+        .select("user_id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", staff_user_id)
+        .maybeSingle();
+      if (!targetMember) return reply({ error: "Target user is not in this workspace" }, 400);
+
+      const { data: inserted, error: insErr } = await admin
+        .from("time_off_requests")
+        .insert({
+          tenant_id: tenantId,
+          staff_user_id,
+          start_date,
+          end_date,
+          reason: reason ?? null,
+          status: "pending",
+        })
+        .select("*")
+        .maybeSingle();
+      if (insErr) return reply({ error: insErr.message }, 500);
+      return reply({ success: true, request: inserted });
     }
 
     return reply({ error: "Unknown action" }, 400);

@@ -66,10 +66,12 @@ export interface AuditEntry {
 const BUCKET = "attendance-selfies";
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
-  if (!enrollment?.user_id || !enrollment?.image_url) return false;
-  const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
-  return clean.startsWith(`${enrollment.user_id}/`) ||
-    (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+  // Trust RLS/edge-function scoping: any row that has both a user_id and an
+  // image_url is considered a valid enrollment. The previous strict path-prefix
+  // check rejected historical rows whose image_url used a different storage
+  // convention (full public URL, missing tenant segment, legacy layout), which
+  // made every staff member look "Not enrolled" even when a face was on file.
+  return !!enrollment?.user_id && !!enrollment?.image_url;
 }
 
 // localStorage keys for offline queue
@@ -77,6 +79,24 @@ const SELFIE_QUEUE_KEY = "wf_selfie_upload_queue";
 const AUDIT_CACHE_KEY = "wf_audit_log_cache";
 const PROFILES_CACHE_KEY = "wf_attendance_profiles_cache";
 const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
+
+async function pullFaceEnrollmentsViaStaffFunction(tenantId: string) {
+  const { data, error } = await supabase.functions.invoke("manage-staff", {
+    body: { action: "list_face_enrollments", tenant_id: tenantId },
+  });
+  if (error) throw error;
+  const rows = (data as any)?.face_enrollments;
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function pullAttendanceRecordsViaStaffFunction(tenantId: string) {
+  const { data, error } = await supabase.functions.invoke("manage-staff", {
+    body: { action: "list_attendance_records", tenant_id: tenantId },
+  });
+  if (error) throw error;
+  const rows = (data as any)?.attendance_records;
+  return Array.isArray(rows) ? rows : [];
+}
 
 function lsLoad<T>(key: string, fallback: T): T {
   try {
@@ -155,6 +175,80 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
 
   const recordRows = useLiveTable<any>(tenantId, "attendance_records");
   const enrollmentRows = useLiveTable<any>(tenantId, "staff_face_enrollments");
+
+  useEffect(() => {
+    if (!tenantId || !navigator.onLine || enrollmentRows === undefined || enrollmentRows.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await pullFaceEnrollmentsViaStaffFunction(tenantId);
+        if (!cancelled && rows.length > 0) {
+          await db.staff_face_enrollments.bulkPut(rows.map((r: any) => ({ ...r, _dirty: 0 })) as any);
+        }
+      } catch { /* direct sync will keep retrying */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId, enrollmentRows]);
+
+  // Live pull of attendance_records from the database whenever online, so the
+  // Day Log always reflects the server even if the background sync hasn't
+  // mirrored a row yet. Mirrored into Dexie so offline reads still work.
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+
+    const pullFromServer = async () => {
+      if (!navigator.onLine) return;
+      try {
+        const { data, error } = await supabase
+          .from("attendance_records")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        if (error) throw error;
+        let rows = (data as any[]) ?? [];
+        if (rows.length === 0) {
+          const fallbackRows = await pullAttendanceRecordsViaStaffFunction(tenantId);
+          if (fallbackRows.length > 0) rows = fallbackRows;
+        }
+        if (cancelled) return;
+        // Replace tenant's local mirror so deletions on the server are reflected.
+        await db.attendance_records.where("tenant_id").equals(tenantId).delete();
+        if (rows.length) {
+          await db.attendance_records.bulkPut(rows.map((r: any) => ({ ...r, _dirty: 0 })) as any);
+        }
+      } catch (e) {
+        console.warn("[attendance] direct pull failed", e);
+      }
+    };
+
+    pullFromServer();
+
+    if (navigator.onLine) {
+      ch = supabase
+        .channel(`attendance-live-${tenantId}-${crypto.randomUUID()}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "attendance_records", filter: `tenant_id=eq.${tenantId}` },
+          () => { void pullFromServer(); },
+        )
+        .subscribe();
+    }
+
+    const onOnline = () => { void pullFromServer(); };
+    const onVis = () => { if (document.visibilityState === "visible") void pullFromServer(); };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      cancelled = true;
+      if (ch) supabase.removeChannel(ch);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [tenantId]);
 
   // Audit log — fetch from Supabase when online, use localStorage cache when offline
   const [auditRows, setAuditRows] = useState<any[] | undefined>(undefined);

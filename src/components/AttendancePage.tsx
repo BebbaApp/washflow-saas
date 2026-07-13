@@ -87,7 +87,7 @@ export function AttendancePage() {
   const canEnroll = isAdmin || can("attendance.enroll");
   const canAudit = isAdmin || can("attendance.audit");
   const canOverride = isAdmin || can("attendance.manualOverride");
-  const canAssist = isAdmin || can("attendance.assisted");
+  const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
     useAttendance();
   // Whether the current user actually has a staff role in THIS workspace.

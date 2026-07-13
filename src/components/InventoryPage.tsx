@@ -124,7 +124,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     setSubtype(item.subtype ?? "");
     setRecMin(item.recommendedMin != null ? String(item.recommendedMin) : "");
     setRecMax(item.recommendedMax != null ? String(item.recommendedMax) : "");
-    setUnitCost(String(item.unitCost ?? 0));
+    setUnitCost(String((item.unitCost ?? 0) * item.quantity));
     setPackSize(item.packSize != null ? String(item.packSize) : "1");
     setSupplierId(item.supplierId ?? "__none");
     setExpenseCategory(item.expenseCategory ?? "__default");
@@ -149,11 +149,12 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     if (!trimmed) return toast.error("Name is required");
     const q = Number(quantity);
     const t = Number(threshold);
-    const uc = Number(unitCost);
+    const purchasePrice = Number(unitCost);
+    const unitPrice = q > 0 ? purchasePrice / q : 0;
     const ps = packSize === "" ? 1 : Number(packSize);
     if (Number.isNaN(q) || q < 0) return toast.error("Quantity must be positive");
     if (Number.isNaN(t) || t < 0) return toast.error("Threshold must be positive");
-    if (Number.isNaN(uc) || uc < 0) return toast.error("Unit cost must be ≥ 0");
+    if (Number.isNaN(purchasePrice) || purchasePrice < 0) return toast.error("Purchase price must be ≥ 0");
     if (Number.isNaN(ps) || ps <= 0) return toast.error("Each must be greater than 0");
     const minN = recMin === "" ? undefined : Number(recMin);
     const maxN = recMax === "" ? undefined : Number(recMax);
@@ -171,7 +172,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       subtype: subtype.trim() || undefined,
       recommendedMin: minN,
       recommendedMax: maxN,
-      unitCost: uc,
+      unitCost: unitPrice,
       packSize: ps,
       supplierId: supplierId === "__none" ? undefined : supplierId,
       expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
@@ -182,7 +183,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       toast.success("Item updated");
     } else {
       addItem(payload);
-      toast.success(uc > 0 && q > 0 ? `Item added · expense ${formatPrice(uc * q)} logged` : "Item added");
+      toast.success(purchasePrice > 0 && q > 0 ? `Item added · expense ${formatPrice(purchasePrice)} logged` : "Item added");
     }
     onAddOpenChange(false);
     resetForm();
@@ -618,7 +619,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             {/* Cost / supplier / expense category */}
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Unit cost (per item)</Label>
+                <Label className="text-sm text-secondary-foreground">Purchase Price</Label>
                 <Input
                   type="number"
                   min="0"
@@ -629,9 +630,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                   className="bg-secondary border-border text-foreground"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Expense = unit cost × quantity captured (not multiplied by the unit of measurement).
+                  Unit price = purchase price ÷ quantity.
                   {Number(unitCost) > 0 && Number(quantity) > 0 && (
-                    <> Total: <span className="text-foreground font-mono">{formatPrice(Number(unitCost) * Number(quantity))}</span></>
+                    <> Unit price: <span className="text-foreground font-mono">{formatPrice(Number(unitCost) / Number(quantity))}</span></>
                   )}
                 </p>
               </div>
@@ -675,7 +676,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
 
             {Number(unitCost) > 0 && Number(quantity) > 0 && !editing && (
               <p className="text-[11px] text-info">
-                Capturing this item will auto-log an expense of {formatPrice(Number(unitCost) * Number(quantity))}.
+                Capturing this item will auto-log an expense of {formatPrice(Number(unitCost))}.
               </p>
             )}
 

@@ -66,14 +66,12 @@ export const PERMISSION_GROUPS: PermGroup[] = [
     key: "staff",
     label: "Staff & Scheduling",
     items: [
-      { key: "staff.view", label: "View Staff Tab" },
-      { key: "staff.checkin", label: "Staff Check-in Tab" },
-      { key: "staff.daylog", label: "Day Log Tab" },
-      { key: "staff.employees", label: "Employees Tab" },
-      { key: "staff.performance", label: "Performance Tab" },
-      { key: "staff.timeOff", label: "Time Off Tab" },
-      { key: "staff.timeOff.request", label: "Submit Time Off Request" },
-      { key: "staff.timeOff.approve", label: "Approve / Reject Time Off" },
+      { key: "staff.view", label: "View Staff Schedule" },
+      { key: "staff.daylog", label: "View Day Log" },
+      { key: "staff.employees", label: "View Employees" },
+      { key: "staff.performance", label: "View Performance" },
+      { key: "staff.timeOff.request", label: "Request Time Off" },
+      { key: "staff.timeOff.approve", label: "Approve Time Off" },
     ],
   },
   {
@@ -155,45 +153,6 @@ export type PermissionMatrix = Record<string, Record<Role, boolean>>;
 
 export const PERMISSIONS_STORAGE_KEY = "aquawash:role-permissions:v1";
 
-const PERMISSION_KEY_SET = new Set(
-  PERMISSION_GROUPS.flatMap((group) => group.items.map((item) => item.key)),
-);
-
-function planAllowsPermission(
-  key: string,
-  planFeatures?: Record<string, boolean> | null,
-  isSuperAdmin?: boolean,
-): boolean {
-  if (!planFeatures || isSuperAdmin) return true;
-  const featureKeys = Object.keys(planFeatures);
-  if (featureKeys.length === 0) return true;
-
-  const explicit = planFeatures[key];
-  if (explicit === true) return true;
-  if (explicit === false) return false;
-
-  const parts = key.split(".");
-  const ancestors: string[] = [];
-  for (let i = parts.length - 1; i > 0; i -= 1) {
-    ancestors.push(parts.slice(0, i).join("."));
-  }
-  if (parts[0]) {
-    ancestors.push(`${parts[0]}.view`, parts[0]);
-  }
-
-  for (const ancestor of Array.from(new Set(ancestors)).filter((candidate) => candidate !== key)) {
-    const value = planFeatures[ancestor];
-    if (value === true) return true;
-    if (value === false) return false;
-  }
-
-  // Legacy plans used broad feature flags such as `reports` and `loyalty`.
-  // Only treat missing permission keys as disabled once a plan has modern
-  // permission-level flags; otherwise role permissions remain authoritative.
-  const hasModernPermissionFlags = featureKeys.some((featureKey) => PERMISSION_KEY_SET.has(featureKey));
-  return !hasModernPermissionFlags;
-}
-
 export function getDefaultMatrix(): PermissionMatrix {
   const m: PermissionMatrix = {};
   for (const g of PERMISSION_GROUPS) {
@@ -212,23 +171,24 @@ export function getDefaultMatrix(): PermissionMatrix {
     "services.view",
     "history.view",
     "loyalty.view", "loyalty.redeem",
-    "staff.view", "staff.checkin", "staff.timeOff", "staff.timeOff.request",
+    "staff.view", "staff.timeOff.request",
     "attendance.view", "attendance.clock",
   ]);
 
   allow("washer", [
     "dashboard.view", "queue.view", "queue.start", "queue.complete",
-    "staff.view", "staff.checkin", "staff.timeOff", "staff.timeOff.request",
+    "staff.view", "staff.timeOff.request",
     "attendance.view", "attendance.clock",
   ]);
   allow("driver", [
     "dashboard.view", "queue.view", "queue.start", "queue.complete",
-    "staff.view", "staff.checkin", "staff.timeOff", "staff.timeOff.request",
+    "staff.view", "staff.timeOff.request",
     "attendance.view", "attendance.clock",
   ]);
 
   deny("supervisor", [
     "services.delete", "inventory.delete", "expenses.delete",
+    "staff.timeOff.approve",
     "settings.view", "settings.workers", "settings.workers.delete",
     "settings.workers.compensation", "settings.workers.pin",
     "settings.appearance", "settings.currency", "settings.permissions",
@@ -298,7 +258,14 @@ export function checkPermission(
   if (!role) return false;
   // Super admins bypass plan gating entirely. Platform admins do NOT — they
   // are subject to the plan of whichever tenant they are currently viewing.
-  if (!planAllowsPermission(key, planFeatures, isSuperAdmin)) return false;
+  if (
+    planFeatures &&
+    Object.keys(planFeatures).length > 0 &&
+    !isSuperAdmin &&
+    planFeatures[key] !== true
+  ) {
+    return false;
+  }
   if (role === "admin") return true;
   return !!matrix[key]?.[role];
 }

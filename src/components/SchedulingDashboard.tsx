@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Calendar, Users, Trophy, Clock, UserCheck, CheckCircle2, XCircle, Coffee,
-  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle, CalendarOff,
+  Bell, X, FileDown, FileText, ChevronLeft, ChevronRight, AlertCircle, Plane,
 } from "lucide-react";
 
 import { useScheduling } from "@/hooks/useScheduling";
 import { useAttendance, type AttendanceRecord } from "@/hooks/useAttendance";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
-import { TimeOffPanel } from "@/components/TimeOffPanel";
-import { usePermissions } from "@/hooks/usePermissions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -57,6 +61,7 @@ interface DayRow {
   start: Date | null;
   end: Date | null;
   hours: number;
+  rawHours: number;
   periods: Period[];
   periodCount: number;
   status: "present" | "absent" | "in_progress" | "marked_absent" | "time_off";
@@ -75,24 +80,13 @@ function downloadBlob(name: string, blob: Blob) {
 }
 
 export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDashboardProps) => {
-  const { staffMembers, loading, timeOffRequests } = useScheduling();
-  const { records } = useAttendance();
+  const { staffMembers, loading, timeOffRequests, submitTimeOffRequest, updateTimeOffStatus } = useScheduling();
   const { can } = usePermissions();
+  const canRequestTimeOff = can("staff.timeOff.request");
+  const canApproveTimeOff = can("staff.timeOff.approve");
+  const { records } = useAttendance();
 
-  const tabPerm: Record<View, string> = {
-    checkin: "staff.checkin",
-    daylog: "staff.daylog",
-    employees: "staff.employees",
-    performance: "staff.performance",
-    timeoff: "staff.timeOff",
-  };
-  const allowedViews = (["checkin", "daylog", "employees", "performance", "timeoff"] as View[]).filter((v) => can(tabPerm[v]));
-  const defaultView: View = allowedViews[0] ?? "checkin";
-
-  const [view, setView] = useState<View>(defaultView);
-  useEffect(() => {
-    if (allowedViews.length && !allowedViews.includes(view)) setView(defaultView);
-  }, [allowedViews.join("|")]);
+  const [view, setView] = useState<View>("checkin");
   const [preset, setPreset] = useState<Preset>("7d");
   // Pagination by 7-day windows: 0 = current, 1 = previous week, etc.
   const [weekOffset, setWeekOffset] = useState(0);
@@ -174,15 +168,13 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     [staffMembers, activeMap]
   );
 
-  // Approved time-off expanded per user/date
+  // Approved time-off dates keyed by "userId|date"
   const approvedTimeOff = useMemo(() => {
     const s = new Set<string>();
-    for (const r of timeOffRequests) {
-      if (r.status !== "approved") continue;
-      const start = new Date(r.startDate + "T00:00:00");
-      const end = new Date(r.endDate + "T00:00:00");
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        s.add(`${r.userId}|${ymd(d)}`);
+    for (const req of timeOffRequests) {
+      if (req.status !== "approved") continue;
+      for (const d of daysBetween(req.startDate, req.endDate)) {
+        s.add(`${req.userId}|${d}`);
       }
     }
     return s;
@@ -224,14 +216,14 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 
         const firstIn = recs.find((r) => r.kind === "check_in");
         const lastOut = [...recs].reverse().find((r) => r.kind === "check_out");
+        const onApprovedLeave = approvedTimeOff.has(`${s.id}|${date}`);
         if (!firstIn) {
-          const onTimeOff = approvedTimeOff.has(`${s.id}|${date}`);
           const wasMarked = markedAbsent.has(`${s.id}|${date}`);
           rows.push({
             user_id: s.id, staffName: s.name, date,
-            start: null, end: null, hours: 0,
+            start: null, end: null, hours: 0, rawHours: 0,
             periods: [], periodCount: 0,
-            status: onTimeOff ? "time_off" : (wasMarked ? "marked_absent" : "absent"),
+            status: onApprovedLeave ? "time_off" : (wasMarked ? "marked_absent" : "absent"),
           });
         } else {
           const start = new Date(firstIn.created_at);
@@ -240,7 +232,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           const hours = end ? Math.max(0, rawHours - LUNCH_BREAK_HOURS) : 0;
           const status: DayRow["status"] = end ? "present" : "in_progress";
           rows.push({
-            user_id: s.id, staffName: s.name, date, start, end, hours,
+            user_id: s.id, staffName: s.name, date, start, end, hours, rawHours,
             periods, periodCount: periods.length, status,
           });
         }
@@ -398,13 +390,23 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     toast.success("PDF exported");
   };
 
-  const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = ([
-    { id: "checkin" as View, label: "Staff Check-in", icon: UserCheck },
-    { id: "daylog" as View, label: "Day Log", icon: Calendar },
-    { id: "employees" as View, label: "Employees", icon: Users },
-    { id: "performance" as View, label: "Performance", icon: Trophy },
-    { id: "timeoff" as View, label: "Time Off", icon: CalendarOff },
-  ]).filter((t) => allowedViews.includes(t.id));
+  const showTimeOffTab = canRequestTimeOff || canApproveTimeOff;
+  const canDayLog = can("staff.daylog");
+  const canEmployees = can("staff.employees");
+  const canPerformance = can("staff.performance");
+  const viewTabs: { id: View; label: string; icon: typeof Calendar }[] = [
+    { id: "checkin", label: "Staff Check-in", icon: UserCheck },
+    ...(canDayLog ? [{ id: "daylog" as View, label: "Day Log", icon: Calendar }] : []),
+    ...(canEmployees ? [{ id: "employees" as View, label: "Employees", icon: Users }] : []),
+    ...(canPerformance ? [{ id: "performance" as View, label: "Performance", icon: Trophy }] : []),
+    ...(showTimeOffTab ? [{ id: "timeoff" as View, label: "Time Off", icon: Plane }] : []),
+  ];
+
+  // If the current view is hidden by permissions, fall back to check-in.
+  useEffect(() => {
+    if (!viewTabs.some((t) => t.id === view)) setView("checkin");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canDayLog, canEmployees, canPerformance, showTimeOffTab]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -509,7 +511,6 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 
       {/* CHECK-IN VIEW */}
       {view === "checkin" && <StaffCheckInPanel onOpenFaceEnroll={onOpenFaceEnroll} />}
-      {view === "timeoff" && <TimeOffPanel />}
 
       {/* DAY LOG VIEW */}
       {view === "daylog" && (
@@ -580,13 +581,36 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
                         {r.end ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "—"}
                       </td>
                       <td className="px-4 py-2">{r.periodCount}</td>
-                      <td className="px-4 py-2 font-medium">{r.hours > 0 ? r.hours.toFixed(2) : "—"}</td>
+                      <td className="px-4 py-2 font-medium">
+                        <TooltipProvider delayDuration={100}>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50">
+                                {r.hours > 0 ? r.hours.toFixed(2) : "—"}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="space-y-1 text-xs">
+                              {r.status === "in_progress" ? (
+                                <p>Day still in progress</p>
+                              ) : r.hours > 0 ? (
+                                <>
+                                  <p>Raw periods total: <span className="font-mono font-medium">{r.rawHours.toFixed(2)} h</span></p>
+                                  <p>Lunch deduction: <span className="font-mono font-medium">-{LUNCH_BREAK_HOURS} h</span></p>
+                                  <p className="border-t border-border pt-1">Net hours: <span className="font-mono font-medium">{r.hours.toFixed(2)} h</span></p>
+                                </>
+                              ) : (
+                                <p>No paid working periods</p>
+                              )}
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      </td>
                       <td className="px-4 py-2">
                         {r.status === "present" && <Badge variant="default" className="bg-success/20 text-success hover:bg-success/20"><CheckCircle2 className="w-3 h-3 mr-1" />Present</Badge>}
                         {r.status === "absent" && <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Absent</Badge>}
                         {r.status === "marked_absent" && <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Marked absent</Badge>}
                         {r.status === "in_progress" && <Badge variant="outline">In progress</Badge>}
-                        {r.status === "time_off" && <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700"><CalendarOff className="w-3 h-3 mr-1" />Time Off</Badge>}
+                        {r.status === "time_off" && <Badge variant="default" className="bg-primary/15 text-primary hover:bg-primary/15"><Plane className="w-3 h-3 mr-1" />Time Off</Badge>}
                       </td>
                     </tr>
                   ))}
@@ -789,6 +813,244 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
           </div>
         </div>
       )}
+
+      {/* TIME OFF VIEW */}
+      {view === "timeoff" && showTimeOffTab && (
+        <TimeOffPanel
+          requests={timeOffRequests}
+          staffMembers={staffMembers}
+          canRequest={canRequestTimeOff}
+          canApprove={canApproveTimeOff}
+          onSubmit={submitTimeOffRequest}
+          onUpdateStatus={updateTimeOffStatus}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// TimeOffPanel — request form + Time Requested card
+// ============================================================
+interface TimeOffPanelProps {
+  requests: ReturnType<typeof useScheduling>["timeOffRequests"];
+  staffMembers: ReturnType<typeof useScheduling>["staffMembers"];
+  canRequest: boolean;
+  canApprove: boolean;
+  onSubmit: (data: { startDate: string; endDate: string; reason: string; staffUserId?: string }) => Promise<void> | void;
+  onUpdateStatus: (id: string, status: "approved" | "rejected") => Promise<void> | void;
+}
+
+function daysInclusive(from: string, to: string): number {
+  if (!from || !to) return 0;
+  const s = new Date(from + "T00:00:00").getTime();
+  const e = new Date(to + "T00:00:00").getTime();
+  if (isNaN(s) || isNaN(e) || e < s) return 0;
+  return Math.round((e - s) / 86400000) + 1;
+}
+
+function formatShortDate(d: string): string {
+  if (!d) return "";
+  return new Date(d + "T00:00:00").toLocaleDateString(undefined, {
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
+  });
+}
+
+const TimeOffPanel = ({ requests, staffMembers, canRequest, canApprove, onSubmit, onUpdateStatus }: TimeOffPanelProps) => {
+  const { user } = useAuth();
+  const today = new Date().toISOString().slice(0, 10);
+  const [start, setStart] = useState(today);
+  const [end, setEnd] = useState(today);
+  const [reason, setReason] = useState("");
+  const [staffUserId, setStaffUserId] = useState<string>(user?.id ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+
+  useEffect(() => {
+    if (!staffUserId && user?.id) setStaffUserId(user.id);
+  }, [user?.id, staffUserId]);
+
+  const sortedStaff = useMemo(
+    () => [...staffMembers].sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [staffMembers],
+  );
+
+  // Any requester (Manager, Supervisor, Cashier, Admin) can request on behalf of anyone.
+  const staffOptions = useMemo(
+    () => (canRequest ? sortedStaff : sortedStaff.filter((s) => s.id === user?.id)),
+    [sortedStaff, canRequest, user?.id],
+  );
+
+  const dayCount = daysInclusive(start, end);
+
+  const handleSubmit = async () => {
+    if (!staffUserId) { toast.error("Choose an employee"); return; }
+    if (!start || !end) { toast.error("Pick a start and end date"); return; }
+    if (end < start) { toast.error("End date must be on or after start date"); return; }
+    if (!reason.trim()) { toast.error("Add a short reason"); return; }
+    setSubmitting(true);
+    try {
+      await onSubmit({ startDate: start, endDate: end, reason: reason.trim(), staffUserId });
+      setReason("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    const arr = filter === "all" ? requests : requests.filter((r) => r.status === filter);
+    return [...arr].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [requests, filter]);
+
+  const counts = useMemo(() => ({
+    pending: requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
+  }), [requests]);
+
+  return (
+    <div className="space-y-4">
+      {canRequest && (
+        <div className="glass-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Plane className="w-4 h-4 text-primary" />
+            <h3 className="text-base font-semibold">Request time off</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Employee</Label>
+              <Select value={staffUserId} onValueChange={setStaffUserId} disabled={staffOptions.length <= 1}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffOptions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name || s.email || s.id.slice(0, 8)}
+                      {s.id === user?.id ? " (you)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Start date</Label>
+                <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">End date</Label>
+                <Input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+            <div className="md:col-span-2">
+              <Label className="text-xs">Reason</Label>
+              <Textarea
+                placeholder="Family event, medical appointment, personal…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+              />
+            </div>
+            <div className="flex items-end">
+              <div className="w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm">
+                <p className="text-xs text-muted-foreground">Days requested</p>
+                <p className="font-semibold">{dayCount} {dayCount === 1 ? "day" : "days"}</p>
+              </div>
+            </div>
+            <div className="flex items-end">
+              <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? "Submitting…" : "Submit request"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="glass-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" /> Time Requested
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {requests.length} total · {counts.pending} pending · {counts.approved} approved · {counts.rejected} rejected
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-secondary border border-border">
+            {(["all", "pending", "approved", "rejected"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                  filter === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="text-5xl mb-4" aria-hidden>🌴</div>
+            <p className="text-sm text-muted-foreground">No time-off requests {filter === "all" ? "yet" : `(${filter})`}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((req) => {
+              const days = daysInclusive(req.startDate, req.endDate);
+              const statusBadge =
+                req.status === "pending" ? <Badge variant="outline">Pending</Badge> :
+                req.status === "approved" ? <Badge className="bg-success/20 text-success hover:bg-success/20">Approved</Badge> :
+                <Badge variant="destructive">Rejected</Badge>;
+              return (
+                <div key={req.id} className="rounded-lg border border-border bg-secondary/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                      <span className="font-semibold text-foreground">{req.staffName || "Unknown"}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-foreground/80">
+                        Date: {formatShortDate(req.startDate)} → {formatShortDate(req.endDate)}
+                      </span>
+                      <Badge variant="secondary">{days} {days === 1 ? "day" : "days"}</Badge>
+                      {req.reason && (
+                        <span className="text-muted-foreground italic">Note: "{req.reason}"</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {statusBadge}
+                      {canApprove && req.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-success hover:text-success"
+                            onClick={() => onUpdateStatus(req.id, "approved")}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => onUpdateStatus(req.id, "rejected")}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -821,7 +1083,6 @@ function statusTone(row?: DayRow): string {
   if (!row) return "bg-muted/30 text-muted-foreground";
   if (row.status === "present") return "bg-success/15 border-success/40 text-foreground";
   if (row.status === "in_progress") return "bg-warning/15 border-warning/40 text-foreground";
-  if (row.status === "time_off") return "bg-blue-500/10 border-blue-500/40 text-foreground";
   if (row.status === "absent" || row.status === "marked_absent") return "bg-destructive/15 border-destructive/40 text-foreground";
   return "bg-muted/30 text-muted-foreground";
 }
@@ -854,8 +1115,6 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                 </div>
                 {!row ? (
                   <p className="text-xs text-muted-foreground">—</p>
-                ) : row.status === "time_off" ? (
-                  <p className="text-xs font-medium">Time Off</p>
                 ) : row.status === "absent" || row.status === "marked_absent" ? (
                   <p className="text-xs font-medium">Absent</p>
                 ) : (
@@ -917,7 +1176,6 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                 <span className="font-medium">{d.getDate()}</span>
                 {inMonth && row && row.status === "present" && <CheckCircle2 className="w-3 h-3 text-success" />}
                 {inMonth && row && (row.status === "absent" || row.status === "marked_absent") && <XCircle className="w-3 h-3 text-destructive" />}
-                {inMonth && row && row.status === "time_off" && <CalendarOff className="w-3 h-3 text-blue-600" />}
                 {inMonth && row && row.status === "in_progress" && <Clock className="w-3 h-3 text-warning" />}
               </div>
               {inMonth && row && (row.status === "present" || row.status === "in_progress") && (
