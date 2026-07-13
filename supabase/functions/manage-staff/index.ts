@@ -525,6 +525,50 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    if (action === "create_timeoff") {
+      const { staff_user_id, start_date, end_date, reason } = body ?? {};
+      if (!staff_user_id || !start_date || !end_date) {
+        return reply({ error: "Missing staff_user_id, start_date or end_date" }, 400);
+      }
+      if (String(end_date) < String(start_date)) {
+        return reply({ error: "end_date must be on or after start_date" }, 400);
+      }
+      // Requesting for self is always OK (if the user is a workspace member).
+      // Requesting for someone else requires an approver role.
+      const isSelf = staff_user_id === callerId;
+      const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
+        tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
+      if (!isSelf && !canApprove) {
+        return reply({ error: "You can only request time off for yourself" }, 403);
+      }
+      if (!isTenantMember && !isPlatformAdmin) {
+        return reply({ error: "Not a member of this workspace" }, 403);
+      }
+      // Verify the target is a member of this tenant.
+      const { data: targetMember } = await admin
+        .from("tenant_members")
+        .select("user_id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", staff_user_id)
+        .maybeSingle();
+      if (!targetMember) return reply({ error: "Target user is not in this workspace" }, 400);
+
+      const { data: inserted, error: insErr } = await admin
+        .from("time_off_requests")
+        .insert({
+          tenant_id: tenantId,
+          staff_user_id,
+          start_date,
+          end_date,
+          reason: reason ?? null,
+          status: "pending",
+        })
+        .select("*")
+        .maybeSingle();
+      if (insErr) return reply({ error: insErr.message }, 500);
+      return reply({ success: true, request: inserted });
+    }
+
     return reply({ error: "Unknown action" }, 400);
 
 
