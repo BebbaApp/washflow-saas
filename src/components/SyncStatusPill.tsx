@@ -8,6 +8,7 @@ import {
   HardDrive,
   RotateCw,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import {
   onSyncStatus,
@@ -19,6 +20,8 @@ import {
   clearLocalCache,
   pruneLocalCache,
   getStorageEstimate,
+  checkSyncHealth,
+  type SyncHealthReport,
 } from "@/offline/sync";
 import type { OutboxItem } from "@/offline/db";
 import { cn } from "@/lib/utils";
