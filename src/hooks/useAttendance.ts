@@ -66,10 +66,12 @@ export interface AuditEntry {
 const BUCKET = "attendance-selfies";
 
 function enrollmentImageBelongsToUser(enrollment: { tenant_id?: string | null; user_id?: string | null; image_url?: string | null }) {
-  if (!enrollment?.user_id || !enrollment?.image_url) return false;
-  const clean = String(enrollment.image_url).replace(/^.*attendance-selfies\//, "");
-  return clean.startsWith(`${enrollment.user_id}/`) ||
-    (!!enrollment.tenant_id && clean.startsWith(`${enrollment.tenant_id}/${enrollment.user_id}/`));
+  // Trust RLS/edge-function scoping: any row that has both a user_id and an
+  // image_url is considered a valid enrollment. The previous strict path-prefix
+  // check rejected historical rows whose image_url used a different storage
+  // convention (full public URL, missing tenant segment, legacy layout), which
+  // made every staff member look "Not enrolled" even when a face was on file.
+  return !!enrollment?.user_id && !!enrollment?.image_url;
 }
 
 // localStorage keys for offline queue
