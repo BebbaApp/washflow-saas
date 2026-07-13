@@ -235,10 +235,10 @@ function unsubscribeRealtime() {
 }
 
 async function ensureActiveTenantClaim(tenantId: string) {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
   const { data } = await supabase.auth.getSession();
   const activeClaim = (data.session?.user?.app_metadata as any)?.active_tenant_id;
-  if (!data.session || activeClaim === tenantId) return;
+  if (!data.session || activeClaim === tenantId) return false;
 
   const { error } = await supabase.functions.invoke("switch-tenant", {
     body: { tenant_id: tenantId },
@@ -247,6 +247,7 @@ async function ensureActiveTenantClaim(tenantId: string) {
 
   const { error: refreshErr } = await supabase.auth.refreshSession();
   if (refreshErr) throw refreshErr;
+  return true;
 }
 
 /** Enqueue a local mutation. Hooks call this instead of writing to Supabase
@@ -332,9 +333,16 @@ async function drainOutbox() {
  *  swaps subscriptions and triggers a fresh pull. */
 export async function startSync(tenantId: string) {
   if (currentTenant === tenantId) {
-    void ensureActiveTenantClaim(tenantId).catch((e) => {
-      setStatus("error", e?.message ?? String(e));
-    });
+    void ensureActiveTenantClaim(tenantId)
+      .then((changed) => {
+        if (changed) {
+          subscribeRealtime(tenantId);
+          void backgroundPull();
+        }
+      })
+      .catch((e) => {
+        setStatus("error", e?.message ?? String(e));
+      });
     return;
   }
   currentTenant = tenantId;
