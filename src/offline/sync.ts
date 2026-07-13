@@ -57,6 +57,17 @@ const withLocalId = (table: MirroredTable, row: any) => {
   return row;
 };
 
+const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => Promise<any[]>>> = {
+  staff_face_enrollments: async (tenantId: string) => {
+    const { data, error } = await supabase.functions.invoke("manage-staff", {
+      body: { action: "list_face_enrollments", tenant_id: tenantId },
+    });
+    if (error) throw error;
+    const rows = (data as any)?.face_enrollments;
+    return Array.isArray(rows) ? rows : [];
+  },
+};
+
 type Status = "idle" | "pulling" | "online" | "offline" | "error";
 type Listener = (s: { status: Status; pending: number; lastError?: string | null }) => void;
 const listeners = new Set<Listener>();
@@ -105,7 +116,12 @@ async function pullTable(tenantId: string, table: MirroredTable) {
       if (/permission|denied|policy/i.test(error.message)) return;
       throw new Error(`pull ${table}: ${error.message}`);
     }
-    const rows = (data as any[]) ?? [];
+    let rows = (data as any[]) ?? [];
+    const fallbackPull = edgeFallbackPullers[table];
+    if (rows.length === 0 && !since && fallbackPull) {
+      const fallbackRows = await fallbackPull(tenantId);
+      if (fallbackRows.length > 0) rows = fallbackRows;
+    }
     if (rows.length === 0) break;
     await (db as any)[table].bulkPut(
       rows.map((r) => ({ ...withLocalId(table, r), _dirty: 0 as 0 })),
@@ -282,8 +298,10 @@ export async function purgeTenant(tenantId: string) {
 /** Force a full resync — clears the cursor and re-pulls everything. */
 export async function forceResync() {
   if (!currentTenant) return;
-  await db.sync_meta.where("key").startsWith(`${currentTenant}:`).delete();
-  await initialPull(currentTenant);
+  const t = currentTenant;
+  await Promise.all(MIRRORED_TABLES.map((tbl) => (db as any)[tbl].where("tenant_id").equals(t).delete()));
+  await db.sync_meta.where("key").startsWith(`${t}:`).delete();
+  await initialPull(t);
 }
 
 /** Returns the most recent outbox items for the current tenant (newest first). */
