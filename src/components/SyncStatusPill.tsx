@@ -8,6 +8,7 @@ import {
   HardDrive,
   RotateCw,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import {
   onSyncStatus,
@@ -19,6 +20,8 @@ import {
   clearLocalCache,
   pruneLocalCache,
   getStorageEstimate,
+  checkSyncHealth,
+  type SyncHealthReport,
 } from "@/offline/sync";
 import type { OutboxItem } from "@/offline/db";
 import { cn } from "@/lib/utils";
@@ -47,6 +50,8 @@ export function SyncStatusPill({ className }: { className?: string }) {
   const [items, setItems] = useState<OutboxItem[]>([]);
   const [storage, setStorage] = useState<{ usage?: number; quota?: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [health, setHealth] = useState<SyncHealthReport | null>(null);
+  const [healthChecking, setHealthChecking] = useState(false);
 
   useEffect(() => { const unsub = onSyncStatus(setState); return () => { unsub(); }; }, []);
 
@@ -56,12 +61,30 @@ export function SyncStatusPill({ className }: { className?: string }) {
     setStorage(s);
   }, []);
 
+  const runHealthCheck = useCallback(async () => {
+    setHealthChecking(true);
+    try {
+      const r = await checkSyncHealth();
+      setHealth(r);
+      if (r && r.diverged.length > 0) {
+        toast.warning(`Sync health: ${r.diverged.length} table(s) out of sync`);
+      } else if (r) {
+        toast.success("Sync health: all tables match");
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Health check failed");
+    } finally {
+      setHealthChecking(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     void refresh();
+    void runHealthCheck();
     const id = setInterval(refresh, 2000);
     return () => clearInterval(id);
-  }, [open, refresh]);
+  }, [open, refresh, runHealthCheck]);
 
   const { status, pending } = state;
   const isOffline = status === "offline";
@@ -220,6 +243,66 @@ export function SyncStatusPill({ className }: { className?: string }) {
             </ScrollArea>
           )}
         </div>
+
+        <div className="border-b p-3">
+          <div className="mb-1.5 flex items-center justify-between text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className={cn(
+                "h-3.5 w-3.5",
+                health && !health.ok ? "text-destructive" : "text-success",
+              )} />
+              Sync health
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[11px]"
+              disabled={healthChecking}
+              onClick={() => void runHealthCheck()}
+            >
+              <RefreshCw className={cn("mr-1 h-3 w-3", healthChecking && "animate-spin")} />
+              Check now
+            </Button>
+          </div>
+          {!health ? (
+            <p className="text-xs text-muted-foreground">
+              {healthChecking ? "Comparing row counts…" : "Not checked yet."}
+            </p>
+          ) : health.ok ? (
+            <p className="text-xs text-success">
+              All {health.rows.length} tables match the database.
+            </p>
+          ) : (
+            <div>
+              <p className="mb-1.5 text-xs text-destructive">
+                {health.diverged.length} table{health.diverged.length === 1 ? "" : "s"} out of sync.
+                Try Force resync.
+              </p>
+              <ScrollArea className="max-h-[140px] pr-2">
+                <ul className="space-y-1">
+                  {health.diverged.map((r) => (
+                    <li
+                      key={r.table}
+                      className="flex items-center justify-between rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-[11px]"
+                    >
+                      <span className="truncate font-medium">{r.table}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        server {r.server} · local {r.local}
+                        <span className={cn(
+                          "ml-1 font-semibold",
+                          r.diff > 0 ? "text-destructive" : "text-warning",
+                        )}>
+                          ({r.diff > 0 ? `+${r.diff}` : r.diff})
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            </div>
+          )}
+        </div>
+
 
         <div className="p-3">
           <div className="mb-1.5 flex items-center justify-between text-xs font-medium">
