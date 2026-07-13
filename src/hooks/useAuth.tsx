@@ -526,6 +526,7 @@ function useAuthInternal(): AuthContextValue {
     isAdmin: user?.role === "admin",
     authedNoRole: !!authedEmail && !user,
     login, signup, logout, updateProfile, refresh,
+    idleWarning, idleSecondsLeft, extendSession, sessionConfig, updateSessionConfig,
   };
 }
 
