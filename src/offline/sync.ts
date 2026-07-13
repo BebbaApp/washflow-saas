@@ -337,6 +337,66 @@ export async function backgroundPull() {
   }
 }
 
+export interface SyncHealthRow {
+  table: MirroredTable;
+  server: number | null;   // null when the count query failed / not authorised
+  local: number;
+  diff: number;            // server - local (positive = missing locally)
+  error?: string;
+}
+
+export interface SyncHealthReport {
+  tenant_id: string;
+  checked_at: string;
+  rows: SyncHealthRow[];
+  diverged: SyncHealthRow[];
+  ok: boolean;
+}
+
+/** Compare Supabase and Dexie row counts for every mirrored table for the
+ *  current tenant. Any row where the counts differ is flagged so the UI can
+ *  warn the operator that the local mirror is out of step with the database. */
+export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
+  if (!currentTenant) return null;
+  const t = currentTenant;
+  const rows: SyncHealthRow[] = await Promise.all(
+    MIRRORED_TABLES.map(async (table) => {
+      let server: number | null = null;
+      let error: string | undefined;
+      try {
+        const { count, error: err } = await supabase
+          .from(table as any)
+          .select("*", { count: "exact", head: true })
+          .eq("tenant_id", t);
+        if (err) {
+          // Permission denied is expected for tables the user can't read (e.g. audit-only)
+          if (/permission|denied|policy/i.test(err.message)) {
+            server = null;
+          } else {
+            error = err.message;
+          }
+        } else {
+          server = count ?? 0;
+        }
+      } catch (e: any) {
+        error = e?.message ?? String(e);
+      }
+      const local = await (db as any)[table].where("tenant_id").equals(t).count();
+      const diff = server == null ? 0 : server - local;
+      return { table, server, local, diff, error };
+    }),
+  );
+  const diverged = rows.filter((r) => r.server != null && r.diff !== 0);
+  return {
+    tenant_id: t,
+    checked_at: new Date().toISOString(),
+    rows,
+    diverged,
+    ok: diverged.length === 0,
+  };
+}
+
+
 /** Returns the most recent outbox items for the current tenant (newest first). */
 export async function getOutboxItems(limit = 50): Promise<OutboxItem[]> {
   const items = await db.outbox.orderBy("created_at").reverse().limit(limit).toArray();
