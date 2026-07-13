@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
 import { useAttendance, type AttendanceRecord } from "@/hooks/useAttendance";
 import { CameraCapture } from "@/components/CameraCapture";
@@ -92,7 +93,8 @@ function StatusPill({ last }: { last: AttendanceRecord | null }) {
 export function StaffCheckInPanel({ onOpenFaceEnroll }: StaffCheckInPanelProps) {
   const { user } = useAuth();
   const { tenant } = useTenant();
-  const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
+  const { can } = usePermissions();
+  const canAssist = can("attendance.assisted");
   const { records, enrollments, loading: attendanceLoading, recordAttendance, recordAttendanceFor, lastForUser, refetch } = useAttendance();
 
   const [isStaffHere, setIsStaffHere] = useState<boolean | null>(null);
