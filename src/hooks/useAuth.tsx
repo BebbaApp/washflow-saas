@@ -285,14 +285,26 @@ function useAuthInternal(): AuthContextValue {
     };
   }, [fetchProfile, setResolvedUser]);
 
-  // Auto-logout after 1 hour of inactivity. Any interaction resets the timer
-  // and the timestamp is persisted so that a refresh mid-inactivity still
-  // enforces the limit (see the mount effect above).
+  // Auto-logout after 15 minutes of true inactivity. Any real user interaction
+  // resets the timer; the timestamp is persisted so a reload mid-inactivity
+  // still enforces the limit (see the mount effect above).
+  //
+  // Listens to a broad set of input signals across mouse, keyboard, touch,
+  // pointer, wheel, scroll, and tab visibility/focus so working users never
+  // get logged out mid-task. Also runs a keepalive that refreshes the
+  // Supabase access token every few minutes while the user is active, so
+  // background sync/polling never hits a 401 from an expired JWT.
   useEffect(() => {
     if (!user) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastBump = 0;
+    const BUMP_THROTTLE_MS = 1000;
+
     const bump = () => {
-      try { localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now())); } catch { /* ignore */ }
+      const now = Date.now();
+      if (now - lastBump < BUMP_THROTTLE_MS) return;
+      lastBump = now;
+      try { localStorage.setItem(LAST_ACTIVITY_KEY, String(now)); } catch { /* ignore */ }
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
         try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
@@ -303,12 +315,45 @@ function useAuthInternal(): AuthContextValue {
         setResolvedUser(null);
       }, INACTIVITY_LIMIT_MS);
     };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        bump();
+        // Proactively refresh on tab focus so any queued sync/poll fires
+        // against a fresh token instead of a stale one.
+        supabase.auth.refreshSession().catch(() => { /* ignore */ });
+      }
+    };
+
     bump();
-    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "visibilitychange"] as const;
-    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+
+    const winEvents = [
+      "mousemove", "mousedown", "mouseup", "click",
+      "keydown", "keyup",
+      "touchstart", "touchmove", "touchend",
+      "pointerdown", "pointermove",
+      "wheel", "scroll",
+      "focus",
+    ] as const;
+    const listenerOpts: AddEventListenerOptions = { passive: true, capture: true };
+    winEvents.forEach((ev) => window.addEventListener(ev, bump, listenerOpts));
+    document.addEventListener("visibilitychange", onVisibility);
+
+    // Keepalive: refresh the Supabase access token every 4 minutes while the
+    // user is active. Supabase JWTs live 1h by default; refreshing well before
+    // expiry covers clock skew and prevents 401s in background sync/polling.
+    const KEEPALIVE_MS = 4 * 60 * 1000;
+    const keepalive = setInterval(() => {
+      const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
+      if (last && Date.now() - last > INACTIVITY_LIMIT_MS) return;
+      supabase.auth.refreshSession().catch(() => { /* ignore transient errors */ });
+    }, KEEPALIVE_MS);
+
     return () => {
       if (timer) clearTimeout(timer);
-      events.forEach((ev) => window.removeEventListener(ev, bump));
+      clearInterval(keepalive);
+      winEvents.forEach((ev) => window.removeEventListener(ev, bump, listenerOpts));
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [user, setResolvedUser]);
 
