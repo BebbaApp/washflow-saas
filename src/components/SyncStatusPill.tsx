@@ -50,6 +50,8 @@ export function SyncStatusPill({ className }: { className?: string }) {
   const [items, setItems] = useState<OutboxItem[]>([]);
   const [storage, setStorage] = useState<{ usage?: number; quota?: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [health, setHealth] = useState<SyncHealthReport | null>(null);
+  const [healthChecking, setHealthChecking] = useState(false);
 
   useEffect(() => { const unsub = onSyncStatus(setState); return () => { unsub(); }; }, []);
 
@@ -59,12 +61,30 @@ export function SyncStatusPill({ className }: { className?: string }) {
     setStorage(s);
   }, []);
 
+  const runHealthCheck = useCallback(async () => {
+    setHealthChecking(true);
+    try {
+      const r = await checkSyncHealth();
+      setHealth(r);
+      if (r && r.diverged.length > 0) {
+        toast.warning(`Sync health: ${r.diverged.length} table(s) out of sync`);
+      } else if (r) {
+        toast.success("Sync health: all tables match");
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Health check failed");
+    } finally {
+      setHealthChecking(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     void refresh();
+    void runHealthCheck();
     const id = setInterval(refresh, 2000);
     return () => clearInterval(id);
-  }, [open, refresh]);
+  }, [open, refresh, runHealthCheck]);
 
   const { status, pending } = state;
   const isOffline = status === "offline";
