@@ -295,15 +295,46 @@ export async function purgeTenant(tenantId: string) {
   await db.outbox.where("tenant_id").equals(tenantId).delete();
 }
 
-/** Force a full resync — clears the cursor and re-pulls everything. */
+/** Force a full resync — clears every non-dirty local row and re-pulls the
+ *  entire tenant dataset from the server. Pending writes (`_dirty === 1`) are
+ *  preserved so offline edits are not lost. Safe to call while another pull
+ *  is running — it awaits the in-flight one first. */
 export async function forceResync() {
   if (!currentTenant) return;
   const t = currentTenant;
-  await Promise.all(MIRRORED_TABLES.map((tbl) => (
-    db as any
-  )[tbl].where("tenant_id").equals(t).and((row: any) => row?._dirty !== 1).delete()));
-  await db.sync_meta.where("key").startsWith(`${t}:`).delete();
-  await initialPull(t);
+  // Wait for any in-flight pull to finish so we don't race with it.
+  while (pulling) await new Promise((r) => setTimeout(r, 100));
+  pulling = true;
+  try {
+    await Promise.all(MIRRORED_TABLES.map((tbl) => (
+      db as any
+    )[tbl].where("tenant_id").equals(t).and((row: any) => row?._dirty !== 1).delete()));
+    await db.sync_meta.where("key").startsWith(`${t}:`).delete();
+    // Also re-subscribe realtime so any missed channels reconnect cleanly.
+    subscribeRealtime(t);
+    await initialPull(t);
+  } finally {
+    pulling = false;
+  }
+}
+
+/** Background incremental pull for the active tenant. Cheap when cursors are
+ *  up to date; used to refresh data whenever the tab comes back online or
+ *  regains focus so the UI never lags behind the database while online. */
+export async function backgroundPull() {
+  if (!currentTenant) return;
+  if (!navigator.onLine) return;
+  if (pulling) return;
+  const t = currentTenant;
+  pulling = true;
+  try {
+    await Promise.all(MIRRORED_TABLES.map((tbl) => pullTable(t, tbl).catch((e) => {
+      console.warn("[sync] background pull failed", tbl, e);
+    })));
+    setStatus("online", null);
+  } finally {
+    pulling = false;
+  }
 }
 
 /** Returns the most recent outbox items for the current tenant (newest first). */
@@ -391,11 +422,18 @@ export async function pruneLocalCache(opts: { keepOrders?: number; keepTx?: numb
 }
 
 
-// Auto-drain when connectivity returns / tab regains focus.
+// Auto-drain and refresh when connectivity returns / tab regains focus.
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => { setStatus("online", null); schedulePush(0); });
+  window.addEventListener("online", () => {
+    setStatus("online", null);
+    schedulePush(0);
+    void backgroundPull();
+  });
   window.addEventListener("offline", () => setStatus("offline"));
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") schedulePush(0);
+    if (document.visibilityState === "visible") {
+      schedulePush(0);
+      void backgroundPull();
+    }
   });
 }
