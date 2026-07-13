@@ -191,7 +191,7 @@ async function drainOutbox() {
       let error: any = null;
       const stripUA = (p: any) => {
         if (!p || typeof p !== "object") return p;
-        if (!TABLES_WITHOUT_UPDATED_AT.has(it.table)) return p;
+        if (!TABLES_WITHOUT_UPDATED_AT.has(it.table as MirroredTable)) return p;
         const { updated_at: _u, ...rest } = p;
         return rest;
       };
