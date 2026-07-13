@@ -202,7 +202,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     let rows = (data as any[]) ?? [];
     let usedFallback = false;
     const fallbackPull = edgeFallbackPullers[table];
-    if (rows.length === 0 && fallbackPull) {
+    if ((rows.length === 0 || table === "orders") && fallbackPull) {
       const fallbackRows = await fallbackPull(tenantId);
       if (fallbackRows.length > 0) {
         rows = fallbackRows;
@@ -537,8 +537,9 @@ export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
         } else {
           server = count ?? 0;
           const fallbackPull = edgeFallbackPullers[table];
-          if (server === 0 && fallbackPull) {
-            server = (await fallbackPull(t)).length;
+          if (fallbackPull) {
+            const fallbackCount = (await fallbackPull(t)).length;
+            if (server === null || fallbackCount > server) server = fallbackCount;
           }
         }
       } catch (e: any) {
