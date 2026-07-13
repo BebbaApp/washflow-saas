@@ -408,6 +408,10 @@ function schedulePush(delay = 100) {
 
 async function drainOutbox() {
   if (!navigator.onLine) { setStatus("offline"); return; }
+  // Bail if there's no session — otherwise every edge call 401s and the
+  // customFetch stale-session handler force-signs-out into a blank screen.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) { setStatus("idle"); return; }
   const items = await db.outbox.orderBy("created_at").limit(50).toArray();
   if (items.length === 0) { emit(); return; }
   for (const it of items) {
@@ -546,7 +550,11 @@ function startEdgePolling(tenantId: string) {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     if (pulling) return;
-    void reconcileTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+      await reconcileTableFromFallback("orders", tenantId).catch(() => { /* silent */ });
+    })();
   }, POLL_MS);
 }
 
@@ -600,6 +608,8 @@ export async function backgroundPull() {
   if (!currentTenant) return;
   if (!navigator.onLine) return;
   if (pulling) return;
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return;
   const t = currentTenant;
   pulling = true;
   try {
