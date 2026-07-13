@@ -57,14 +57,31 @@ Deno.serve(async (req) => {
     // Resolve who is being verified
     const isAssisted = !!targetUserId && targetUserId !== caller.id;
     if (isAssisted) {
-      // Platform / super admins always allowed; otherwise must hold an assistive role
-      const [{ data: pAdmin }, { data: sAdmin }, { data: roles }] = await Promise.all([
+      // Platform / super admins always allowed. Otherwise, honor the tenant's
+      // role_permissions matrix for `attendance.assisted` (falls back to a
+      // default role list if no matrix row exists yet).
+      const scopedTenantId = typeof tenantId === "string" && tenantId.trim() ? tenantId.trim() : null;
+      const [{ data: pAdmin }, { data: sAdmin }, { data: roles }, { data: permRow }] = await Promise.all([
         admin.from("platform_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
         admin.from("super_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
         admin.from("user_roles").select("role").eq("user_id", caller.id),
+        scopedTenantId
+          ? admin.from("role_permissions").select("matrix").eq("tenant_id", scopedTenantId).maybeSingle()
+          : Promise.resolve({ data: null } as any),
       ]);
       const callerRoles = (roles || []).map((r: any) => r.role);
-      const allowed = !!pAdmin || !!sAdmin || callerRoles.some((r: string) => ASSIST_ROLES.has(r));
+      const matrix = (permRow as any)?.matrix as Record<string, string[]> | null | undefined;
+      let allowed = !!pAdmin || !!sAdmin;
+      if (!allowed) {
+        if (matrix && typeof matrix === "object") {
+          allowed = callerRoles.some((r: string) => {
+            const perms = matrix[r];
+            return Array.isArray(perms) && perms.includes("attendance.assisted");
+          });
+        } else {
+          allowed = callerRoles.some((r: string) => ASSIST_ROLES.has(r));
+        }
+      }
       if (!allowed) {
         return json({ error: "forbidden_assisted_check_in" }, 403);
       }
