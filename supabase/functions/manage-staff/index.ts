@@ -78,6 +78,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     deny_timeoff: "update_timeoff",
     reject_timeoff: "update_timeoff",
     timeoff_update: "update_timeoff",
+
+    create_timeoff: "create_timeoff",
+    request_timeoff: "create_timeoff",
+    submit_timeoff: "create_timeoff",
+    timeoff_create: "create_timeoff",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
