@@ -77,6 +77,7 @@ const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => P
 };
 
 const EDGE_SYNC_WRITE_TABLES = new Set<string>([
+  "orders",
   "expenses",
   "inventory_items",
   "inventory_transactions",
