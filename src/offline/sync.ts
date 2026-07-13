@@ -92,7 +92,29 @@ async function pushMutationViaEdge(it: OutboxItem, payload: any) {
       payload,
     },
   });
-  if (error) throw error;
+  if (error) {
+    // supabase-js wraps HTTP errors as "Edge Function returned a non-2xx
+    // status code" and stashes the Response on `error.context`. Read the
+    // body so the sync panel shows the real reason (validation, RLS,
+    // membership) instead of the generic wrapper message.
+    let detail = error.message;
+    try {
+      const resp = (error as any)?.context;
+      if (resp && typeof resp.text === "function") {
+        const text = await resp.text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            const err = (parsed as any)?.error;
+            detail = typeof err === "string" ? err : JSON.stringify(err ?? parsed);
+          } catch {
+            detail = text;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
   return (data as any)?.row ?? null;
 }
 
