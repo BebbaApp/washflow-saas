@@ -8,7 +8,7 @@ const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff"];
+const ACCEPTED_ACTIONS = ["list", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 
 const corsHeaders = {
@@ -78,6 +78,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     deny_timeoff: "update_timeoff",
     reject_timeoff: "update_timeoff",
     timeoff_update: "update_timeoff",
+
+    create_timeoff: "create_timeoff",
+    request_timeoff: "create_timeoff",
+    submit_timeoff: "create_timeoff",
+    timeoff_create: "create_timeoff",
   };
   if (map[s]) return map[s];
   // Infer from payload shape if no/unknown action.
@@ -523,6 +528,50 @@ Deno.serve(async (req) => {
         .eq("id", request_id);
       if (updErr) return reply({ error: updErr.message }, 500);
       return reply({ success: true });
+    }
+
+    if (action === "create_timeoff") {
+      const { staff_user_id, start_date, end_date, reason } = body ?? {};
+      if (!staff_user_id || !start_date || !end_date) {
+        return reply({ error: "Missing staff_user_id, start_date or end_date" }, 400);
+      }
+      if (String(end_date) < String(start_date)) {
+        return reply({ error: "end_date must be on or after start_date" }, 400);
+      }
+      // Requesting for self is always OK (if the user is a workspace member).
+      // Requesting for someone else requires an approver role.
+      const isSelf = staff_user_id === callerId;
+      const canApprove = isSuperAdmin || isPlatformAdmin || isTenantAdmin ||
+        tenantRoles.some((r: any) => TIMEOFF_APPROVER_ROLES.includes(r.role));
+      if (!isSelf && !canApprove) {
+        return reply({ error: "You can only request time off for yourself" }, 403);
+      }
+      if (!isTenantMember && !isPlatformAdmin) {
+        return reply({ error: "Not a member of this workspace" }, 403);
+      }
+      // Verify the target is a member of this tenant.
+      const { data: targetMember } = await admin
+        .from("tenant_members")
+        .select("user_id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", staff_user_id)
+        .maybeSingle();
+      if (!targetMember) return reply({ error: "Target user is not in this workspace" }, 400);
+
+      const { data: inserted, error: insErr } = await admin
+        .from("time_off_requests")
+        .insert({
+          tenant_id: tenantId,
+          staff_user_id,
+          start_date,
+          end_date,
+          reason: reason ?? null,
+          status: "pending",
+        })
+        .select("*")
+        .maybeSingle();
+      if (insErr) return reply({ error: insErr.message }, 500);
+      return reply({ success: true, request: inserted });
     }
 
     return reply({ error: "Unknown action" }, 400);

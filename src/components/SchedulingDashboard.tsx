@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StaffCheckInPanel } from "@/components/StaffCheckInPanel";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -782,6 +784,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
       {view === "timeoff" && showTimeOffTab && (
         <TimeOffPanel
           requests={timeOffRequests}
+          staffMembers={staffMembers}
           canRequest={canRequestTimeOff}
           canApprove={canApproveTimeOff}
           onSubmit={submitTimeOffRequest}
@@ -797,9 +800,10 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
 // ============================================================
 interface TimeOffPanelProps {
   requests: ReturnType<typeof useScheduling>["timeOffRequests"];
+  staffMembers: ReturnType<typeof useScheduling>["staffMembers"];
   canRequest: boolean;
   canApprove: boolean;
-  onSubmit: (data: { startDate: string; endDate: string; reason: string }) => Promise<void> | void;
+  onSubmit: (data: { startDate: string; endDate: string; reason: string; staffUserId?: string }) => Promise<void> | void;
   onUpdateStatus: (id: string, status: "approved" | "rejected") => Promise<void> | void;
 }
 
@@ -818,23 +822,41 @@ function formatShortDate(d: string): string {
   });
 }
 
-const TimeOffPanel = ({ requests, canRequest, canApprove, onSubmit, onUpdateStatus }: TimeOffPanelProps) => {
+const TimeOffPanel = ({ requests, staffMembers, canRequest, canApprove, onSubmit, onUpdateStatus }: TimeOffPanelProps) => {
+  const { user } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [reason, setReason] = useState("");
+  const [staffUserId, setStaffUserId] = useState<string>(user?.id ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+
+  useEffect(() => {
+    if (!staffUserId && user?.id) setStaffUserId(user.id);
+  }, [user?.id, staffUserId]);
+
+  const sortedStaff = useMemo(
+    () => [...staffMembers].sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [staffMembers],
+  );
+
+  // Requesters who cannot approve can only pick themselves. Approvers pick anyone.
+  const staffOptions = useMemo(
+    () => (canApprove ? sortedStaff : sortedStaff.filter((s) => s.id === user?.id)),
+    [sortedStaff, canApprove, user?.id],
+  );
 
   const dayCount = daysInclusive(start, end);
 
   const handleSubmit = async () => {
+    if (!staffUserId) { toast.error("Choose an employee"); return; }
     if (!start || !end) { toast.error("Pick a start and end date"); return; }
     if (end < start) { toast.error("End date must be on or after start date"); return; }
     if (!reason.trim()) { toast.error("Add a short reason"); return; }
     setSubmitting(true);
     try {
-      await onSubmit({ startDate: start, endDate: end, reason: reason.trim() });
+      await onSubmit({ startDate: start, endDate: end, reason: reason.trim(), staffUserId });
       setReason("");
     } finally {
       setSubmitting(false);
@@ -860,14 +882,46 @@ const TimeOffPanel = ({ requests, canRequest, canApprove, onSubmit, onUpdateStat
             <Plane className="w-4 h-4 text-primary" />
             <h3 className="text-base font-semibold">Request time off</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Start date</Label>
-              <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              <Label className="text-xs">Employee</Label>
+              <Select value={staffUserId} onValueChange={setStaffUserId} disabled={!canApprove && staffOptions.length <= 1}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffOptions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name || s.email || s.id.slice(0, 8)}
+                      {s.id === user?.id ? " (you)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!canApprove && (
+                <p className="mt-1 text-[10px] text-muted-foreground">You can only request time off for yourself.</p>
+              )}
             </div>
-            <div>
-              <Label className="text-xs">End date</Label>
-              <Input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Start date</Label>
+                <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">End date</Label>
+                <Input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+            <div className="md:col-span-2">
+              <Label className="text-xs">Reason</Label>
+              <Textarea
+                placeholder="Family event, medical appointment, personal…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+              />
             </div>
             <div className="flex items-end">
               <div className="w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm">
@@ -880,15 +934,6 @@ const TimeOffPanel = ({ requests, canRequest, canApprove, onSubmit, onUpdateStat
                 {submitting ? "Submitting…" : "Submit request"}
               </Button>
             </div>
-          </div>
-          <div className="mt-3">
-            <Label className="text-xs">Reason</Label>
-            <Textarea
-              placeholder="Family event, medical appointment, personal…"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-            />
           </div>
         </div>
       )}

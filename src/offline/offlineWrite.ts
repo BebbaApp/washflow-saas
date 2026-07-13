@@ -23,11 +23,27 @@ const COMPOSITE_ID_TABLES: Record<string, (row: any) => string> = {
   role_permissions: (row) => row.tenant_id,
 };
 
+// Kept in sync with sync.ts — server has no updated_at column on these
+// tables, so we must NOT send one in insert/update payloads.
+const TABLES_WITHOUT_UPDATED_AT = new Set<string>([
+  "loyalty_transactions", "shifts", "shift_templates", "time_off_requests",
+  "attendance_records", "staff_face_enrollments", "staff_pins",
+  "user_roles", "tenant_members", "customers", "expenses",
+  "expense_categories", "inventory_categories", "inventory_transactions",
+]);
+
 function ensureId(table: string, row: any): any {
   if (row.id) return row;
   const synth = COMPOSITE_ID_TABLES[table];
   if (synth) return { ...row, id: synth(row) };
   return { ...row, id: crypto.randomUUID() };
+}
+
+function stripUpdatedAt<T extends Record<string, unknown>>(table: string, row: T): T {
+  if (!TABLES_WITHOUT_UPDATED_AT.has(table)) return row;
+  if (!("updated_at" in row)) return row;
+  const { updated_at: _drop, ...rest } = row as any;
+  return rest as T;
 }
 
 /**
@@ -47,7 +63,7 @@ export async function offlineInsert(
   });
 
   await (db as any)[table].put({ ...row, _dirty: 1, _op: "insert" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: "insert", payload: row });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: "insert", payload: stripUpdatedAt(table, row) });
   return row;
 }
 
@@ -64,7 +80,7 @@ export async function offlineUpdate(
   const now = new Date().toISOString();
   const updated = { ...(existing ?? { id, tenant_id: tenantId }), ...patch, id, updated_at: now };
   await (db as any)[table].put({ ...updated, _dirty: 1, _op: "update" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: "update", payload: { id, ...patch, updated_at: now } });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: "update", payload: stripUpdatedAt(table, { id, ...patch, updated_at: now }) });
 }
 
 /**
@@ -92,6 +108,6 @@ export async function offlineUpsert(
   const existing = await (db as any)[table].get(row.id);
   const merged = { ...(existing ?? {}), ...row };
   await (db as any)[table].put({ ...merged, _dirty: 1, _op: existing ? "update" : "insert" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: existing ? "update" : "insert", payload: merged });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: existing ? "update" : "insert", payload: stripUpdatedAt(table, merged) });
   return merged;
 }

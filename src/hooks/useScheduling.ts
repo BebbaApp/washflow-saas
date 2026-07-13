@@ -146,16 +146,29 @@ export function useScheduling() {
   }, [tenant?.id]);
 
   const submitTimeOffRequest = useCallback(async (data: {
-    startDate: string; endDate: string; reason: string;
+    startDate: string; endDate: string; reason: string; staffUserId?: string;
   }) => {
     if (!tenant?.id || !user?.id) return;
-    await offlineInsert("time_off_requests", tenant.id, {
-      staff_user_id: user.id,
-      start_date: data.startDate,
-      end_date: data.endDate,
-      reason: data.reason,
-      status: "pending",
+    const staffUserId = data.staffUserId ?? user.id;
+    const { data: resp, error } = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "create_timeoff",
+        tenant_id: tenant.id,
+        staff_user_id: staffUserId,
+        start_date: data.startDate,
+        end_date: data.endDate,
+        reason: data.reason,
+      },
     });
+    if (error || (resp && resp.error)) {
+      toast.error(resp?.error ?? error?.message ?? "Failed to submit request");
+      return;
+    }
+    // Mirror the server row locally for instant UI (realtime will reconcile).
+    const row = resp?.request;
+    if (row?.id) {
+      await (db as any).time_off_requests.put({ ...row, _dirty: 0 });
+    }
     toast.success("Time-off request submitted");
   }, [tenant?.id, user]);
 
