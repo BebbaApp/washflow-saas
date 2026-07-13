@@ -340,10 +340,18 @@ async function drainOutbox() {
 /** Start syncing for a tenant. Safe to call repeatedly; switching tenants
  *  swaps subscriptions and triggers a fresh pull. */
 export async function startSync(tenantId: string) {
-  // Guard: don't attempt any sync/edge calls without a valid session.
-  // Prevents 401 blank-screen errors on /login or after session expiry.
+  // Guard: don't attempt any sync/edge calls without a valid, server-verified
+  // session. Prevents 401 blank-screen errors on /login or after the session
+  // has been revoked server-side (stale token still cached in localStorage).
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
+    setStatus("idle");
+    return;
+  }
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userData?.user) {
+    // Stale/revoked token — clear it locally so callers stop retrying.
+    try { await supabase.auth.signOut({ scope: "local" } as any); } catch { /* ignore */ }
     setStatus("idle");
     return;
   }
