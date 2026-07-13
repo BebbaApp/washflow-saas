@@ -61,7 +61,14 @@ export function useScheduling() {
 
   const shifts = useMemo(() => (shiftRows ?? []).map(mapShift), [shiftRows]);
   const shiftTemplates = useMemo(() => (templateRows ?? []).map(mapTemplate), [templateRows]);
-  const timeOffRequests = useMemo(() => (timeOffRows ?? []).map(mapTimeOff), [timeOffRows]);
+  const nameByUser = useMemo(
+    () => new Map(staffMembers.map((s) => [s.id, s.name] as const)),
+    [staffMembers],
+  );
+  const timeOffRequests = useMemo(
+    () => (timeOffRows ?? []).map((r: any) => mapTimeOff(r, nameByUser)),
+    [timeOffRows, nameByUser],
+  );
   const loading = shiftRows === undefined;
 
   // Load staff — from Supabase when online, from local Dexie when offline
