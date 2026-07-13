@@ -1,0 +1,216 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "npm:zod@3";
+
+const TABLES = ["expenses", "inventory_items", "inventory_transactions"] as const;
+const OPS = ["insert", "update", "delete"] as const;
+
+const BodySchema = z.object({
+  tenant_id: z.string().uuid(),
+  table: z.enum(TABLES),
+  op: z.enum(OPS),
+  payload: z.record(z.unknown()),
+});
+
+const uuid = z.string().uuid();
+const nullableUuid = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z.string().uuid().nullable().optional(),
+);
+const text = (max = 500) => z.string().trim().min(1).max(max);
+const optionalText = (max = 500) => z.string().trim().max(max).nullable().optional();
+const numberValue = z.coerce.number().finite();
+const timestampText = z.string().trim().min(1).max(80);
+
+const DeleteSchema = z.object({ id: uuid }).strip();
+
+const ExpenseInsertSchema = z.object({
+  id: uuid.optional(),
+  description: text(300),
+  amount: numberValue.min(0),
+  category: text(120),
+  subcategory: optionalText(120),
+  vendor: optionalText(180),
+  notes: optionalText(1000),
+  date: timestampText.optional(),
+  created_by: nullableUuid,
+  created_at: timestampText.optional(),
+}).strip();
+
+const ExpenseUpdateSchema = ExpenseInsertSchema.partial().extend({ id: uuid }).strip();
+
+const InventoryItemInsertSchema = z.object({
+  id: uuid.optional(),
+  name: text(180),
+  category: text(120),
+  subtype: optionalText(120),
+  preset_id: optionalText(120),
+  unit: z.string().trim().max(40).optional(),
+  quantity: numberValue.optional(),
+  threshold: numberValue.min(0).optional(),
+  recommended_min: numberValue.nullable().optional(),
+  recommended_max: numberValue.nullable().optional(),
+  unit_cost: numberValue.min(0).optional(),
+  expense_category: optionalText(120),
+  supplier_id: nullableUuid,
+  pack_size: numberValue.min(0).nullable().optional(),
+  created_at: timestampText.optional(),
+  updated_at: timestampText.optional(),
+}).strip();
+
+const InventoryItemUpdateSchema = InventoryItemInsertSchema.partial().extend({ id: uuid }).strip();
+
+const InventoryTxInsertSchema = z.object({
+  id: uuid.optional(),
+  item_id: nullableUuid,
+  item_name: text(180),
+  delta: numberValue,
+  balance: numberValue,
+  type: z.enum(["restock", "consume", "adjust"]),
+  source: text(160),
+  notes: optionalText(1000),
+  flow: z.enum(["confirmed", "auto", "override", "manual", "undo"]).nullable().optional(),
+  unit_cost: numberValue.nullable().optional(),
+  total_cost: numberValue.nullable().optional(),
+  expense_id: nullableUuid,
+  created_at: timestampText.optional(),
+}).strip();
+
+const InventoryTxUpdateSchema = InventoryTxInsertSchema.partial().extend({ id: uuid }).strip();
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Missing Authorization" }, 401);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Function is not configured" }, 500);
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser(
+      authHeader.replace("Bearer ", ""),
+    );
+    if (userErr || !userData?.user) return json({ error: "Unauthorized" }, 401);
+
+    const parsed = BodySchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
+
+    const { tenant_id, table, op, payload } = parsed.data;
+    const admin = createClient(supabaseUrl, serviceKey);
+    const access = await canWriteTenant(admin, tenant_id, userData.user.id);
+    if (!access.ok) return json({ error: access.error }, access.status);
+
+    const clean = parsePayload(table, op, payload, tenant_id, userData.user.id);
+    if (!clean.ok) return json({ error: clean.error }, 400);
+
+    const { id, row } = clean.value;
+    let result;
+    if (op === "delete") {
+      result = await admin
+        .from(table)
+        .delete()
+        .eq("tenant_id", tenant_id)
+        .eq("id", id)
+        .select("*")
+        .maybeSingle();
+    } else if (op === "update") {
+      const { id: _id, tenant_id: _tenant, ...patch } = row as Record<string, unknown>;
+      if (Object.keys(patch).length === 0) return json({ error: "No changes supplied" }, 400);
+      result = await admin
+        .from(table)
+        .update(patch)
+        .eq("tenant_id", tenant_id)
+        .eq("id", id)
+        .select("*")
+        .maybeSingle();
+    } else {
+      result = await admin
+        .from(table)
+        .upsert(row, { onConflict: "id" })
+        .select("*")
+        .single();
+    }
+
+    if (result.error) return json({ error: result.error.message }, 500);
+    return json({ ok: true, row: result.data ?? null });
+  } catch (err) {
+    console.error("sync-mutation error", err);
+    return json({ error: (err as Error).message }, 500);
+  }
+});
+
+async function canWriteTenant(
+  admin: ReturnType<typeof createClient>,
+  tenantId: string,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const [{ data: tenant }, { data: member }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
+    admin.from("tenants").select("status,grace_period_ends_at").eq("id", tenantId).maybeSingle(),
+    admin.from("tenant_members").select("tenant_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
+    admin.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle(),
+    admin.from("super_admins").select("user_id").eq("user_id", userId).maybeSingle(),
+  ]);
+
+  if (!tenant) return { ok: false, status: 404, error: "Workspace not found" };
+  if (!member && !platformAdmin && !superAdmin) {
+    return { ok: false, status: 403, error: "You are not a member of this workspace" };
+  }
+
+  const status = (tenant as { status?: string }).status;
+  const grace = (tenant as { grace_period_ends_at?: string | null }).grace_period_ends_at;
+  const active =
+    status === "trialing" ||
+    status === "active" ||
+    (status === "past_due" && !!grace && new Date(grace).getTime() > Date.now());
+  if (!active) return { ok: false, status: 403, error: "Workspace license is not active" };
+  return { ok: true };
+}
+
+function parsePayload(
+  table: (typeof TABLES)[number],
+  op: (typeof OPS)[number],
+  payload: Record<string, unknown>,
+  tenantId: string,
+  userId: string,
+): { ok: true; value: { id: string; row: Record<string, unknown> } } | { ok: false; error: unknown } {
+  if (op === "delete") {
+    const parsed = DeleteSchema.safeParse(payload);
+    if (!parsed.success) return { ok: false, error: parsed.error.flatten().fieldErrors };
+    return { ok: true, value: { id: parsed.data.id, row: { id: parsed.data.id, tenant_id: tenantId } } };
+  }
+
+  const schema =
+    table === "expenses"
+      ? op === "insert" ? ExpenseInsertSchema : ExpenseUpdateSchema
+      : table === "inventory_items"
+        ? op === "insert" ? InventoryItemInsertSchema : InventoryItemUpdateSchema
+        : op === "insert" ? InventoryTxInsertSchema : InventoryTxUpdateSchema;
+
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) return { ok: false, error: parsed.error.flatten().fieldErrors };
+  const id = (parsed.data as { id?: string }).id ?? crypto.randomUUID();
+  const createdBy = table === "expenses" && op === "insert"
+    ? { created_by: (parsed.data as { created_by?: string | null }).created_by ?? userId }
+    : {};
+  return {
+    ok: true,
+    value: {
+      id,
+      row: { ...parsed.data, ...createdBy, id, tenant_id: tenantId },
+    },
+  };
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
