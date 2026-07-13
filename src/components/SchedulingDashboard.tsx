@@ -784,6 +784,7 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
       {view === "timeoff" && showTimeOffTab && (
         <TimeOffPanel
           requests={timeOffRequests}
+          staffMembers={staffMembers}
           canRequest={canRequestTimeOff}
           canApprove={canApproveTimeOff}
           onSubmit={submitTimeOffRequest}
