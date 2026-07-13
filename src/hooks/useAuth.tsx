@@ -79,9 +79,23 @@ function useAuthInternal(): AuthContextValue {
   const resolvedUserIdRef = useRef<string | null>(null);
   const userRef = useRef<StaffUser | null>(null);
 
+  const [sessionConfig, setSessionConfig] = useState<SessionConfig>(() => loadSessionConfig());
+  const [idleWarning, setIdleWarning] = useState(false);
+  const [idleSecondsLeft, setIdleSecondsLeft] = useState(0);
+  const bumpRef = useRef<() => void>(() => {});
+
   const setResolvedUser = useCallback((next: StaffUser | null) => {
     userRef.current = next;
     setUser(next);
+  }, []);
+
+  const updateSessionConfig = useCallback((cfg: Partial<SessionConfig>) => {
+    saveSessionConfig(cfg);
+    setSessionConfig((prev) => ({ ...prev, ...cfg }));
+  }, []);
+
+  const extendSession = useCallback(() => {
+    bumpRef.current();
   }, []);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
