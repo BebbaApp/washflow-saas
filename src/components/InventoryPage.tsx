@@ -619,7 +619,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             {/* Cost / supplier / expense category */}
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
               <div className="space-y-2">
-                <Label className="text-sm text-secondary-foreground">Unit cost (per item)</Label>
+                <Label className="text-sm text-secondary-foreground">Purchase Price</Label>
                 <Input
                   type="number"
                   min="0"
@@ -630,9 +630,9 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                   className="bg-secondary border-border text-foreground"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Expense = unit cost × quantity captured (not multiplied by the unit of measurement).
+                  Unit price = purchase price ÷ quantity.
                   {Number(unitCost) > 0 && Number(quantity) > 0 && (
-                    <> Total: <span className="text-foreground font-mono">{formatPrice(Number(unitCost) * Number(quantity))}</span></>
+                    <> Unit price: <span className="text-foreground font-mono">{formatPrice(Number(unitCost) / Number(quantity))}</span></>
                   )}
                 </p>
               </div>
