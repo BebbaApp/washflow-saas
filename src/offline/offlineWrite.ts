@@ -80,7 +80,7 @@ export async function offlineUpdate(
   const now = new Date().toISOString();
   const updated = { ...(existing ?? { id, tenant_id: tenantId }), ...patch, id, updated_at: now };
   await (db as any)[table].put({ ...updated, _dirty: 1, _op: "update" });
-  await enqueueOutbox({ tenant_id: tenantId, table, op: "update", payload: { id, ...patch, updated_at: now } });
+  await enqueueOutbox({ tenant_id: tenantId, table, op: "update", payload: stripUpdatedAt(table, { id, ...patch, updated_at: now }) });
 }
 
 /**
