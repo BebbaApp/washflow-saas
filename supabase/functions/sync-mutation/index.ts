@@ -133,13 +133,23 @@ Deno.serve(async (req) => {
     if (!access.ok) return json({ error: access.error }, access.status);
 
     if (op === "list") {
-      const result = await admin
-        .from(table)
-        .select("*")
-        .eq("tenant_id", tenant_id)
-        .order(table === "orders" ? "created_at" : "id", { ascending: true });
-      if (result.error) return json({ error: result.error.message }, 500);
-      return json({ ok: true, rows: result.data ?? [] });
+      const rows: unknown[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const result = await admin
+          .from(table)
+          .select("*")
+          .eq("tenant_id", tenant_id)
+          .order(table === "orders" ? "created_at" : "id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (result.error) return json({ error: result.error.message }, 500);
+        const batch = result.data ?? [];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      return json({ ok: true, rows });
     }
 
     const clean = parsePayload(table, op, payload, tenant_id, userData.user.id);
