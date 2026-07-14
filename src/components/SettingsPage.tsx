@@ -60,8 +60,8 @@ function fnErrorDescription(info: { message: string; version?: string; accepted?
 
 export function SettingsPage() {
   const { can } = usePermissions();
-  type TabId = "workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace";
-  type GroupId = "administration" | "operations";
+  type TabId = "workers" | "permissions" | "theme" | "services" | "currency" | "receipt" | "printer" | "billing" | "workspace" | "activity";
+  type GroupId = "administration" | "operations" | "logs";
 
   const allTabs: { id: TabId; label: string; icon: any; perm: string; group: GroupId }[] = [
     // Administration
@@ -75,12 +75,15 @@ export function SettingsPage() {
     { id: "printer", label: "Printer", icon: Printer, perm: "settings.printer", group: "operations" },
     { id: "billing", label: "Billing", icon: CreditCard, perm: "settings.billing", group: "operations" },
     { id: "workspace", label: "Workspace", icon: Building2, perm: "settings.workspace", group: "operations" },
+    // Logs
+    { id: "activity", label: "Activity Log", icon: ScrollText, perm: "settings.workspace", group: "logs" },
   ];
 
   const tabs = allTabs.filter((t) => can(t.perm));
   const groups: { id: GroupId; label: string }[] = [
     { id: "administration", label: "Administration" },
     { id: "operations", label: "Operations" },
+    { id: "logs", label: "Logs" },
   ].filter((g) => tabs.some((t) => t.group === g.id)) as { id: GroupId; label: string }[];
 
   const [group, setGroup] = useState<GroupId>(groups[0]?.id ?? "administration");
