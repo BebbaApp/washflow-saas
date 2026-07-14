@@ -154,6 +154,7 @@ export function SettingsPage() {
       {section === "printer" && <PrinterSection />}
       {section === "billing" && <BillingSection />}
       {section === "workspace" && <TenantManagementSection />}
+      {section === "activity" && <ActivityLogsSection />}
     </div>
   );
 }
