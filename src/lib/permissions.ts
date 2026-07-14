@@ -200,6 +200,8 @@ export function getDefaultMatrix(): PermissionMatrix {
   ]);
 
   allow("supervisor", ["attendance.assisted"]);
+  allow("manager", ["attendance.assisted"]);
+
 
   deny("manager", [
     "settings.workers.delete", "settings.workers.compensation",
