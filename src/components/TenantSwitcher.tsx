@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Loader2, Building2, AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Check, ChevronsUpDown, Loader2, Building2, AlertTriangle, LayoutGrid } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
+import { useOwnerScope } from "@/hooks/useOwnerScope";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +20,8 @@ interface Props {
 
 export function TenantSwitcher({ compact }: Props) {
   const { tenant, memberships, switchTenant, switchError, clearSwitchError } = useTenant();
+  const { isOwnerOfMultiple } = useOwnerScope();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [switching, setSwitching] = useState<string | null>(null);
 
