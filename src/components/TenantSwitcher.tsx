@@ -61,6 +61,14 @@ export function TenantSwitcher({ compact }: Props) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
+        {isOwnerOfMultiple && (
+          <>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); navigate("/owner"); }}>
+              <LayoutGrid className="w-3.5 h-3.5 mr-2" /> Owner overview
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuLabel className="text-xs">Switch workspace</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {switchError && (
