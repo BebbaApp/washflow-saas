@@ -489,28 +489,6 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
 
       {tab === "history" && (
         <>
-          <WaterCorrectionCard
-            waterItemId={waterItemId}
-            items={items}
-            transactions={transactions}
-            canAdjust={canAdjust}
-            onApply={async (qty, notes) => {
-              if (!waterItemId) return;
-              await adjustStock(waterItemId, qty, notes, "Water usage guide correction");
-              toast.success(`Water stock credited +${qty.toFixed(2)}`);
-            }}
-          />
-          <WaterCorrectionV2Card
-            waterItemId={waterItemId}
-            items={items}
-            transactions={transactions}
-            canAdjust={canAdjust}
-            onApply={async (qty, notes) => {
-              if (!waterItemId) return;
-              await adjustStock(waterItemId, qty, notes, "Water usage guide correction v2");
-              toast.success(`Water stock credited +${qty.toFixed(2)}`);
-            }}
-          />
           <TransactionLog
             transactions={
               historyItemFilter === "all"
