@@ -74,8 +74,8 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tid).gte("created_at", fromIso).lte("created_at", toIso),
         admin.from("orders").select("id, service_price")
           .eq("tenant_id", tid).gte("created_at", todayStart),
-        admin.from("expenses").select("amount, expense_date")
-          .eq("tenant_id", tid).gte("expense_date", fromIso.slice(0, 10)).lte("expense_date", toIso.slice(0, 10)),
+        admin.from("expenses").select("amount, date")
+          .eq("tenant_id", tid).gte("date", fromIso.slice(0, 10)).lte("date", toIso.slice(0, 10)),
         admin.from("tenant_members").select("user_id, tenant_role").eq("tenant_id", tid),
         admin.from("staff_active_status").select("user_id, is_active").eq("tenant_id", tid).eq("is_active", true),
         admin.from("inventory_items").select("id, current_stock, reorder_point").eq("tenant_id", tid),
