@@ -260,13 +260,15 @@ export function checkPermission(
   isSuperAdmin?: boolean,
 ): boolean {
   if (!role) return false;
-  // Super admins bypass plan gating entirely. Platform admins do NOT — they
-  // are subject to the plan of whichever tenant they are currently viewing.
+  // Plan feature gating: only deny when the current permission key is
+  // explicitly disabled (false) in the plan's features map. Missing keys
+  // default to allowed — plan features are an opt-in premium gate, not a
+  // strict allowlist of every permission. Super admins bypass entirely.
   if (
     planFeatures &&
-    Object.keys(planFeatures).length > 0 &&
     !isSuperAdmin &&
-    planFeatures[key] !== true
+    Object.prototype.hasOwnProperty.call(planFeatures, key) &&
+    planFeatures[key] === false
   ) {
     return false;
   }
