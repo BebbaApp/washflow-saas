@@ -39,9 +39,9 @@ export const CONCENTRATES: ConcentrateRow[] = [
 export const WATER: WaterRow[] = [
   { key: "pre_rinse",    phase: "Pre-rinse trigger",     unit: "min", muted: true, values: { Sedan: 2,   "SUV S/Cab": 2.5, "SUV D/Cab": 3, Quantum: 4, Sprinter: 4.5, "4T Truck": 7,   "8T Truck": 11 } },
   { key: "final_rinse",  phase: "Final rinse trigger",   unit: "min", muted: true, values: { Sedan: 2.5, "SUV S/Cab": 3,   "SUV D/Cab": 4, Quantum: 5, Sprinter: 6,   "4T Truck": 8,   "8T Truck": 13 } },
-  { key: "pressure",     phase: "Pressure-washer water", unit: "L",                values: { Sedan: 17,  "SUV S/Cab": 20.5,  "SUV D/Cab": 26.5, Quantum: 34, Sprinter: 39.5, "4T Truck": 56.5, "8T Truck": 90 } },
-  { key: "bucket",       phase: "Bucket water",          unit: "L", muted: true,   values: { Sedan: 10,  "SUV S/Cab": 12.5,  "SUV D/Cab": 15, Quantum: 20, Sprinter: 20, "4T Truck": 25,  "8T Truck": 40 } },
-  { key: "total_water",  phase: "Total water per wash",  unit: "L", total: true,   values: { Sedan: 27,  "SUV S/Cab": 33,  "SUV D/Cab": 41.5, Quantum: 54, Sprinter: 59.5, "4T Truck": 81.5, "8T Truck": 130 } },
+  { key: "pressure",     phase: "Pressure-washer water", unit: "L",                values: { Sedan: 13.9, "SUV S/Cab": 16.8, "SUV D/Cab": 21.7, Quantum: 27.9, Sprinter: 32.4, "4T Truck": 46.3, "8T Truck": 73.8 } },
+  { key: "bucket",       phase: "Bucket water",          unit: "L", muted: true,   values: { Sedan: 8.2,  "SUV S/Cab": 10.3, "SUV D/Cab": 12.3, Quantum: 16.4, Sprinter: 16.4, "4T Truck": 20.5, "8T Truck": 32.8 } },
+  { key: "total_water",  phase: "Total water per wash",  unit: "L", total: true,   values: { Sedan: 22.1, "SUV S/Cab": 27.1, "SUV D/Cab": 34.0, Quantum: 44.3, Sprinter: 48.8, "4T Truck": 66.8, "8T Truck": 106.6 } },
 ];
 
 export function matchVehicle(input: string | undefined | null): Vehicle | null {
