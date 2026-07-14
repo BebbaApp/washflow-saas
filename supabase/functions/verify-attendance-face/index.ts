@@ -73,13 +73,14 @@ Deno.serve(async (req) => {
       const matrix = (permRow as any)?.matrix as Record<string, string[]> | null | undefined;
       let allowed = !!pAdmin || !!sAdmin;
       if (!allowed) {
-        if (matrix && typeof matrix === "object") {
+        // Default roles are always allowed (baseline permission), and the
+        // tenant matrix can additionally grant the permission to other roles.
+        allowed = callerRoles.some((r: string) => ASSIST_ROLES.has(r));
+        if (!allowed && matrix && typeof matrix === "object") {
           allowed = callerRoles.some((r: string) => {
             const perms = matrix[r];
             return Array.isArray(perms) && perms.includes("attendance.assisted");
           });
-        } else {
-          allowed = callerRoles.some((r: string) => ASSIST_ROLES.has(r));
         }
       }
       if (!allowed) {
