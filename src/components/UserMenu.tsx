@@ -65,6 +65,14 @@ export function UserMenu({ onOpenSettings, showAppLink = false }: UserMenuProps)
               </DropdownMenuItem>
             </>
           )}
+          {!showAppLink && isOwnerOfMultiple && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/owner"><LayoutGrid className="w-4 h-4 mr-2" /> Owner portal</Link>
+              </DropdownMenuItem>
+            </>
+          )}
           {!showAppLink && isSuperAdmin && (
             <>
               <DropdownMenuSeparator />
