@@ -1,6 +1,6 @@
 {
   "productName": "Washflow",
-  "version": "1.0.28",
+  "version": "1.0.29",
   "identifier": "com.aumsoft.washflow",
   "build": {
     "beforeDevCommand": "npm run dev",
