@@ -488,19 +488,32 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       )}
 
       {tab === "history" && (
-        <TransactionLog
-          transactions={
-            historyItemFilter === "all"
-              ? transactions
-              : transactions.filter((t) => t.itemId === historyItemFilter)
-          }
-          allTransactions={transactions}
-          items={items}
-          itemFilter={historyItemFilter}
-          onItemFilterChange={setHistoryItemFilter}
-          onUndo={() => setUndoOpen(true)}
-          onAdjust={(item, mode) => setAdjusting({ item, mode })}
-        />
+        <>
+          <WaterCorrectionCard
+            waterItemId={waterItemId}
+            items={items}
+            transactions={transactions}
+            canAdjust={canAdjust}
+            onApply={async (qty, notes) => {
+              if (!waterItemId) return;
+              await adjustStock(waterItemId, qty, notes, "Water usage guide correction");
+              toast.success(`Water stock credited +${qty.toFixed(2)}`);
+            }}
+          />
+          <TransactionLog
+            transactions={
+              historyItemFilter === "all"
+                ? transactions
+                : transactions.filter((t) => t.itemId === historyItemFilter)
+            }
+            allTransactions={transactions}
+            items={items}
+            itemFilter={historyItemFilter}
+            onItemFilterChange={setHistoryItemFilter}
+            onUndo={() => setUndoOpen(true)}
+            onAdjust={(item, mode) => setAdjusting({ item, mode })}
+          />
+        </>
       )}
 
       {tab === "usage" && <UsageReferencePanel />}
