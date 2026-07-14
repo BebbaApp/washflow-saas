@@ -73,7 +73,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-2">
             <Label htmlFor="customer" className="text-sm text-secondary-foreground">Customer Name</Label>
-            <Input id="customer" value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+            <Input id="customer" value={customer} onChange={(e) => setCustomer(e.target.value.replace(/\b\p{L}/gu, (c) => c.toUpperCase()))} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" autoCapitalize="words" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="customerPhone" className="text-sm text-secondary-foreground">Cell Phone Number</Label>
