@@ -60,7 +60,8 @@ const SOURCE_FILTERS: (LogSource | "all")[] = [
 
 /* ─────────── Section ─────────── */
 export function ActivityLogsSection() {
-  const { tenantId } = useTenant();
+  const { tenant } = useTenant();
+  const tenantId = tenant?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<UnifiedLog[]>([]);
   const [filter, setFilter] = useState<LogSource | "all">("all");
