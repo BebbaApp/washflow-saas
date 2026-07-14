@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  LogOut, Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon,
+  LogOut, Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, LayoutGrid,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -10,6 +10,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useTenant } from "@/hooks/useTenant";
+import { useOwnerScope } from "@/hooks/useOwnerScope";
 import { ProfileDialog } from "@/components/ProfileDialog";
 
 interface UserMenuProps {
@@ -23,6 +24,7 @@ export function UserMenu({ onOpenSettings, showAppLink = false }: UserMenuProps)
   const { user, logout, updateProfile } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { isSuperAdmin } = useTenant();
+  const { isOwnerOfMultiple } = useOwnerScope();
   const [profileOpen, setProfileOpen] = useState(false);
 
   if (!user) return null;
@@ -60,6 +62,14 @@ export function UserMenu({ onOpenSettings, showAppLink = false }: UserMenuProps)
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link to="/"><SettingsIcon className="w-4 h-4 mr-2" /> Back to app</Link>
+              </DropdownMenuItem>
+            </>
+          )}
+          {!showAppLink && isOwnerOfMultiple && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/owner"><LayoutGrid className="w-4 h-4 mr-2" /> Owner portal</Link>
               </DropdownMenuItem>
             </>
           )}

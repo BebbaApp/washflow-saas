@@ -12,6 +12,7 @@ import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
 import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
+import OwnerPortal from "./pages/OwnerPortal";
 import NotFound from "./pages/NotFound";
 import { SyncBoot } from "./offline/SyncBoot";
 import { TauriStatusBar } from "./components/TauriStatusBar";
@@ -28,7 +29,7 @@ const queryClient = new QueryClient({
 
 const GatedRoutes = () => {
   const { isAuthenticated } = useAuth();
-  const isPlatformRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/platform");
+  const isPlatformRoute = typeof window !== "undefined" && (window.location.pathname.startsWith("/platform") || window.location.pathname.startsWith("/owner"));
   const routes = (
     <Routes>
       <Route path="/" element={<Index />} />
@@ -39,6 +40,7 @@ const GatedRoutes = () => {
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/platform" element={<Platform />} />
+      <Route path="/owner" element={<OwnerPortal />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
