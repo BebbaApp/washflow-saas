@@ -199,6 +199,8 @@ export function getDefaultMatrix(): PermissionMatrix {
     "inventory.bundles", "inventory.mapping",
   ]);
 
+  allow("supervisor", ["attendance.assisted"]);
+
   deny("manager", [
     "settings.workers.delete", "settings.workers.compensation",
     "settings.permissions", "settings.billing", "settings.workspace",
