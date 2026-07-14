@@ -52,7 +52,7 @@ interface Props {
 type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
-  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction } = useInventory();
+  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction, waterItemId } = useInventory();
   const { suppliers } = useSuppliers();
   const [reordering, setReordering] = useState<InventoryItem | null>(null);
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
@@ -488,19 +488,32 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       )}
 
       {tab === "history" && (
-        <TransactionLog
-          transactions={
-            historyItemFilter === "all"
-              ? transactions
-              : transactions.filter((t) => t.itemId === historyItemFilter)
-          }
-          allTransactions={transactions}
-          items={items}
-          itemFilter={historyItemFilter}
-          onItemFilterChange={setHistoryItemFilter}
-          onUndo={() => setUndoOpen(true)}
-          onAdjust={(item, mode) => setAdjusting({ item, mode })}
-        />
+        <>
+          <WaterCorrectionCard
+            waterItemId={waterItemId}
+            items={items}
+            transactions={transactions}
+            canAdjust={canAdjust}
+            onApply={async (qty, notes) => {
+              if (!waterItemId) return;
+              await adjustStock(waterItemId, qty, notes, "Water usage guide correction");
+              toast.success(`Water stock credited +${qty.toFixed(2)}`);
+            }}
+          />
+          <TransactionLog
+            transactions={
+              historyItemFilter === "all"
+                ? transactions
+                : transactions.filter((t) => t.itemId === historyItemFilter)
+            }
+            allTransactions={transactions}
+            items={items}
+            itemFilter={historyItemFilter}
+            onItemFilterChange={setHistoryItemFilter}
+            onUndo={() => setUndoOpen(true)}
+            onAdjust={(item, mode) => setAdjusting({ item, mode })}
+          />
+        </>
       )}
 
       {tab === "usage" && <UsageReferencePanel />}
@@ -1701,5 +1714,109 @@ function UndoDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Bulk water correction ─────────────────────────────────────────────
+// After halving the Usage Guide water values, historical consume entries
+// on the water inventory item over-deducted by ~2x. Rather than rewrite
+// audit history, post ONE compensating credit equal to 50% of prior
+// consumption. Guarded so it can only run once.
+function WaterCorrectionCard({
+  waterItemId,
+  items,
+  transactions,
+  canAdjust,
+  onApply,
+}: {
+  waterItemId: string | null;
+  items: InventoryItem[];
+  transactions: ReturnType<typeof useInventory>["transactions"];
+  canAdjust: boolean;
+  onApply: (qty: number, notes: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  if (!waterItemId || !canAdjust) return null;
+  const item = items.find((i) => i.id === waterItemId);
+  if (!item) return null;
+
+  const waterTx = transactions.filter((t) => t.itemId === waterItemId);
+  const alreadyApplied = waterTx.some((t) => t.source === "Water usage guide correction");
+  // Only count consumption logged BEFORE the correction (or all if not yet applied).
+  const consumedBefore = waterTx
+    .filter((t) => t.type === "consume" && t.source !== "Water usage guide correction")
+    .reduce((s, t) => s + Math.abs(t.delta), 0);
+  const credit = +(consumedBefore * 0.5).toFixed(3);
+
+  return (
+    <div className="glass-card p-4 border-primary/30">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-primary" />
+            Water usage guide correction
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1 max-w-xl">
+            Usage Guide water values were reduced by 50%. Historical washes deducted the old amounts.
+            Post a single compensating credit of <span className="font-mono text-foreground">+{credit.toFixed(2)} {item.unit}</span>
+            {" "}to <span className="font-medium">{item.name}</span> so current stock matches the new guide.
+            Past ledger entries are preserved for audit.
+          </p>
+        </div>
+        <button
+          disabled={alreadyApplied || credit <= 0 || busy}
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          title={alreadyApplied ? "Already applied" : credit <= 0 ? "No prior consumption to correct" : "Post correction"}
+        >
+          {alreadyApplied ? "Correction applied" : `Apply +${credit.toFixed(2)} ${item.unit}`}
+        </button>
+      </div>
+
+      <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apply water correction?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>
+              This will add a single <span className="font-semibold">+{credit.toFixed(2)} {item.unit}</span> adjustment
+              to <span className="font-semibold">{item.name}</span>, reflecting that historical washes used
+              the old (2×) water rates.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Prior consumption tallied: {consumedBefore.toFixed(2)} {item.unit} · Credit: 50% ={" "}
+              {credit.toFixed(2)} {item.unit}
+            </p>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              className="flex-1 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await onApply(credit, `Bulk correction: usage guide reduced 50% · 50% of ${consumedBefore.toFixed(2)} ${item.unit} credited back`);
+                  setOpen(false);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {busy ? "Applying…" : "Apply correction"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
