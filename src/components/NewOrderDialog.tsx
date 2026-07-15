@@ -23,7 +23,7 @@ import { toast } from "sonner";
 interface NewOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { customer: string; customerPhone: string; vehicle: string; plate: string; service: string; servicePrice: number }) => void;
+  onSubmit: (data: { customer: string; customerPhone: string; vehicle: string; plate: string; service: string; servicePrice: number; discount: number }) => void;
 }
 
 export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogProps) => {
