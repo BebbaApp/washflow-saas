@@ -52,6 +52,26 @@ const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
 const REMEMBER_KEY = "wf_remember_me";
 const SESSION_ACTIVE_KEY = "wf_session_active";
 
+/** Fire-and-forget audit row into public.auth_events. Silently ignores errors
+ *  (e.g. if the table hasn't been provisioned yet in this environment). */
+async function logAuthEvent(kind: "sign_in" | "sign_out" | "sign_up" | "password_reset",
+                            userId: string | null | undefined,
+                            email: string | null | undefined) {
+  if (!userId) return;
+  try {
+    let tenantId: string | null = null;
+    try { tenantId = localStorage.getItem(ACTIVE_TENANT_KEY); } catch { /* ignore */ }
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : null;
+    await (supabase as any).from("auth_events").insert({
+      user_id: userId,
+      email: email ?? null,
+      tenant_id: tenantId,
+      kind,
+      user_agent: ua,
+    });
+  } catch { /* ignore — audit is best-effort */ }
+}
+
 function activeTenantIdFor(authUser: User): string | null {
   const claim = (authUser.app_metadata as any)?.active_tenant_id;
   if (typeof claim === "string" && claim) return claim;
