@@ -283,6 +283,14 @@ export const LoyaltyDashboard = () => {
   const topThree = view === "leaderboard" ? filtered.slice(0, 3) : [];
   const selected = selectedKey ? allMembers.find((m) => m.key === selectedKey) || null : null;
 
+  // Reset pagination when list-affecting inputs change
+  useEffect(() => { setPage(1); }, [query, view, range, sortKey, pageSize]);
+  const pagedFiltered = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize],
+  );
+
+
   // Resolve or create a customers row, then insert a redemption transaction
   const handleConfirmRedeem = async () => {
     if (!redeemTarget) return;
