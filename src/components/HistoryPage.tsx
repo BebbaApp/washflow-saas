@@ -809,7 +809,16 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       </td>
                       <td className="px-5 [&]:py-[0.3rem] font-mono text-muted-foreground">{o.plate}</td>
                       <td className="px-5 [&]:py-[0.3rem] text-foreground">{o.service}</td>
-                      <td className="px-5 [&]:py-[0.3rem] font-bold text-foreground">{formatPrice(o.servicePrice)}</td>
+                      <td className="px-5 [&]:py-[0.3rem] font-bold text-foreground">
+                        {(o.discount ?? 0) > 0 ? (
+                          <span className="inline-flex flex-col leading-tight">
+                            <span className="text-xs font-normal text-muted-foreground line-through">{formatPrice(o.servicePrice + (o.discount ?? 0))}</span>
+                            <span>{formatPrice(o.servicePrice)}</span>
+                          </span>
+                        ) : (
+                          formatPrice(o.servicePrice)
+                        )}
+                      </td>
                       <td className="px-5 [&]:py-[0.3rem]">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
                           {statusLabel[o.status] || o.status}
