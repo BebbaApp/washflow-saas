@@ -37,6 +37,7 @@ const OrderInsertSchema = z.object({
   plate: text(80),
   service: text(180),
   service_price: numberValue.min(0).optional(),
+  discount: numberValue.min(0).optional(),
   status: z.enum(["waiting", "in-progress", "completed", "cancelled"]).optional(),
   notes: optionalText(1000),
   wait_minutes: numberValue.int().min(0).nullable().optional(),
