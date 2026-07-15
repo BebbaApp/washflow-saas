@@ -28,7 +28,7 @@ interface NewOrderDialogProps {
 
 export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogProps) => {
   const { services } = useServices();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, currency } = useCurrency();
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [make, setMake] = useState("");
