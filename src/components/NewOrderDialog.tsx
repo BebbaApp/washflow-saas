@@ -36,7 +36,15 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
   const [plate, setPlate] = useState("");
   const [vehicleType, setVehicleType] = useState<Vehicle | "">("");
   const [serviceId, setServiceId] = useState("");
+  const [discountStr, setDiscountStr] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const picked = services.find((s) => s.id === serviceId);
+  const discount = Math.max(0, Number(discountStr) || 0);
+  const clampedDiscount = picked ? Math.min(discount, picked.price) : discount;
+  const finalPrice = picked ? Math.max(0, picked.price - clampedDiscount) : 0;
+
+  const capitalizeWords = (v: string) => v.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,12 +55,10 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
       toast.error(err);
       return;
     }
-    const picked = services.find((s) => s.id === serviceId);
     if (!picked) return;
-    // Append vehicle type so downstream matchVehicle() can auto-deduct.
     const vehicle = `${make} ${model}`.trim() + ` · ${vehicleType}`;
     const phone = normalizePhone(customerPhone);
-    onSubmit({ customer, customerPhone: phone, vehicle, plate, service: picked.name, servicePrice: picked.price });
+    onSubmit({ customer, customerPhone: phone, vehicle, plate, service: picked.name, servicePrice: picked.price, discount: clampedDiscount });
     setCustomer("");
     setCustomerPhone("");
     setMake("");
@@ -60,6 +66,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     setPlate("");
     setVehicleType("");
     setServiceId("");
+    setDiscountStr("");
     setPhoneError(null);
     onOpenChange(false);
   };
