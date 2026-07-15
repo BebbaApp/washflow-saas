@@ -300,15 +300,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setTotalAmountAll(0);
   }, [buildQuery, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id, filter, cancelledSub]);
 
-  // Initial + filter-change fetch
+  // Reset to first page when filters/search/pageSize change
+  useEffect(() => {
+    setPage(1);
+  }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
+
+  // Fetch current page + totals
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setRows([]);
     (async () => {
-      const [page] = await Promise.all([fetchPage(0), fetchTotals()]);
+      const offset = (page - 1) * pageSize;
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
       if (cancelled) return;
-      setRows(page);
+      setRows(pageRows);
       setLoading(false);
       // Restore scroll position once after first successful load
       if (!restoredScrollRef.current) {
@@ -316,29 +321,28 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         try {
           const y = parseInt(localStorage.getItem(LS_SCROLL_KEY) || "0", 10);
           if (y > 0) {
-            // Allow layout to settle
             requestAnimationFrame(() => window.scrollTo({ top: y }));
           }
         } catch {}
       }
     })();
     return () => { cancelled = true; };
-  }, [fetchPage, fetchTotals]);
+  }, [fetchPage, fetchTotals, page, pageSize]);
 
-  // Realtime: refetch first page when relevant orders change
+  // Realtime: refetch current page when relevant orders change
   useEffect(() => {
     const channel = supabase
       .channel(`history-${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        // Refresh just the first page + totals; user can re-scroll for more
         (async () => {
-          const [page] = await Promise.all([fetchPage(0), fetchTotals()]);
-          setRows(page);
+          const offset = (page - 1) * pageSize;
+          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+          setRows(pageRows);
         })();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchPage, fetchTotals]);
+  }, [fetchPage, fetchTotals, page, pageSize]);
 
   // Server-side filtering covers cancelled-with/without-reason now.
   const visibleRows = rows;
@@ -348,26 +352,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     [visibleRows]
   );
 
-  const hasMore = rows.length < totalCount;
 
-  // Infinite scroll
-  useEffect(() => {
-    if (!hasMore || loading || loadingMore) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      async (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        setLoadingMore(true);
-        const next = await fetchPage(rows.length);
-        setRows((prev) => [...prev, ...next]);
-        setLoadingMore(false);
-      },
-      { rootMargin: "300px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore, loading, loadingMore, rows.length, fetchPage]);
 
   // Daily totals (computed from loaded rows only)
   const dayKey = (iso?: string | null) => {
