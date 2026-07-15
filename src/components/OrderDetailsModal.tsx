@@ -126,7 +126,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
                 <Calendar className="w-3.5 h-3.5" /> Created
               </p>
               <p className="text-sm font-medium text-foreground">
-                {created.toLocaleDateString()} · {created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {created.toLocaleDateString()} · {created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/40 p-3">

@@ -204,7 +204,7 @@ export function SyncStatusPill({ className }: { className?: string }) {
                             {it.op} · {it.table}
                           </div>
                           <div className="text-muted-foreground">
-                            {new Date(it.created_at).toLocaleTimeString()}
+                            {new Date(it.created_at).toLocaleTimeString([], { hour12: false })}
                             {it.attempts > 0 ? ` · ${it.attempts} attempt${it.attempts === 1 ? "" : "s"}` : ""}
                           </div>
                         </div>

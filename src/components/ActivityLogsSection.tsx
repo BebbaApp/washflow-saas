@@ -612,7 +612,7 @@ export function ActivityLogsSection() {
                   </div>
                   <div className="shrink-0 text-right text-[11px] text-muted-foreground tabular-nums leading-tight">
                     <div>{dt.toLocaleDateString()}</div>
-                    <div>{dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                    <div>{dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</div>
                   </div>
                 </li>
               );

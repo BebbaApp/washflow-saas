@@ -73,7 +73,7 @@ export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): Rec
   segs.push({
     kind: "cols",
     left: "Time:",
-    right: completed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    right: completed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
   });
   segs.push({ kind: "rule", char: "-" });
 

@@ -358,8 +358,8 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
     const head = ["Date","Staff","Day start","Day end","Periods","Hours worked","Status"];
     const body = rows.map((r) => [
       r.date, r.staffName,
-      r.start ? r.start.toLocaleTimeString() : "",
-      r.end ? r.end.toLocaleTimeString() : "",
+      r.start ? r.start.toLocaleTimeString([], { hour12: false }) : "",
+      r.end ? r.end.toLocaleTimeString([], { hour12: false }) : "",
       r.periodCount,
       r.hours.toFixed(2),
       r.status,
@@ -377,8 +377,8 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
       head: [["Date","Staff","Day start","Day end","Periods","Hours","Status"]],
       body: rows.map((r) => [
         r.date, r.staffName,
-        r.start ? r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
-        r.end ? r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
+        r.start ? r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "—",
+        r.end ? r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "—",
         String(r.periodCount),
         r.hours > 0 ? r.hours.toFixed(2) : "—",
         r.status.replace("_", " "),
@@ -575,10 +575,10 @@ export const SchedulingDashboard = ({ isAdmin, onOpenFaceEnroll }: SchedulingDas
                       </td>
                       <td className="px-4 py-2 font-medium">{r.staffName}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
-                        {r.start ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "—"}
+                        {r.start ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</> : "—"}
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">
-                        {r.end ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "—"}
+                        {r.end ? <><Clock className="w-3 h-3 inline mr-1 text-muted-foreground" />{r.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</> : "—"}
                       </td>
                       <td className="px-4 py-2">{r.periodCount}</td>
                       <td className="px-4 py-2 font-medium">
@@ -1124,9 +1124,9 @@ const EmployeeCalendar = ({ mode, anchor, setAnchor, dayMap }: EmployeeCalendarP
                     <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
                       {row.periods.map((p, j) => (
                         <div key={j}>
-                          {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {p.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
                           {" → "}
-                          {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "open"}
+                          {p.end ? p.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "open"}
                         </div>
                       ))}
                     </div>

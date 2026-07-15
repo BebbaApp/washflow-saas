@@ -21,7 +21,7 @@ interface Props {
 }
 
 const fmtDate = (s: string) =>
-  new Date(s).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  new Date(s).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 
 export function InventoryItemDetailsModal({ open, item, transactions, onOpenChange }: Props) {
   // Build stock-history series (oldest → newest) using the recorded balance.

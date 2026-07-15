@@ -157,7 +157,7 @@ export const LiveKPIDashboard = ({ orders: initialOrders }: LiveKPIDashboardProp
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
           <span className="text-xs text-muted-foreground">
-            Live · Updated {lastRefresh.toLocaleTimeString()}
+            Live · Updated {lastRefresh.toLocaleTimeString([], { hour12: false })}
           </span>
         </div>
         <div className="flex items-center gap-2">
