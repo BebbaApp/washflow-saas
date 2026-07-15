@@ -217,6 +217,15 @@ export function AttendancePage() {
       r.kind.includes(filter.toLowerCase()))
   );
 
+  // Reset log/report pagination when inputs change
+  useEffect(() => { setLogPage(1); }, [filter, from, to, canAssist]);
+  useEffect(() => { setReportPage(1); }, [from, to, reportGroup]);
+
+  const pagedFiltered = useMemo(
+    () => filtered.slice((logPage - 1) * logPageSize, logPage * logPageSize),
+    [filtered, logPage, logPageSize],
+  );
+
   const showSelfie = async (path: string | null) => {
     if (!path) return;
     const url = await getSignedSelfieUrl(path);
