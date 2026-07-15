@@ -474,15 +474,16 @@ function useAuthInternal(): AuthContextValue {
 
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
+    void logAuthEvent("sign_in", data.user?.id ?? null, data.user?.email ?? email);
     return null;
   }, []);
 
   const signup = useCallback(async (
     email: string, password: string, name: string, phone?: string, companyName?: string,
   ): Promise<string | null> => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email, password, phone: phone || undefined,
       options: {
         data: { name, ...(phone ? { phone } : {}), ...(companyName ? { company_name: companyName } : {}) },
@@ -490,6 +491,7 @@ function useAuthInternal(): AuthContextValue {
       },
     });
     if (error) return error.message;
+    void logAuthEvent("sign_up", data.user?.id ?? null, data.user?.email ?? email);
     return null;
   }, []);
 
