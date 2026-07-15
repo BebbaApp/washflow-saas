@@ -1,6 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package } from "lucide-react";
+import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package, DatabaseBackup } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -11,6 +11,7 @@ import { ConsoleDashboard } from "@/components/platform/ConsoleDashboard";
 import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
 import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import { ConsolePlans } from "@/components/platform/ConsolePlans";
+import { ConsoleBackups } from "@/components/platform/ConsoleBackups";
 import { UserMenu } from "@/components/UserMenu";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
@@ -19,7 +20,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 
-type Tab = "dashboard" | "tenants" | "plans" | "users" | "expenses" | "events" | "settings";
+type Tab = "dashboard" | "tenants" | "plans" | "users" | "expenses" | "events" | "backups" | "settings";
 
 const items: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -28,6 +29,7 @@ const items: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "users", label: "Users", icon: Users },
   { id: "expenses", label: "Expenses", icon: Receipt },
   { id: "events", label: "Events", icon: ScrollText },
+  { id: "backups", label: "Backups", icon: DatabaseBackup },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -131,6 +133,7 @@ export default function Platform() {
             {tab === "users" && <UsersAdmin />}
             {tab === "expenses" && <ConsoleExpenses />}
             {tab === "events" && <LicenseEventsAdmin />}
+            {tab === "backups" && <ConsoleBackups />}
             {tab === "settings" && <ConsoleSettings />}
           </main>
         </div>

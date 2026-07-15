@@ -110,3 +110,19 @@ export const db = new OfflineDB();
 export function metaKey(tenantId: string, table: string) {
   return `${tenantId}:${table}`;
 }
+
+/** Wipe every mirrored row for a tenant and reset its sync cursors.
+ *  Called when the tenant has been restored on the server so the next
+ *  sync tick pulls a clean copy from Supabase. */
+export async function wipeTenantMirror(tenantId: string) {
+  for (const t of MIRRORED_TABLES) {
+    try { await (db as any)[t].where("tenant_id").equals(tenantId).delete(); } catch { /* ignore */ }
+  }
+  try {
+    const keys = (await db.sync_meta.toArray())
+      .filter((r) => r.key.startsWith(`${tenantId}:`))
+      .map((r) => r.key);
+    if (keys.length) await db.sync_meta.bulkDelete(keys);
+  } catch { /* ignore */ }
+  try { await db.outbox.where("tenant_id").equals(tenantId).delete(); } catch { /* ignore */ }
+}

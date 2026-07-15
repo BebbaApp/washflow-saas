@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactN
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { perfMark } from "@/lib/perf";
+import { wipeTenantMirror } from "@/offline/db";
 
 
 export type TenantStatus = "trialing" | "active" | "past_due" | "suspended" | "cancelled";
@@ -281,6 +282,20 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tenant?.id]);
+
+  // Wipe offline mirror + reload if the workspace was restored on the server.
+  useEffect(() => {
+    const t = tenant as any;
+    if (!t?.id || !t?.restored_at) return;
+    const cacheKey = `lovable.restored_at:${t.id}`;
+    const lastSeen = (() => { try { return localStorage.getItem(cacheKey); } catch { return null; } })();
+    if (lastSeen === t.restored_at) return;
+    try { localStorage.setItem(cacheKey, t.restored_at); } catch { /* ignore */ }
+    if (lastSeen !== null) {
+      // Only act on subsequent updates — the first observation just records the baseline.
+      void wipeTenantMirror(t.id).then(() => window.location.reload());
+    }
+  }, [tenant]);
 
   const switchTenant = useCallback(async (tenantId: string) => {
     setSwitchError(null);
