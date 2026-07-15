@@ -513,7 +513,7 @@ export function AttendancePage() {
                     {summary.length === 0 && (
                       <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data in range</td></tr>
                     )}
-                    {summary.map((s, i) => (
+                    {pagedSummary.map((s, i) => (
                       <tr key={i} className="border-t border-border">
                         <td className="px-4 py-2 whitespace-nowrap">{s.period}</td>
                         <td className="px-4 py-2">{s.staffName}</td>
@@ -526,6 +526,17 @@ export function AttendancePage() {
                   </tbody>
                 </table>
               </div>
+              {summary.length > 0 && (
+                <div className="border-t border-border px-4 py-3">
+                  <PaginationBar
+                    page={reportPage}
+                    pageSize={reportPageSize}
+                    totalCount={summary.length}
+                    onPageChange={setReportPage}
+                    onPageSizeChange={setReportPageSize}
+                  />
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">Lateness based on shift start {DEFAULT_SHIFT_START} with {LATE_GRACE_MIN} min grace.</p>
           </TabsContent>
