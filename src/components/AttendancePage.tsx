@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   LogIn, LogOut, UserCheck, Camera, Clock, Search, ShieldCheck,
   Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX,
