@@ -105,6 +105,7 @@ export function OwnerOverviewGrid() {
                 <Download className="w-3.5 h-3.5" />
               </Button>
             </div>
+          </div>
         ))}
       </div>
     </div>
