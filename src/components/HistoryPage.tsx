@@ -510,11 +510,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       <table>
         <thead><tr>
           <th>Customer</th><th>Phone</th><th>Plate</th><th>Vehicle</th>
-          <th>Service</th><th class="num">Amount</th><th>Status</th><th>Date</th>
+          <th>Service</th><th class="num">Discount</th><th class="num">Amount</th><th>Status</th><th>Date</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tfoot><tr>
-          <td colspan="5">Loaded total (${visibleRows.length} jobs)</td>
+          <td colspan="6">Loaded total (${visibleRows.length} jobs)</td>
           <td class="num">${escapeHtml(formatPrice(loadedAmount))}</td>
           <td colspan="2"></td>
         </tr></tfoot>
