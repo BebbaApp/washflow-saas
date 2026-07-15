@@ -169,6 +169,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
                 <span className="font-semibold text-foreground">Final: {formatPrice(finalPrice)}</span>
               </div>
             )}
+          </div>
           <button type="submit" className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity">
             Create Order
           </button>
