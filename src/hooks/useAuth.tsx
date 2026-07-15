@@ -515,11 +515,14 @@ function useAuthInternal(): AuthContextValue {
   }, []);
 
   const logout = useCallback(async () => {
+    const uid = authedUserId;
+    const em = authedEmail;
     await supabase.auth.signOut();
+    void logAuthEvent("sign_out", uid, em);
     resolvedUserIdRef.current = null;
     setAuthedUserId(null);
     setResolvedUser(null);
-  }, [setResolvedUser]);
+  }, [setResolvedUser, authedUserId, authedEmail]);
 
   const refresh = useCallback(async () => {
     try {
