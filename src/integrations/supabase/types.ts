@@ -1473,6 +1473,99 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_backups: {
+        Row: {
+          checksum: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          row_counts: Json
+          size_bytes: number
+          snapshot: Json | null
+          storage_path: string | null
+          tenant_id: string
+        }
+        Insert: {
+          checksum?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          row_counts?: Json
+          size_bytes?: number
+          snapshot?: Json | null
+          storage_path?: string | null
+          tenant_id: string
+        }
+        Update: {
+          checksum?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          row_counts?: Json
+          size_bytes?: number
+          snapshot?: Json | null
+          storage_path?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_backups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "platform_tenants_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_backups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_health_checks: {
+        Row: {
+          checked_at: string
+          findings: Json
+          id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          checked_at?: string
+          findings?: Json
+          id?: string
+          status: string
+          tenant_id: string
+        }
+        Update: {
+          checked_at?: string
+          findings?: Json
+          id?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_health_checks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "platform_tenants_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_health_checks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_invitations: {
         Row: {
           accepted_at: string | null
@@ -1619,6 +1712,7 @@ export type Database = {
           id: string
           name: string
           plan_id: string | null
+          restored_at: string | null
           slug: string
           status: Database["public"]["Enums"]["tenant_status"]
           stripe_customer_id: string | null
@@ -1631,6 +1725,7 @@ export type Database = {
           id?: string
           name: string
           plan_id?: string | null
+          restored_at?: string | null
           slug: string
           status?: Database["public"]["Enums"]["tenant_status"]
           stripe_customer_id?: string | null
@@ -1643,6 +1738,7 @@ export type Database = {
           id?: string
           name?: string
           plan_id?: string | null
+          restored_at?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["tenant_status"]
           stripe_customer_id?: string | null
