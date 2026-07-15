@@ -453,6 +453,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         <td class="mono">${escapeHtml(o.plate)}</td>
         <td>${escapeHtml(o.vehicle)}</td>
         <td>${escapeHtml(o.service)}</td>
+        <td class="num">${(o.discount ?? 0) > 0 ? escapeHtml(formatPrice(o.discount ?? 0)) : "—"}</td>
         <td class="num">${escapeHtml(formatPrice(o.servicePrice))}</td>
         <td><span class="${statusClass}">${escapeHtml(status)}</span>${reason ? `<div class="reason">${escapeHtml(reason)}</div>` : ""}</td>
         <td class="date">${escapeHtml(fmtDate(o.completedAt || o.createdAt))}</td>
