@@ -295,6 +295,11 @@ export function AttendancePage() {
     return Object.values(groups).sort((a, b) => a.period.localeCompare(b.period) || a.staffName.localeCompare(b.staffName));
   }, [records, from, to, reportGroup]);
 
+  const pagedSummary = useMemo(
+    () => summary.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize),
+    [summary, reportPage, reportPageSize],
+  );
+
   const exportSummary = () => {
     const header = ["Period", "Staff", "Check-ins", "Late Count", "Total Late (min)", "Hours Worked"];
     const rows = summary.map((s) => [s.period, s.staffName, s.checkIns, s.lateCount, s.totalLateMin, s.hoursWorked.toFixed(2)]);
