@@ -101,7 +101,10 @@ export function ActivityLogsSection() {
     setError(null);
     try {
       const LIMIT = 300;
-      const [members, orders, inv, att, lic, rec, tenantRow] = await Promise.all([
+      const [
+        members, orders, inv, att, attRecords, lic, rec, tenantRow,
+        services, expenses, suppliers, staffComp, tenantSettings, customers, authEvents,
+      ] = await Promise.all([
         supabase
           .from("membership_audit_log" as any)
           .select("id, created_at, action, actor_user_id, actor_email, target_user_id, target_email, from_role, to_role, payload")
@@ -127,6 +130,12 @@ export function ActivityLogsSection() {
           .order("created_at", { ascending: false })
           .limit(LIMIT),
         supabase
+          .from("attendance_records")
+          .select("id, created_at, kind, status, user_id, notes")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
           .from("license_events" as any)
           .select("id, created_at, kind, payload")
           .eq("tenant_id", tenantId)
@@ -142,6 +151,47 @@ export function ActivityLogsSection() {
           .select("id, name, created_at, current_period_end")
           .eq("id", tenantId)
           .maybeSingle(),
+        supabase
+          .from("services")
+          .select("id, name, price, created_at, updated_at")
+          .eq("tenant_id", tenantId)
+          .order("updated_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("expenses")
+          .select("id, description, amount, category, created_at, created_by, vendor")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("suppliers")
+          .select("id, name, created_at, updated_at")
+          .eq("tenant_id", tenantId)
+          .order("updated_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("staff_compensation")
+          .select("id, user_id, pay_type, base_rate, updated_at, updated_by")
+          .eq("tenant_id", tenantId)
+          .order("updated_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("tenant_settings")
+          .select("tenant_id, updated_at, currency_code, vat_enabled, vat_percent")
+          .eq("tenant_id", tenantId)
+          .maybeSingle(),
+        supabase
+          .from("customers")
+          .select("id, name, phone, created_at")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
+        (supabase as any)
+          .from("auth_events")
+          .select("id, created_at, kind, user_id, email, user_agent")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
       ]);
 
       // Collect all user ids to resolve names in one shot
@@ -156,6 +206,10 @@ export function ActivityLogsSection() {
         collect(a.acted_by);
         collect(a.target_user_id);
       });
+      (attRecords.data ?? []).forEach((a: any) => collect(a.user_id));
+      (expenses.data ?? []).forEach((e: any) => collect(e.created_by));
+      (staffComp.data ?? []).forEach((s: any) => { collect(s.user_id); collect(s.updated_by); });
+      ((authEvents as any).data ?? []).forEach((a: any) => collect(a.user_id));
       if (rec.data?.updated_by) collect(rec.data.updated_by);
 
       let nameMap = new Map<string, string>();
