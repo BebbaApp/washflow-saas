@@ -224,7 +224,7 @@ export function AttendancePage() {
       const d = new Date(r.created_at);
       return [
         d.toISOString().slice(0, 10),
-        d.toLocaleTimeString(),
+        d.toLocaleTimeString([], { hour12: false }),
         r.staffName || "",
         r.kind,
         r.status,

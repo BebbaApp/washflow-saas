@@ -1678,7 +1678,7 @@ function PrinterSection() {
               </p>
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">
-              {relativeTime(lastEvent.at)} · {new Date(lastEvent.at).toLocaleTimeString()}
+              {relativeTime(lastEvent.at)} · {new Date(lastEvent.at).toLocaleTimeString([], { hour12: false })}
             </p>
             {lastEvent.message && (
               <p className="text-xs text-destructive mt-2 break-words">{lastEvent.message}</p>

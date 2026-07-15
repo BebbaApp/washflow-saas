@@ -350,10 +350,10 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                   ? o.notes.match(/\[CANCELLED ([^\]]+)\]\s*([\s\S]*)$/)
                   : null;
                 const timeLabel = tab === "completed"
-                  ? (o.completedAt ? new Date(o.completedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—")
+                  ? (o.completedAt ? new Date(o.completedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—")
                   : (cancelMatch?.[1]
                       ? cancelMatch[1]
-                      : new Date(o.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }));
+                      : new Date(o.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }));
                 const reason = cancelMatch?.[2]?.trim() || "—";
                 return (
                   <TableRow

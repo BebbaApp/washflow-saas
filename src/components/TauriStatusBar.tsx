@@ -40,7 +40,7 @@ export function TauriStatusBar() {
     const diff = Date.now() - d.getTime();
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    return d.toLocaleTimeString();
+    return d.toLocaleTimeString([], { hour12: false });
   };
 
   if (!isOnline) {
