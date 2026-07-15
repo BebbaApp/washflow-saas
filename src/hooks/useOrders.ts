@@ -17,6 +17,7 @@ export interface WashOrder {
   plate: string;
   service: string;
   servicePrice: number;
+  discount?: number;
   status: WashStatus;
   createdAt: string;
   completedAt?: string;
@@ -39,6 +40,7 @@ function mapRow(row: any): WashOrder {
     plate: row.plate,
     service: row.service,
     servicePrice: Number(row.service_price),
+    discount: Number(row.discount ?? 0),
     status: row.status as WashStatus,
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
@@ -59,16 +61,18 @@ export function useOrders() {
   }, [rows]);
 
   const addOrder = useCallback(
-    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
+    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number; discount?: number }) => {
       if (!tenant?.id) {
         toast.error("No workspace selected.");
         return null;
       }
       const serviceLabel = LEGACY_LABELS[data.service] ?? data.service;
-      const servicePrice =
+      const basePrice =
         typeof data.servicePrice === "number"
           ? data.servicePrice
           : LEGACY_PRICES[data.service] ?? 0;
+      const discount = Math.max(0, Math.min(Number(data.discount) || 0, basePrice));
+      const servicePrice = +(basePrice - discount).toFixed(2);
 
       // Try to get a sequential order number when online; fall back to a local
       // placeholder offline so the row is still usable until sync resolves it.
@@ -114,6 +118,7 @@ export function useOrders() {
         plate: data.plate,
         service: serviceLabel,
         service_price: servicePrice,
+        discount,
         status: "waiting" as const,
         created_at: nowIso,
         updated_at: nowIso,

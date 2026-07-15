@@ -71,6 +71,7 @@ function mapRow(row: any): WashOrder {
     plate: row.plate,
     service: row.service,
     servicePrice: Number(row.service_price),
+    discount: Number(row.discount ?? 0),
     status: row.status as WashStatus,
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
@@ -409,7 +410,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   }, [datePreset, customRange]);
 
   const exportCsv = () => {
-    const headers = ["Customer", "Phone", "Plate", "Vehicle", "Service", "Amount", "Status", "Date"];
+    const headers = ["Customer", "Phone", "Plate", "Vehicle", "Service", "Discount", "Amount", "Status", "Date"];
     const escape = (v: string | number) => {
       const s = String(v ?? "");
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -419,6 +420,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         o.customer,
         o.customerPhone ? formatPhone(o.customerPhone) : "",
         o.plate, o.vehicle, o.service,
+        ((o.discount ?? 0)).toFixed(2),
         (o.servicePrice ?? 0).toFixed(2),
         statusLabel[o.status] || o.status,
         new Date(o.completedAt || o.createdAt).toISOString(),
@@ -451,6 +453,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         <td class="mono">${escapeHtml(o.plate)}</td>
         <td>${escapeHtml(o.vehicle)}</td>
         <td>${escapeHtml(o.service)}</td>
+        <td class="num">${(o.discount ?? 0) > 0 ? escapeHtml(formatPrice(o.discount ?? 0)) : "—"}</td>
         <td class="num">${escapeHtml(formatPrice(o.servicePrice))}</td>
         <td><span class="${statusClass}">${escapeHtml(status)}</span>${reason ? `<div class="reason">${escapeHtml(reason)}</div>` : ""}</td>
         <td class="date">${escapeHtml(fmtDate(o.completedAt || o.createdAt))}</td>
@@ -507,11 +510,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       <table>
         <thead><tr>
           <th>Customer</th><th>Phone</th><th>Plate</th><th>Vehicle</th>
-          <th>Service</th><th class="num">Amount</th><th>Status</th><th>Date</th>
+          <th>Service</th><th class="num">Discount</th><th class="num">Amount</th><th>Status</th><th>Date</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tfoot><tr>
-          <td colspan="5">Loaded total (${visibleRows.length} jobs)</td>
+          <td colspan="6">Loaded total (${visibleRows.length} jobs)</td>
           <td class="num">${escapeHtml(formatPrice(loadedAmount))}</td>
           <td colspan="2"></td>
         </tr></tfoot>
@@ -806,7 +809,16 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       </td>
                       <td className="px-5 [&]:py-[0.3rem] font-mono text-muted-foreground">{o.plate}</td>
                       <td className="px-5 [&]:py-[0.3rem] text-foreground">{o.service}</td>
-                      <td className="px-5 [&]:py-[0.3rem] font-bold text-foreground">{formatPrice(o.servicePrice)}</td>
+                      <td className="px-5 [&]:py-[0.3rem] font-bold text-foreground">
+                        {(o.discount ?? 0) > 0 ? (
+                          <span className="inline-flex flex-col leading-tight">
+                            <span className="text-xs font-normal text-muted-foreground line-through">{formatPrice(o.servicePrice + (o.discount ?? 0))}</span>
+                            <span>{formatPrice(o.servicePrice)}</span>
+                          </span>
+                        ) : (
+                          formatPrice(o.servicePrice)
+                        )}
+                      </td>
                       <td className="px-5 [&]:py-[0.3rem]">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
                           {statusLabel[o.status] || o.status}

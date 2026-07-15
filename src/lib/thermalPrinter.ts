@@ -91,8 +91,15 @@ export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): Rec
 
   // Service / pricing
   segs.push({ kind: "text", text: "SERVICE", bold: true });
+  const discount = Number(order.discount ?? 0);
+  const gross = order.servicePrice + discount;
+  const grossStr = `${currencySymbol}${gross.toFixed(2)}`;
   const priceStr = `${currencySymbol}${order.servicePrice.toFixed(2)}`;
-  segs.push({ kind: "cols", left: order.service, right: priceStr });
+  segs.push({ kind: "cols", left: order.service, right: grossStr });
+
+  if (discount > 0) {
+    segs.push({ kind: "cols", left: "Discount", right: `-${currencySymbol}${discount.toFixed(2)}` });
+  }
 
   if (vatPercent > 0) {
     const sub = order.servicePrice / (1 + vatPercent / 100);

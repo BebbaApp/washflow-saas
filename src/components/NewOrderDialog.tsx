@@ -23,12 +23,12 @@ import { toast } from "sonner";
 interface NewOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { customer: string; customerPhone: string; vehicle: string; plate: string; service: string; servicePrice: number }) => void;
+  onSubmit: (data: { customer: string; customerPhone: string; vehicle: string; plate: string; service: string; servicePrice: number; discount: number }) => void;
 }
 
 export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogProps) => {
   const { services } = useServices();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, currency } = useCurrency();
   const [customer, setCustomer] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [make, setMake] = useState("");
@@ -36,7 +36,15 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
   const [plate, setPlate] = useState("");
   const [vehicleType, setVehicleType] = useState<Vehicle | "">("");
   const [serviceId, setServiceId] = useState("");
+  const [discountStr, setDiscountStr] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const picked = services.find((s) => s.id === serviceId);
+  const discount = Math.max(0, Number(discountStr) || 0);
+  const clampedDiscount = picked ? Math.min(discount, picked.price) : discount;
+  const finalPrice = picked ? Math.max(0, picked.price - clampedDiscount) : 0;
+
+  const capitalizeWords = (v: string) => v.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,12 +55,10 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
       toast.error(err);
       return;
     }
-    const picked = services.find((s) => s.id === serviceId);
     if (!picked) return;
-    // Append vehicle type so downstream matchVehicle() can auto-deduct.
     const vehicle = `${make} ${model}`.trim() + ` · ${vehicleType}`;
     const phone = normalizePhone(customerPhone);
-    onSubmit({ customer, customerPhone: phone, vehicle, plate, service: picked.name, servicePrice: picked.price });
+    onSubmit({ customer, customerPhone: phone, vehicle, plate, service: picked.name, servicePrice: picked.price, discount: clampedDiscount });
     setCustomer("");
     setCustomerPhone("");
     setMake("");
@@ -60,6 +66,7 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
     setPlate("");
     setVehicleType("");
     setServiceId("");
+    setDiscountStr("");
     setPhoneError(null);
     onOpenChange(false);
   };
@@ -102,11 +109,11 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="make" className="text-sm text-secondary-foreground">Car Make</Label>
-              <Input id="make" value={make} onChange={(e) => setMake(e.target.value)} placeholder="Toyota" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+              <Input id="make" value={make} onChange={(e) => setMake(capitalizeWords(e.target.value))} placeholder="Toyota" autoCapitalize="words" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="model" className="text-sm text-secondary-foreground">Car Model</Label>
-              <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Camry" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+              <Input id="model" value={model} onChange={(e) => setModel(capitalizeWords(e.target.value))} placeholder="Camry" autoCapitalize="words" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -140,6 +147,28 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="discount" className="text-sm text-secondary-foreground">
+              Discount ({currency?.symbol ?? ""})
+            </Label>
+            <Input
+              id="discount"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={discountStr}
+              onChange={(e) => setDiscountStr(e.target.value.replace(/[^0-9.]/g, ""))}
+              placeholder="0.00"
+              className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+            />
+            {picked && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                <span>Service {formatPrice(picked.price)}{clampedDiscount > 0 ? ` − ${formatPrice(clampedDiscount)} discount` : ""}</span>
+                <span className="font-semibold text-foreground">Final: {formatPrice(finalPrice)}</span>
+              </div>
+            )}
           </div>
           <button type="submit" className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity">
             Create Order
