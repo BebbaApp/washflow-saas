@@ -41,7 +41,8 @@ const statusLabel: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const LS_FILTERS_KEY = "aquawash:history:filters:v1";
 const LS_SCROLL_KEY = "aquawash:history:scroll:v1";
 
