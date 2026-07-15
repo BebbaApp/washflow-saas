@@ -230,14 +230,14 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       return (((data as any)?.orders ?? []) as any[]).map(mapRow);
     }
     let q = buildQuery(false).order("created_at", { ascending: false });
-    q = q.range(offset, offset + PAGE_SIZE - 1);
+    q = q.range(offset, offset + pageSize - 1);
     const { data, error } = await q;
     if (error) {
       console.error("[HistoryPage] fetch error", error);
       return [] as WashOrder[];
     }
     return (data || []).map(mapRow);
-  }, [buildQuery, isSuperAdmin, tenant?.id, filter, cancelledSub, datePreset, customRange, debouncedQuery]);
+  }, [buildQuery, isSuperAdmin, tenant?.id, filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
 
   // Fetch totals (count + amount sum + per-status counts) using lightweight head queries
   const fetchTotals = useCallback(async () => {
