@@ -97,9 +97,27 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
             )}
           </div>
 
-          <div className="rounded-lg border border-border bg-secondary/40 p-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-foreground">{order.service}</p>
-            <p className="text-base font-bold text-primary">{formatPrice(order.servicePrice)}</p>
+          <div className="rounded-lg border border-border bg-secondary/40 p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">{order.service}</p>
+              {order.discount && order.discount > 0 ? (
+                <p className="text-sm text-muted-foreground line-through">{formatPrice(order.servicePrice + order.discount)}</p>
+              ) : (
+                <p className="text-base font-bold text-primary">{formatPrice(order.servicePrice)}</p>
+              )}
+            </div>
+            {order.discount && order.discount > 0 ? (
+              <>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Discount</span>
+                  <span className="text-destructive">− {formatPrice(order.discount)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Final</span>
+                  <span className="text-base font-bold text-primary">{formatPrice(order.servicePrice)}</span>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
