@@ -135,6 +135,12 @@ export function AttendancePage() {
   // Report grouping
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
 
+  // Pagination
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(25);
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(25);
+
   useEffect(() => {
     if ((!canAssist && !canEnroll) || !tenant?.id) {
       setStaff([]);
