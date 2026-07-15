@@ -410,7 +410,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   }, [datePreset, customRange]);
 
   const exportCsv = () => {
-    const headers = ["Customer", "Phone", "Plate", "Vehicle", "Service", "Amount", "Status", "Date"];
+    const headers = ["Customer", "Phone", "Plate", "Vehicle", "Service", "Discount", "Amount", "Status", "Date"];
     const escape = (v: string | number) => {
       const s = String(v ?? "");
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -420,6 +420,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         o.customer,
         o.customerPhone ? formatPhone(o.customerPhone) : "",
         o.plate, o.vehicle, o.service,
+        ((o.discount ?? 0)).toFixed(2),
         (o.servicePrice ?? 0).toFixed(2),
         statusLabel[o.status] || o.status,
         new Date(o.completedAt || o.createdAt).toISOString(),
