@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 
 type View = "customers" | "leaderboard";
 type DateRange = "all" | "30d" | "90d";
