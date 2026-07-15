@@ -120,11 +120,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
   const [rows, setRows] = useState<WashOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
   const [counts, setCounts] = useState({ completed: 0, cancelled: 0 });
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
 
   // Debounce search input
