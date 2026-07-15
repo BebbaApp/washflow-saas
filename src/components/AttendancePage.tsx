@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   LogIn, LogOut, UserCheck, Camera, Clock, Search, ShieldCheck,
   Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX,
@@ -134,6 +135,12 @@ export function AttendancePage() {
   // Report grouping
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
 
+  // Pagination
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(25);
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(25);
+
   useEffect(() => {
     if ((!canAssist && !canEnroll) || !tenant?.id) {
       setStaff([]);
@@ -210,6 +217,15 @@ export function AttendancePage() {
       r.kind.includes(filter.toLowerCase()))
   );
 
+  // Reset log/report pagination when inputs change
+  useEffect(() => { setLogPage(1); }, [filter, from, to, canAssist]);
+  useEffect(() => { setReportPage(1); }, [from, to, reportGroup]);
+
+  const pagedFiltered = useMemo(
+    () => filtered.slice((logPage - 1) * logPageSize, logPage * logPageSize),
+    [filtered, logPage, logPageSize],
+  );
+
   const showSelfie = async (path: string | null) => {
     if (!path) return;
     const url = await getSignedSelfieUrl(path);
@@ -278,6 +294,11 @@ export function AttendancePage() {
     }
     return Object.values(groups).sort((a, b) => a.period.localeCompare(b.period) || a.staffName.localeCompare(b.staffName));
   }, [records, from, to, reportGroup]);
+
+  const pagedSummary = useMemo(
+    () => summary.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize),
+    [summary, reportPage, reportPageSize],
+  );
 
   const exportSummary = () => {
     const header = ["Period", "Staff", "Check-ins", "Late Count", "Total Late (min)", "Hours Worked"];
@@ -386,7 +407,7 @@ export function AttendancePage() {
                   {filtered.length === 0 && (
                     <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No records in this range</td></tr>
                   )}
-                  {filtered.map((r) => (
+                  {pagedFiltered.map((r) => (
                     <tr
                       key={r.id}
                       className="border-t border-border hover:bg-muted/30 cursor-pointer"
@@ -415,6 +436,17 @@ export function AttendancePage() {
                 </tbody>
               </table>
             </div>
+            {filtered.length > 0 && (
+              <div className="border-t border-border px-4 py-3">
+                <PaginationBar
+                  page={logPage}
+                  pageSize={logPageSize}
+                  totalCount={filtered.length}
+                  onPageChange={setLogPage}
+                  onPageSizeChange={setLogPageSize}
+                />
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -481,7 +513,7 @@ export function AttendancePage() {
                     {summary.length === 0 && (
                       <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No data in range</td></tr>
                     )}
-                    {summary.map((s, i) => (
+                    {pagedSummary.map((s, i) => (
                       <tr key={i} className="border-t border-border">
                         <td className="px-4 py-2 whitespace-nowrap">{s.period}</td>
                         <td className="px-4 py-2">{s.staffName}</td>
@@ -494,6 +526,17 @@ export function AttendancePage() {
                   </tbody>
                 </table>
               </div>
+              {summary.length > 0 && (
+                <div className="border-t border-border px-4 py-3">
+                  <PaginationBar
+                    page={reportPage}
+                    pageSize={reportPageSize}
+                    totalCount={summary.length}
+                    onPageChange={setReportPage}
+                    onPageSizeChange={setReportPageSize}
+                  />
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">Lateness based on shift start {DEFAULT_SHIFT_START} with {LATE_GRACE_MIN} min grace.</p>
           </TabsContent>

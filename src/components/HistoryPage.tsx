@@ -10,6 +10,7 @@ import { useAppLogo } from "@/hooks/useAppLogo";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
@@ -40,7 +41,8 @@ const statusLabel: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const LS_FILTERS_KEY = "aquawash:history:filters:v1";
 const LS_SCROLL_KEY = "aquawash:history:scroll:v1";
 
@@ -118,11 +120,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
   const [rows, setRows] = useState<WashOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
   const [counts, setCounts] = useState({ completed: 0, cancelled: 0 });
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
 
   // Debounce search input
@@ -218,7 +220,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           from: from?.toISOString().slice(0, 10),
           to: to?.toISOString().slice(0, 10),
           offset,
-          limit: PAGE_SIZE,
+          limit: pageSize,
         },
       });
       if (error || (data as any)?.error) {
@@ -228,14 +230,14 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       return (((data as any)?.orders ?? []) as any[]).map(mapRow);
     }
     let q = buildQuery(false).order("created_at", { ascending: false });
-    q = q.range(offset, offset + PAGE_SIZE - 1);
+    q = q.range(offset, offset + pageSize - 1);
     const { data, error } = await q;
     if (error) {
       console.error("[HistoryPage] fetch error", error);
       return [] as WashOrder[];
     }
     return (data || []).map(mapRow);
-  }, [buildQuery, isSuperAdmin, tenant?.id, filter, cancelledSub, datePreset, customRange, debouncedQuery]);
+  }, [buildQuery, isSuperAdmin, tenant?.id, filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
 
   // Fetch totals (count + amount sum + per-status counts) using lightweight head queries
   const fetchTotals = useCallback(async () => {
@@ -298,15 +300,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setTotalAmountAll(0);
   }, [buildQuery, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id, filter, cancelledSub]);
 
-  // Initial + filter-change fetch
+  // Reset to first page when filters/search/pageSize change
+  useEffect(() => {
+    setPage(1);
+  }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
+
+  // Fetch current page + totals
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setRows([]);
     (async () => {
-      const [page] = await Promise.all([fetchPage(0), fetchTotals()]);
+      const offset = (page - 1) * pageSize;
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
       if (cancelled) return;
-      setRows(page);
+      setRows(pageRows);
       setLoading(false);
       // Restore scroll position once after first successful load
       if (!restoredScrollRef.current) {
@@ -314,29 +321,28 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         try {
           const y = parseInt(localStorage.getItem(LS_SCROLL_KEY) || "0", 10);
           if (y > 0) {
-            // Allow layout to settle
             requestAnimationFrame(() => window.scrollTo({ top: y }));
           }
         } catch {}
       }
     })();
     return () => { cancelled = true; };
-  }, [fetchPage, fetchTotals]);
+  }, [fetchPage, fetchTotals, page, pageSize]);
 
-  // Realtime: refetch first page when relevant orders change
+  // Realtime: refetch current page when relevant orders change
   useEffect(() => {
     const channel = supabase
       .channel(`history-${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        // Refresh just the first page + totals; user can re-scroll for more
         (async () => {
-          const [page] = await Promise.all([fetchPage(0), fetchTotals()]);
-          setRows(page);
+          const offset = (page - 1) * pageSize;
+          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+          setRows(pageRows);
         })();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchPage, fetchTotals]);
+  }, [fetchPage, fetchTotals, page, pageSize]);
 
   // Server-side filtering covers cancelled-with/without-reason now.
   const visibleRows = rows;
@@ -346,26 +352,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     [visibleRows]
   );
 
-  const hasMore = rows.length < totalCount;
 
-  // Infinite scroll
-  useEffect(() => {
-    if (!hasMore || loading || loadingMore) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      async (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        setLoadingMore(true);
-        const next = await fetchPage(rows.length);
-        setRows((prev) => [...prev, ...next]);
-        setLoadingMore(false);
-      },
-      { rootMargin: "300px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore, loading, loadingMore, rows.length, fetchPage]);
 
   // Daily totals (computed from loaded rows only)
   const dayKey = (iso?: string | null) => {
@@ -835,31 +822,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           </table>
         </div>
         {!loading && totalCount > 0 && (
-          <div className="border-t border-border/60 px-5 py-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span>
-              Showing <span className="text-foreground font-semibold">{visibleRows.length}</span> of{" "}
-              <span className="text-foreground font-semibold">{totalCount}</span>
-            </span>
-            {hasMore ? (
-              <button
-                onClick={async () => {
-                  if (loadingMore) return;
-                  setLoadingMore(true);
-                  const next = await fetchPage(rows.length);
-                  setRows((prev) => [...prev, ...next]);
-                  setLoadingMore(false);
-                }}
-                disabled={loadingMore}
-                className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-semibold hover:opacity-90 disabled:opacity-50"
-              >
-                {loadingMore ? "Loading…" : "Load more"}
-              </button>
-            ) : (
-              <span>End of list</span>
-            )}
+          <div className="border-t border-border/60 px-5 py-3">
+            <PaginationBar
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={(p) => {
+                setPage(p);
+                requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+              }}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+            />
           </div>
         )}
-        <div ref={sentinelRef} aria-hidden className="h-1" />
       </div>
     </div>
   );

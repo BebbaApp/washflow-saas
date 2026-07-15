@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 
 type View = "customers" | "leaderboard";
 type DateRange = "all" | "30d" | "90d";
@@ -120,6 +121,8 @@ export const LoyaltyDashboard = () => {
   const [redeemTarget, setRedeemTarget] = useState<LoyaltyMember | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [lastRedemption, setLastRedemption] = useState<{ name: string; remaining: number; visitsToNext: number } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Track redemption transactions per resolved customer_id (and a name fallback bucket)
   const [redemptionsByCustomerId, setRedemptionsByCustomerId] = useState<Record<string, number>>({});
@@ -279,6 +282,14 @@ export const LoyaltyDashboard = () => {
 
   const topThree = view === "leaderboard" ? filtered.slice(0, 3) : [];
   const selected = selectedKey ? allMembers.find((m) => m.key === selectedKey) || null : null;
+
+  // Reset pagination when list-affecting inputs change
+  useEffect(() => { setPage(1); }, [query, view, range, sortKey, pageSize]);
+  const pagedFiltered = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize],
+  );
+
 
   // Resolve or create a customers row, then insert a redemption transaction
   const handleConfirmRedeem = async () => {
@@ -586,7 +597,8 @@ export const LoyaltyDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((m, idx) => {
+                {pagedFiltered.map((m, localIdx) => {
+                  const idx = (page - 1) * pageSize + localIdx;
                   const isReward = m.loyaltyPoints >= FREE_WASH_COST;
                   return (
                     <tr key={m.key} className="hover:bg-secondary/40 transition-colors">
@@ -631,9 +643,21 @@ export const LoyaltyDashboard = () => {
                 })}
               </tbody>
             </table>
+            {filtered.length > 0 && (
+              <div className="pt-3 mt-2 border-t border-border">
+                <PaginationBar
+                  page={page}
+                  pageSize={pageSize}
+                  totalCount={filtered.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
+
 
       {/* Customer details modal */}
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelectedKey(null)}>
