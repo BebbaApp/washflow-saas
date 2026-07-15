@@ -109,11 +109,11 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="make" className="text-sm text-secondary-foreground">Car Make</Label>
-              <Input id="make" value={make} onChange={(e) => setMake(e.target.value)} placeholder="Toyota" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+              <Input id="make" value={make} onChange={(e) => setMake(capitalizeWords(e.target.value))} placeholder="Toyota" autoCapitalize="words" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="model" className="text-sm text-secondary-foreground">Car Model</Label>
-              <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Camry" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+              <Input id="model" value={model} onChange={(e) => setModel(capitalizeWords(e.target.value))} placeholder="Camry" autoCapitalize="words" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
