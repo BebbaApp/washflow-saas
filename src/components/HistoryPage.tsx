@@ -10,6 +10,7 @@ import { useAppLogo } from "@/hooks/useAppLogo";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
