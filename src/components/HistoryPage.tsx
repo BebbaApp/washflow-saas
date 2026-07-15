@@ -71,6 +71,7 @@ function mapRow(row: any): WashOrder {
     plate: row.plate,
     service: row.service,
     servicePrice: Number(row.service_price),
+    discount: Number(row.discount ?? 0),
     status: row.status as WashStatus,
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
