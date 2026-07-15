@@ -14,17 +14,30 @@ import {
   ReceiptText,
   Shield,
   Filter,
+  LogIn,
+  Wrench,
+  DollarSign,
+  Truck,
+  Settings2,
+  Users,
 } from "lucide-react";
 
 /* ─────────── Types ─────────── */
 type LogSource =
+  | "auth"
   | "member"
   | "order"
   | "inventory"
   | "attendance"
   | "license"
   | "receipt"
-  | "tenant";
+  | "tenant"
+  | "service"
+  | "expense"
+  | "supplier"
+  | "compensation"
+  | "settings"
+  | "customer";
 
 type UnifiedLog = {
   id: string;
@@ -38,6 +51,7 @@ type UnifiedLog = {
 };
 
 const SOURCE_META: Record<LogSource, { label: string; icon: any; tint: string }> = {
+  auth: { label: "Sign in/out", icon: LogIn, tint: "text-sky-500" },
   member: { label: "Members", icon: UserCog, tint: "text-blue-500" },
   order: { label: "Orders", icon: ShoppingCart, tint: "text-emerald-500" },
   inventory: { label: "Inventory", icon: Package, tint: "text-amber-500" },
@@ -45,14 +59,27 @@ const SOURCE_META: Record<LogSource, { label: string; icon: any; tint: string }>
   license: { label: "Billing", icon: CreditCard, tint: "text-pink-500" },
   receipt: { label: "Receipt", icon: ReceiptText, tint: "text-cyan-500" },
   tenant: { label: "Workspace", icon: Building2, tint: "text-indigo-500" },
+  service: { label: "Services", icon: Wrench, tint: "text-orange-500" },
+  expense: { label: "Expenses", icon: DollarSign, tint: "text-rose-500" },
+  supplier: { label: "Suppliers", icon: Truck, tint: "text-lime-500" },
+  compensation: { label: "Compensation", icon: Users, tint: "text-teal-500" },
+  settings: { label: "Settings", icon: Settings2, tint: "text-fuchsia-500" },
+  customer: { label: "Customers", icon: Users, tint: "text-yellow-500" },
 };
 
 const SOURCE_FILTERS: (LogSource | "all")[] = [
   "all",
+  "auth",
   "order",
   "inventory",
-  "member",
   "attendance",
+  "service",
+  "expense",
+  "supplier",
+  "compensation",
+  "settings",
+  "customer",
+  "member",
   "license",
   "receipt",
   "tenant",
@@ -74,7 +101,10 @@ export function ActivityLogsSection() {
     setError(null);
     try {
       const LIMIT = 300;
-      const [members, orders, inv, att, lic, rec, tenantRow] = await Promise.all([
+      const [
+        members, orders, inv, att, attRecords, lic, rec, tenantRow,
+        services, expenses, suppliers, staffComp, tenantSettings, customers, authEvents,
+      ] = await Promise.all([
         supabase
           .from("membership_audit_log" as any)
           .select("id, created_at, action, actor_user_id, actor_email, target_user_id, target_email, from_role, to_role, payload")
@@ -100,6 +130,12 @@ export function ActivityLogsSection() {
           .order("created_at", { ascending: false })
           .limit(LIMIT),
         supabase
+          .from("attendance_records")
+          .select("id, created_at, kind, status, user_id, notes")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
           .from("license_events" as any)
           .select("id, created_at, kind, payload")
           .eq("tenant_id", tenantId)
@@ -115,6 +151,47 @@ export function ActivityLogsSection() {
           .select("id, name, created_at, current_period_end")
           .eq("id", tenantId)
           .maybeSingle(),
+        supabase
+          .from("services")
+          .select("id, name, price, created_at, updated_at")
+          .eq("tenant_id", tenantId)
+          .order("updated_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("expenses")
+          .select("id, description, amount, category, created_at, created_by, vendor")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("suppliers")
+          .select("id, name, created_at, updated_at")
+          .eq("tenant_id", tenantId)
+          .order("updated_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("staff_compensation")
+          .select("id, user_id, pay_type, base_rate, updated_at, updated_by")
+          .eq("tenant_id", tenantId)
+          .order("updated_at", { ascending: false })
+          .limit(LIMIT),
+        supabase
+          .from("tenant_settings")
+          .select("tenant_id, updated_at, currency_code, vat_enabled, vat_percent")
+          .eq("tenant_id", tenantId)
+          .maybeSingle(),
+        supabase
+          .from("customers")
+          .select("id, name, phone, created_at")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
+        (supabase as any)
+          .from("auth_events")
+          .select("id, created_at, kind, user_id, email, user_agent")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(LIMIT),
       ]);
 
       // Collect all user ids to resolve names in one shot
@@ -129,6 +206,10 @@ export function ActivityLogsSection() {
         collect(a.acted_by);
         collect(a.target_user_id);
       });
+      (attRecords.data ?? []).forEach((a: any) => collect(a.user_id));
+      (expenses.data ?? []).forEach((e: any) => collect(e.created_by));
+      (staffComp.data ?? []).forEach((s: any) => { collect(s.user_id); collect(s.updated_by); });
+      ((authEvents as any).data ?? []).forEach((a: any) => collect(a.user_id));
       if (rec.data?.updated_by) collect(rec.data.updated_by);
 
       let nameMap = new Map<string, string>();
@@ -269,6 +350,143 @@ export function ActivityLogsSection() {
           createdAt: tenantRow.data.created_at,
         });
       }
+
+      // Real attendance records (check_in / check_out) — source of truth for
+      // daily attendance, not just admin overrides captured in the audit log.
+      (attRecords.data ?? []).forEach((a: any) => {
+        unified.push({
+          id: `ar-${a.id}`,
+          source: "attendance",
+          action: `attendance.${a.kind}`,
+          detail: `${a.kind === "check_in" ? "Checked in" : "Checked out"}${a.status && a.status !== "verified" ? ` (${a.status})` : ""}${a.notes ? ` · ${a.notes}` : ""}`,
+          actorUserId: a.user_id,
+          actorName: nameOf(a.user_id),
+          targetName: null,
+          createdAt: a.created_at,
+        });
+      });
+
+      (services.data ?? []).forEach((s: any) => {
+        unified.push({
+          id: `sv-c-${s.id}`,
+          source: "service",
+          action: "service.created",
+          detail: `Created service "${s.name}" · ${s.price}`,
+          actorUserId: null,
+          actorName: null,
+          targetName: s.name,
+          createdAt: s.created_at,
+        });
+        if (s.updated_at && s.updated_at !== s.created_at) {
+          unified.push({
+            id: `sv-u-${s.id}-${s.updated_at}`,
+            source: "service",
+            action: "service.updated",
+            detail: `Updated service "${s.name}" · ${s.price}`,
+            actorUserId: null,
+            actorName: null,
+            targetName: s.name,
+            createdAt: s.updated_at,
+          });
+        }
+      });
+
+      (expenses.data ?? []).forEach((e: any) => {
+        unified.push({
+          id: `ex-${e.id}`,
+          source: "expense",
+          action: "expense.created",
+          detail: `${e.category} · ${e.description} · ${e.amount}${e.vendor ? ` (${e.vendor})` : ""}`,
+          actorUserId: e.created_by,
+          actorName: nameOf(e.created_by),
+          targetName: e.description,
+          createdAt: e.created_at,
+        });
+      });
+
+      (suppliers.data ?? []).forEach((s: any) => {
+        unified.push({
+          id: `sp-c-${s.id}`,
+          source: "supplier",
+          action: "supplier.created",
+          detail: `Added supplier "${s.name}"`,
+          actorUserId: null,
+          actorName: null,
+          targetName: s.name,
+          createdAt: s.created_at,
+        });
+        if (s.updated_at && s.updated_at !== s.created_at) {
+          unified.push({
+            id: `sp-u-${s.id}-${s.updated_at}`,
+            source: "supplier",
+            action: "supplier.updated",
+            detail: `Updated supplier "${s.name}"`,
+            actorUserId: null,
+            actorName: null,
+            targetName: s.name,
+            createdAt: s.updated_at,
+          });
+        }
+      });
+
+      (staffComp.data ?? []).forEach((c: any) => {
+        unified.push({
+          id: `cp-${c.id}-${c.updated_at}`,
+          source: "compensation",
+          action: "compensation.updated",
+          detail: `Set ${c.pay_type} rate: ${c.base_rate}`,
+          actorUserId: c.updated_by,
+          actorName: nameOf(c.updated_by),
+          targetName: nameOf(c.user_id),
+          createdAt: c.updated_at,
+        });
+      });
+
+      if (tenantSettings.data?.updated_at) {
+        const ts = tenantSettings.data as any;
+        unified.push({
+          id: `st-${ts.tenant_id}-${ts.updated_at}`,
+          source: "settings",
+          action: "tenant.settings_updated",
+          detail: `Workspace settings updated (currency ${ts.currency_code ?? "—"}, VAT ${ts.vat_enabled ? `${ts.vat_percent}%` : "off"})`,
+          actorUserId: null,
+          actorName: null,
+          targetName: null,
+          createdAt: ts.updated_at,
+        });
+      }
+
+      (customers.data ?? []).forEach((c: any) => {
+        unified.push({
+          id: `cu-${c.id}`,
+          source: "customer",
+          action: "customer.created",
+          detail: `Added customer "${c.name}"${c.phone ? ` · ${c.phone}` : ""}`,
+          actorUserId: null,
+          actorName: null,
+          targetName: c.name,
+          createdAt: c.created_at,
+        });
+      });
+
+      (((authEvents as any).data) ?? []).forEach((a: any) => {
+        const label = a.kind === "sign_in" ? "Signed in"
+          : a.kind === "sign_out" ? "Signed out"
+          : a.kind === "sign_up" ? "Created account"
+          : a.kind === "password_reset" ? "Reset password"
+          : a.kind;
+        unified.push({
+          id: `au-${a.id}`,
+          source: "auth",
+          action: `auth.${a.kind}`,
+          detail: `${label}${a.user_agent ? ` · ${String(a.user_agent).slice(0, 60)}` : ""}`,
+          actorUserId: a.user_id,
+          actorName: nameOf(a.user_id, a.email),
+          targetName: null,
+          createdAt: a.created_at,
+        });
+      });
+
 
       unified.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       setLogs(unified);

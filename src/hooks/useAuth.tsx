@@ -52,6 +52,26 @@ const ACTIVE_TENANT_KEY = "lovable.active_tenant_id";
 const REMEMBER_KEY = "wf_remember_me";
 const SESSION_ACTIVE_KEY = "wf_session_active";
 
+/** Fire-and-forget audit row into public.auth_events. Silently ignores errors
+ *  (e.g. if the table hasn't been provisioned yet in this environment). */
+async function logAuthEvent(kind: "sign_in" | "sign_out" | "sign_up" | "password_reset",
+                            userId: string | null | undefined,
+                            email: string | null | undefined) {
+  if (!userId) return;
+  try {
+    let tenantId: string | null = null;
+    try { tenantId = localStorage.getItem(ACTIVE_TENANT_KEY); } catch { /* ignore */ }
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : null;
+    await (supabase as any).from("auth_events").insert({
+      user_id: userId,
+      email: email ?? null,
+      tenant_id: tenantId,
+      kind,
+      user_agent: ua,
+    });
+  } catch { /* ignore — audit is best-effort */ }
+}
+
 function activeTenantIdFor(authUser: User): string | null {
   const claim = (authUser.app_metadata as any)?.active_tenant_id;
   if (typeof claim === "string" && claim) return claim;
@@ -454,15 +474,16 @@ function useAuthInternal(): AuthContextValue {
 
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
+    void logAuthEvent("sign_in", data.user?.id ?? null, data.user?.email ?? email);
     return null;
   }, []);
 
   const signup = useCallback(async (
     email: string, password: string, name: string, phone?: string, companyName?: string,
   ): Promise<string | null> => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email, password, phone: phone || undefined,
       options: {
         data: { name, ...(phone ? { phone } : {}), ...(companyName ? { company_name: companyName } : {}) },
@@ -470,6 +491,7 @@ function useAuthInternal(): AuthContextValue {
       },
     });
     if (error) return error.message;
+    void logAuthEvent("sign_up", data.user?.id ?? null, data.user?.email ?? email);
     return null;
   }, []);
 
@@ -493,11 +515,14 @@ function useAuthInternal(): AuthContextValue {
   }, []);
 
   const logout = useCallback(async () => {
+    const uid = authedUserId;
+    const em = authedEmail;
     await supabase.auth.signOut();
+    void logAuthEvent("sign_out", uid, em);
     resolvedUserIdRef.current = null;
     setAuthedUserId(null);
     setResolvedUser(null);
-  }, [setResolvedUser]);
+  }, [setResolvedUser, authedUserId, authedEmail]);
 
   const refresh = useCallback(async () => {
     try {
