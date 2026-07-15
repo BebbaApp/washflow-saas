@@ -14,17 +14,30 @@ import {
   ReceiptText,
   Shield,
   Filter,
+  LogIn,
+  Wrench,
+  DollarSign,
+  Truck,
+  Settings2,
+  Users,
 } from "lucide-react";
 
 /* ─────────── Types ─────────── */
 type LogSource =
+  | "auth"
   | "member"
   | "order"
   | "inventory"
   | "attendance"
   | "license"
   | "receipt"
-  | "tenant";
+  | "tenant"
+  | "service"
+  | "expense"
+  | "supplier"
+  | "compensation"
+  | "settings"
+  | "customer";
 
 type UnifiedLog = {
   id: string;
@@ -38,6 +51,7 @@ type UnifiedLog = {
 };
 
 const SOURCE_META: Record<LogSource, { label: string; icon: any; tint: string }> = {
+  auth: { label: "Sign in/out", icon: LogIn, tint: "text-sky-500" },
   member: { label: "Members", icon: UserCog, tint: "text-blue-500" },
   order: { label: "Orders", icon: ShoppingCart, tint: "text-emerald-500" },
   inventory: { label: "Inventory", icon: Package, tint: "text-amber-500" },
@@ -45,14 +59,27 @@ const SOURCE_META: Record<LogSource, { label: string; icon: any; tint: string }>
   license: { label: "Billing", icon: CreditCard, tint: "text-pink-500" },
   receipt: { label: "Receipt", icon: ReceiptText, tint: "text-cyan-500" },
   tenant: { label: "Workspace", icon: Building2, tint: "text-indigo-500" },
+  service: { label: "Services", icon: Wrench, tint: "text-orange-500" },
+  expense: { label: "Expenses", icon: DollarSign, tint: "text-rose-500" },
+  supplier: { label: "Suppliers", icon: Truck, tint: "text-lime-500" },
+  compensation: { label: "Compensation", icon: Users, tint: "text-teal-500" },
+  settings: { label: "Settings", icon: Settings2, tint: "text-fuchsia-500" },
+  customer: { label: "Customers", icon: Users, tint: "text-yellow-500" },
 };
 
 const SOURCE_FILTERS: (LogSource | "all")[] = [
   "all",
+  "auth",
   "order",
   "inventory",
-  "member",
   "attendance",
+  "service",
+  "expense",
+  "supplier",
+  "compensation",
+  "settings",
+  "customer",
+  "member",
   "license",
   "receipt",
   "tenant",
