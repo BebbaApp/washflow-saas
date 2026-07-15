@@ -220,7 +220,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           from: from?.toISOString().slice(0, 10),
           to: to?.toISOString().slice(0, 10),
           offset,
-          limit: PAGE_SIZE,
+          limit: pageSize,
         },
       });
       if (error || (data as any)?.error) {
