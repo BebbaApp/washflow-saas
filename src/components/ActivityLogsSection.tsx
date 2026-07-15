@@ -351,6 +351,143 @@ export function ActivityLogsSection() {
         });
       }
 
+      // Real attendance records (check_in / check_out) — source of truth for
+      // daily attendance, not just admin overrides captured in the audit log.
+      (attRecords.data ?? []).forEach((a: any) => {
+        unified.push({
+          id: `ar-${a.id}`,
+          source: "attendance",
+          action: `attendance.${a.kind}`,
+          detail: `${a.kind === "check_in" ? "Checked in" : "Checked out"}${a.status && a.status !== "verified" ? ` (${a.status})` : ""}${a.notes ? ` · ${a.notes}` : ""}`,
+          actorUserId: a.user_id,
+          actorName: nameOf(a.user_id),
+          targetName: null,
+          createdAt: a.created_at,
+        });
+      });
+
+      (services.data ?? []).forEach((s: any) => {
+        unified.push({
+          id: `sv-c-${s.id}`,
+          source: "service",
+          action: "service.created",
+          detail: `Created service "${s.name}" · ${s.price}`,
+          actorUserId: null,
+          actorName: null,
+          targetName: s.name,
+          createdAt: s.created_at,
+        });
+        if (s.updated_at && s.updated_at !== s.created_at) {
+          unified.push({
+            id: `sv-u-${s.id}-${s.updated_at}`,
+            source: "service",
+            action: "service.updated",
+            detail: `Updated service "${s.name}" · ${s.price}`,
+            actorUserId: null,
+            actorName: null,
+            targetName: s.name,
+            createdAt: s.updated_at,
+          });
+        }
+      });
+
+      (expenses.data ?? []).forEach((e: any) => {
+        unified.push({
+          id: `ex-${e.id}`,
+          source: "expense",
+          action: "expense.created",
+          detail: `${e.category} · ${e.description} · ${e.amount}${e.vendor ? ` (${e.vendor})` : ""}`,
+          actorUserId: e.created_by,
+          actorName: nameOf(e.created_by),
+          targetName: e.description,
+          createdAt: e.created_at,
+        });
+      });
+
+      (suppliers.data ?? []).forEach((s: any) => {
+        unified.push({
+          id: `sp-c-${s.id}`,
+          source: "supplier",
+          action: "supplier.created",
+          detail: `Added supplier "${s.name}"`,
+          actorUserId: null,
+          actorName: null,
+          targetName: s.name,
+          createdAt: s.created_at,
+        });
+        if (s.updated_at && s.updated_at !== s.created_at) {
+          unified.push({
+            id: `sp-u-${s.id}-${s.updated_at}`,
+            source: "supplier",
+            action: "supplier.updated",
+            detail: `Updated supplier "${s.name}"`,
+            actorUserId: null,
+            actorName: null,
+            targetName: s.name,
+            createdAt: s.updated_at,
+          });
+        }
+      });
+
+      (staffComp.data ?? []).forEach((c: any) => {
+        unified.push({
+          id: `cp-${c.id}-${c.updated_at}`,
+          source: "compensation",
+          action: "compensation.updated",
+          detail: `Set ${c.pay_type} rate: ${c.base_rate}`,
+          actorUserId: c.updated_by,
+          actorName: nameOf(c.updated_by),
+          targetName: nameOf(c.user_id),
+          createdAt: c.updated_at,
+        });
+      });
+
+      if (tenantSettings.data?.updated_at) {
+        const ts = tenantSettings.data as any;
+        unified.push({
+          id: `st-${ts.tenant_id}-${ts.updated_at}`,
+          source: "settings",
+          action: "tenant.settings_updated",
+          detail: `Workspace settings updated (currency ${ts.currency_code ?? "—"}, VAT ${ts.vat_enabled ? `${ts.vat_percent}%` : "off"})`,
+          actorUserId: null,
+          actorName: null,
+          targetName: null,
+          createdAt: ts.updated_at,
+        });
+      }
+
+      (customers.data ?? []).forEach((c: any) => {
+        unified.push({
+          id: `cu-${c.id}`,
+          source: "customer",
+          action: "customer.created",
+          detail: `Added customer "${c.name}"${c.phone ? ` · ${c.phone}` : ""}`,
+          actorUserId: null,
+          actorName: null,
+          targetName: c.name,
+          createdAt: c.created_at,
+        });
+      });
+
+      (((authEvents as any).data) ?? []).forEach((a: any) => {
+        const label = a.kind === "sign_in" ? "Signed in"
+          : a.kind === "sign_out" ? "Signed out"
+          : a.kind === "sign_up" ? "Created account"
+          : a.kind === "password_reset" ? "Reset password"
+          : a.kind;
+        unified.push({
+          id: `au-${a.id}`,
+          source: "auth",
+          action: `auth.${a.kind}`,
+          detail: `${label}${a.user_agent ? ` · ${String(a.user_agent).slice(0, 60)}` : ""}`,
+          actorUserId: a.user_id,
+          actorName: nameOf(a.user_id, a.email),
+          targetName: null,
+          createdAt: a.created_at,
+        });
+      });
+
+
       unified.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       setLogs(unified);
     } catch (e: any) {
