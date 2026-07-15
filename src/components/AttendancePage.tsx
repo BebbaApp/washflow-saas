@@ -407,7 +407,7 @@ export function AttendancePage() {
                   {filtered.length === 0 && (
                     <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No records in this range</td></tr>
                   )}
-                  {filtered.map((r) => (
+                  {pagedFiltered.map((r) => (
                     <tr
                       key={r.id}
                       className="border-t border-border hover:bg-muted/30 cursor-pointer"
@@ -436,6 +436,17 @@ export function AttendancePage() {
                 </tbody>
               </table>
             </div>
+            {filtered.length > 0 && (
+              <div className="border-t border-border px-4 py-3">
+                <PaginationBar
+                  page={logPage}
+                  pageSize={logPageSize}
+                  totalCount={filtered.length}
+                  onPageChange={setLogPage}
+                  onPageSizeChange={setLogPageSize}
+                />
+              </div>
+            )}
           </div>
         </TabsContent>
 
