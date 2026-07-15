@@ -118,6 +118,7 @@ export function useOrders() {
         plate: data.plate,
         service: serviceLabel,
         service_price: servicePrice,
+        discount,
         status: "waiting" as const,
         created_at: nowIso,
         updated_at: nowIso,
