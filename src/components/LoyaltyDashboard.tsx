@@ -597,7 +597,8 @@ export const LoyaltyDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((m, idx) => {
+                {pagedFiltered.map((m, localIdx) => {
+                  const idx = (page - 1) * pageSize + localIdx;
                   const isReward = m.loyaltyPoints >= FREE_WASH_COST;
                   return (
                     <tr key={m.key} className="hover:bg-secondary/40 transition-colors">
@@ -642,9 +643,21 @@ export const LoyaltyDashboard = () => {
                 })}
               </tbody>
             </table>
+            {filtered.length > 0 && (
+              <div className="pt-3 mt-2 border-t border-border">
+                <PaginationBar
+                  page={page}
+                  pageSize={pageSize}
+                  totalCount={filtered.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
+
 
       {/* Customer details modal */}
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelectedKey(null)}>
