@@ -1,11 +1,12 @@
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, Car, Wallet, AlertTriangle, ArrowRight, TrendingUp } from "lucide-react";
+import { Building2, Users, Car, Wallet, AlertTriangle, ArrowRight, TrendingUp, Download } from "lucide-react";
 import { useOwnerOverview, type OwnerTenantSummary } from "@/hooks/useOwnerOverview";
 import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export function OwnerOverviewGrid() {
   const { data, isLoading } = useOwnerOverview();
@@ -76,10 +77,34 @@ export function OwnerOverviewGrid() {
               />
             </div>
 
-            <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => openWorkspace(t)}>
-              Open workspace <ArrowRight className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => openWorkspace(t)}>
+                Open <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                title="Download workspace data as JSON"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke("export-tenant", { body: { tenant_id: t.id } });
+                    if (error) throw error;
+                    const blob = new Blob([typeof data === "string" ? data : JSON.stringify(data, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = `${t.slug ?? t.id}-export.json`;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    URL.revokeObjectURL(url);
+                    toast({ title: "Export ready" });
+                  } catch (e: any) {
+                    toast({ title: "Export failed", description: e?.message ?? "", variant: "destructive" });
+                  }
+                }}
+              >
+                <Download className="w-3.5 h-3.5" />
+              </Button>
+            </div>
         ))}
       </div>
     </div>
