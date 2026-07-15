@@ -121,6 +121,8 @@ export const LoyaltyDashboard = () => {
   const [redeemTarget, setRedeemTarget] = useState<LoyaltyMember | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [lastRedemption, setLastRedemption] = useState<{ name: string; remaining: number; visitsToNext: number } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Track redemption transactions per resolved customer_id (and a name fallback bucket)
   const [redemptionsByCustomerId, setRedemptionsByCustomerId] = useState<Record<string, number>>({});
