@@ -17,6 +17,7 @@ export interface WashOrder {
   plate: string;
   service: string;
   servicePrice: number;
+  discount: number;
   status: WashStatus;
   createdAt: string;
   completedAt?: string;
