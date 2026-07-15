@@ -148,6 +148,27 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="discount" className="text-sm text-secondary-foreground">
+              Discount ({currency?.symbol ?? ""})
+            </Label>
+            <Input
+              id="discount"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={discountStr}
+              onChange={(e) => setDiscountStr(e.target.value.replace(/[^0-9.]/g, ""))}
+              placeholder="0.00"
+              className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+            />
+            {picked && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                <span>Service {formatPrice(picked.price)}{clampedDiscount > 0 ? ` − ${formatPrice(clampedDiscount)} discount` : ""}</span>
+                <span className="font-semibold text-foreground">Final: {formatPrice(finalPrice)}</span>
+              </div>
+            )}
           <button type="submit" className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity">
             Create Order
           </button>
