@@ -61,16 +61,18 @@ export function useOrders() {
   }, [rows]);
 
   const addOrder = useCallback(
-    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number }) => {
+    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number; discount?: number }) => {
       if (!tenant?.id) {
         toast.error("No workspace selected.");
         return null;
       }
       const serviceLabel = LEGACY_LABELS[data.service] ?? data.service;
-      const servicePrice =
+      const basePrice =
         typeof data.servicePrice === "number"
           ? data.servicePrice
           : LEGACY_PRICES[data.service] ?? 0;
+      const discount = Math.max(0, Math.min(Number(data.discount) || 0, basePrice));
+      const servicePrice = +(basePrice - discount).toFixed(2);
 
       // Try to get a sequential order number when online; fall back to a local
       // placeholder offline so the row is still usable until sync resolves it.
