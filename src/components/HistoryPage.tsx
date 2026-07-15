@@ -822,31 +822,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           </table>
         </div>
         {!loading && totalCount > 0 && (
-          <div className="border-t border-border/60 px-5 py-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span>
-              Showing <span className="text-foreground font-semibold">{visibleRows.length}</span> of{" "}
-              <span className="text-foreground font-semibold">{totalCount}</span>
-            </span>
-            {hasMore ? (
-              <button
-                onClick={async () => {
-                  if (loadingMore) return;
-                  setLoadingMore(true);
-                  const next = await fetchPage(rows.length);
-                  setRows((prev) => [...prev, ...next]);
-                  setLoadingMore(false);
-                }}
-                disabled={loadingMore}
-                className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-semibold hover:opacity-90 disabled:opacity-50"
-              >
-                {loadingMore ? "Loading…" : "Load more"}
-              </button>
-            ) : (
-              <span>End of list</span>
-            )}
+          <div className="border-t border-border/60 px-5 py-3">
+            <PaginationBar
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={(p) => {
+                setPage(p);
+                requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+              }}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+            />
           </div>
         )}
-        <div ref={sentinelRef} aria-hidden className="h-1" />
       </div>
     </div>
   );
