@@ -509,7 +509,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       <div class="header">
         <div class="brand">${logoTag}<h1>Wash Job Report</h1></div>
         <div class="meta">
-          <div><strong>Filter:</strong> ${escapeHtml(filterLabel)}</div>
+          <div><strong>Filter:</strong> ${escapeHtml(filterLabel)}${escapeHtml(deletedLabel)}</div>
           <div><strong>Range:</strong> ${escapeHtml(datePresetLabel)}</div>
           ${query ? `<div><strong>Search:</strong> ${escapeHtml(query)}</div>` : ""}
           <div>Generated ${escapeHtml(generated)}</div>
