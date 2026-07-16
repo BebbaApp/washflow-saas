@@ -1405,6 +1405,45 @@ function ReceiptSection() {
           />
         </div>
 
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label className="text-xs text-secondary-foreground">Contact number</Label>
+            <Input
+              value={settings.phone}
+              onChange={(e) => update({ phone: e.target.value })}
+              placeholder="+27 82 123 4567"
+              maxLength={40}
+              className="bg-secondary border-border text-foreground"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-secondary-foreground">Email</Label>
+            <Input
+              type="email"
+              value={settings.email}
+              onChange={(e) => update({ email: e.target.value })}
+              placeholder="hello@yourshop.com"
+              maxLength={80}
+              className="bg-secondary border-border text-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs text-secondary-foreground">Physical address</Label>
+          <textarea
+            value={settings.address}
+            onChange={(e) => update({ address: e.target.value })}
+            placeholder="123 Main Rd, Cape Town, 8001"
+            rows={2}
+            maxLength={160}
+            className="w-full rounded-md bg-secondary border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Shown centered under the business name on every receipt.
+          </p>
+        </div>
+
         <div className="space-y-2">
           <Label className="text-xs text-secondary-foreground">Footer message</Label>
           <textarea
