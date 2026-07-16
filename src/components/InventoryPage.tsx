@@ -283,6 +283,46 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     toast.success("Inventory exported");
   };
 
+  const exportPdf = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (tab === "history") {
+      if (transactions.length === 0) return toast.error("No transactions to export");
+      exportTablePdf({
+        title: "Inventory transactions",
+        subtitle: `Generated ${stamp}`,
+        filename: `inventory-transactions-${stamp}.pdf`,
+        headers: ["Timestamp", "Item", "Type", "Source", "Delta", "Balance", "Notes"],
+        rows: transactions.map((t) => [
+          new Date(t.createdAt).toLocaleString(),
+          t.itemName,
+          t.type,
+          t.source,
+          String(t.delta),
+          Number(t.balance).toFixed(2),
+          t.notes ?? "",
+        ]),
+      });
+      toast.success("Transactions exported");
+      return;
+    }
+    if (items.length === 0) return toast.error("No items to export");
+    exportTablePdf({
+      title: "Inventory",
+      subtitle: `Generated ${stamp}`,
+      filename: `inventory-${stamp}.pdf`,
+      headers: ["Name", "Category", "Quantity", "Unit", "Threshold", "Status"],
+      rows: items.map((i) => [
+        i.name,
+        i.category,
+        String(i.quantity),
+        i.unit,
+        String(i.threshold),
+        stockState(i).label,
+      ]),
+    });
+    toast.success("Inventory exported");
+  };
+
   return (
     <div className="space-y-6">
       {/* Stat cards */}
