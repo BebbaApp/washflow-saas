@@ -233,6 +233,38 @@ export const UsageReferencePanel = () => {
     downloadCsv("wash-inventory-usage.csv", rows);
   };
 
+  const exportWashUsagePdf = () => {
+    const washTx = transactions.filter(
+      (t) => t.delta < 0 && (/^Order\s/i.test(t.source) || /^Manual\s.*wash/i.test(t.source)),
+    );
+    if (washTx.length === 0) {
+      toast.info("No recorded wash usage yet");
+      return;
+    }
+    const headers = ["Date", "Order/Source", "Vehicle", "Item", "Qty", "Unit", "Balance", "Flow", "Notes"];
+    const pdfRows = washTx.slice().reverse().map((t) => {
+      const item = items.find((i) => i.id === t.itemId);
+      const vMatch = (t.notes ?? "").match(/\b(Sedan|SUV S\/Cab|SUV D\/Cab|Quantum|Sprinter|4T Truck|8T Truck)\b/);
+      return [
+        new Date(t.createdAt).toLocaleString(),
+        t.source,
+        vMatch ? vMatch[1] : "",
+        t.itemName,
+        Math.abs(t.delta),
+        item?.unit ?? "",
+        t.balance,
+        t.flow ?? "",
+        t.notes ?? "",
+      ];
+    });
+    exportTablePdf({
+      title: "Wash inventory usage",
+      filename: "wash-inventory-usage.pdf",
+      headers,
+      rows: pdfRows,
+    });
+  };
+
   const updateCount = (v: Vehicle, val: string) => {
     const n = Math.max(0, parseInt(val || "0", 10) || 0);
     setCounts((prev) => ({ ...prev, [v]: n }));
