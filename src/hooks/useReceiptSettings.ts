@@ -8,6 +8,9 @@ type Row = {
   tenant_id: string;
   business_name: string;
   business_line2: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
   footer: string;
   updated_at?: string;
 };
@@ -16,6 +19,9 @@ function rowToSettings(row: Row): ReceiptSettings {
   return {
     businessName: row.business_name,
     businessLine2: row.business_line2,
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    address: row.address ?? "",
     footer: row.footer,
   };
 }
