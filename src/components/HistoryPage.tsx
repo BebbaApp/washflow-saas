@@ -106,6 +106,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const { formatPrice, currency } = useCurrency();
   const { logo } = useAppLogo();
   const { isSuperAdmin, tenant } = useTenant();
+  const { isAdmin } = usePermissions();
+  const canDelete = isAdmin || isSuperAdmin;
+  const [selectedOrder, setSelectedOrder] = useState<WashOrder | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const persisted = useRef<PersistedFilters>(loadPersistedFilters()).current;
   const [query, setQuery] = useState(persisted.query);
