@@ -61,6 +61,27 @@ export function OwnerCompareReports() {
     a.click(); URL.revokeObjectURL(url);
   };
 
+  const exportPdf = () => {
+    const headers = ["Workspace", "Revenue", "Expenses", "Net", "Orders", "Completed", "Avg wait (min)", "Workers", "Top service"];
+    const rows = active.map((t) => [
+      t.name,
+      formatPrice(t.revenue),
+      formatPrice(t.expenses),
+      formatPrice(t.revenue - t.expenses),
+      t.orders_count,
+      t.completed_count,
+      t.avg_wait_minutes,
+      t.workers_total,
+      t.top_service ?? "",
+    ]);
+    exportTablePdf({
+      title: "Workspaces comparison",
+      filename: `workspaces-compare-${new Date().toISOString().slice(0, 10)}.pdf`,
+      headers,
+      rows,
+    });
+  };
+
   if (isLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
 
   return (
