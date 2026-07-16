@@ -129,9 +129,10 @@ export function AttendancePage() {
 
   // Override dialog
   const [overrideOpen, setOverrideOpen] = useState(false);
-  const [overrideForm, setOverrideForm] = useState<{ targetUserId: string; kind: "check_in" | "check_out"; reason: string }>(
-    { targetUserId: "", kind: "check_in", reason: "" }
+  const [overrideForm, setOverrideForm] = useState<{ targetUserId: string; kind: "check_in" | "check_out"; reason: string; whenLocal: string }>(
+    { targetUserId: "", kind: "check_in", reason: "", whenLocal: "" }
   );
+
 
   // Report grouping
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
@@ -344,13 +345,16 @@ export function AttendancePage() {
 
   const submitOverride = async () => {
     if (!overrideForm.targetUserId) { return; }
+    const whenIso = overrideForm.whenLocal ? new Date(overrideForm.whenLocal).toISOString() : undefined;
     const r = await manualOverride({
       targetUserId: overrideForm.targetUserId,
       kind: overrideForm.kind,
       reason: overrideForm.reason,
+      whenIso,
     });
-    if (r) { setOverrideOpen(false); setOverrideForm({ targetUserId: "", kind: "check_in", reason: "" }); }
+    if (r) { setOverrideOpen(false); setOverrideForm({ targetUserId: "", kind: "check_in", reason: "", whenLocal: "" }); }
   };
+
 
   // Default tab: "log" for everyone — check-in lives on the Staff page now.
   // A `?sub=` URL param can preselect a specific sub-tab (e.g. ?sub=enroll
@@ -798,6 +802,18 @@ export function AttendancePage() {
               </Select>
             </div>
             <div>
+              <label className="text-xs text-muted-foreground">Date &amp; time</label>
+              <input
+                type="datetime-local"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={overrideForm.whenLocal}
+                onChange={(e) => setOverrideForm((f) => ({ ...f, whenLocal: e.target.value }))}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Leave blank to use the current time.
+              </p>
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground">Reason (required, min 5 chars)</label>
               <Textarea
                 value={overrideForm.reason}
@@ -806,6 +822,7 @@ export function AttendancePage() {
                 rows={3}
               />
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOverrideOpen(false)}>Cancel</Button>
