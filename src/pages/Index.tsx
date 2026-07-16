@@ -461,7 +461,7 @@ const Index = () => {
             </header>
           )}
 
-          {activeTab === "queue" && <WashQueue orders={orders} onUpdateStatus={handleStatusUpdate} onUpdateNotes={updateNotes} />}
+          {activeTab === "queue" && <WashQueue orders={orders} onUpdateStatus={handleStatusUpdate} onUpdateNotes={updateNotes} onApproveDiscount={approveDiscount} onRejectDiscount={rejectDiscount} />}
           {activeTab === "services" && <ServicePackages addOpen={addServiceOpen} onAddOpenChange={setAddServiceOpen} />}
           {activeTab === "history" && <HistoryPage orders={orders} />}
           {activeTab === "loyalty" && <LoyaltyDashboard />}
