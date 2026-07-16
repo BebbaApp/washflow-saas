@@ -153,12 +153,13 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       query,
       filter,
       cancelledSub,
+      deletedShow,
       datePreset,
       customFrom: customRange?.from?.toISOString(),
       customTo: customRange?.to?.toISOString(),
     };
     try { localStorage.setItem(LS_FILTERS_KEY, JSON.stringify(data)); } catch {}
-  }, [query, filter, cancelledSub, datePreset, customRange]);
+  }, [query, filter, cancelledSub, deletedShow, datePreset, customRange]);
 
   // Save scroll position as user scrolls
   useEffect(() => {
