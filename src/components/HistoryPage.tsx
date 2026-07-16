@@ -57,6 +57,7 @@ interface PersistedFilters {
   query: string;
   filter: Filter;
   cancelledSub: CancelledSub;
+  deletedShow: DeletedShow;
   datePreset: DatePreset;
   customFrom?: string; // ISO date
   customTo?: string;
@@ -65,9 +66,9 @@ interface PersistedFilters {
 function loadPersistedFilters(): PersistedFilters {
   try {
     const raw = localStorage.getItem(LS_FILTERS_KEY);
-    if (raw) return { query: "", filter: "all", cancelledSub: "all", datePreset: "all", ...JSON.parse(raw) };
+    if (raw) return { query: "", filter: "all", cancelledSub: "all", deletedShow: "all", datePreset: "all", ...JSON.parse(raw) };
   } catch {}
-  return { query: "", filter: "all", cancelledSub: "all", datePreset: "all" };
+  return { query: "", filter: "all", cancelledSub: "all", deletedShow: "all", datePreset: "all" };
 }
 
 function mapRow(row: any): WashOrder {
