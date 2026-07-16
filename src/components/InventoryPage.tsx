@@ -41,6 +41,7 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
+import { InventoryItemDetailsModal } from "@/components/InventoryItemDetailsModal";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/hooks/useCurrency";
 import { BookOpen } from "lucide-react";
