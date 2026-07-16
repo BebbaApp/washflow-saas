@@ -683,6 +683,33 @@ export function AttendancePage() {
                   </tbody>
                 </table>
               </div>
+              {auditTotal > 0 && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border text-xs text-muted-foreground">
+                  <div>
+                    Showing {auditPage * auditPageSize + 1}
+                    –{Math.min((auditPage + 1) * auditPageSize, auditTotal)} of {auditTotal}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={auditPage === 0}
+                      onClick={() => setAuditPage(Math.max(0, auditPage - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span>Page {auditPage + 1} of {Math.max(1, Math.ceil(auditTotal / auditPageSize))}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={(auditPage + 1) * auditPageSize >= auditTotal}
+                      onClick={() => setAuditPage(auditPage + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
         )}
