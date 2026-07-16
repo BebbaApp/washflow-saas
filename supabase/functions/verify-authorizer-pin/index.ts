@@ -34,6 +34,44 @@ const phoneVariants = (raw: string): string[] => {
   return Array.from(variants);
 };
 
+const safeComparePin = (pin: string, hash: unknown): boolean => {
+  if (typeof hash !== "string") return false;
+  const trimmedHash = hash.trim();
+  if (!trimmedHash) return false;
+
+  // bcryptjs accepts the hashes this app creates. Some imported/legacy bcrypt
+  // hashes can use $2y$/$2b$ prefixes, so retry with the widely-supported $2a$
+  // prefix before deciding the PIN is wrong.
+  const variants = new Set<string>([
+    trimmedHash,
+    trimmedHash.replace(/^\$2y\$/, "$2a$"),
+    trimmedHash.replace(/^\$2b\$/, "$2a$"),
+  ]);
+
+  for (const candidateHash of variants) {
+    try {
+      if (bcrypt.compareSync(pin, candidateHash)) return true;
+    } catch {
+      // Ignore malformed legacy rows and keep checking other candidates.
+    }
+  }
+  return false;
+};
+
+const pushCandidate = (
+  candidates: { user_id: string; pin_hash: string }[],
+  seen: Set<string>,
+  row: { user_id?: unknown; pin_hash?: unknown } | null | undefined,
+) => {
+  const userId = typeof row?.user_id === "string" ? row.user_id : "";
+  const pinHash = typeof row?.pin_hash === "string" ? row.pin_hash : "";
+  if (!userId || !pinHash) return;
+  const key = `${userId}:${pinHash}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  candidates.push({ user_id: userId, pin_hash: pinHash });
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -106,6 +144,7 @@ Deno.serve(async (req) => {
     // tenant membership + required role on the resolved user_id below.
     const isEmail = rawId.includes("@");
     const candidates: { user_id: string; pin_hash: string }[] = [];
+    const seenCandidates = new Set<string>();
     let lookupDiag = "";
 
     if (isEmail) {
@@ -128,7 +167,7 @@ Deno.serve(async (req) => {
           .from("staff_pins")
           .select("user_id, pin_hash")
           .eq("user_id", foundUserId);
-        for (const r of data ?? []) candidates.push(r as any);
+        for (const r of data ?? []) pushCandidate(candidates, seenCandidates, r as any);
         if (!candidates.length) lookupDiag = "user_has_no_pin";
       }
     } else {
@@ -138,7 +177,7 @@ Deno.serve(async (req) => {
         .select("user_id, pin_hash, phone");
       for (const row of pins ?? []) {
         if (phoneVariants(String((row as any).phone ?? "")).some((k) => variants.has(k))) {
-          candidates.push({ user_id: (row as any).user_id, pin_hash: (row as any).pin_hash });
+          pushCandidate(candidates, seenCandidates, row as any);
         }
       }
       if (!candidates.length) lookupDiag = "no_phone_match";
@@ -154,7 +193,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const rec = candidates.find((c) => bcrypt.compareSync(pinStr, c.pin_hash)) ?? null;
+    const rec = candidates.find((c) => safeComparePin(pinStr, c.pin_hash)) ?? null;
     if (!rec) {
       return new Response(JSON.stringify({ error: "Invalid PIN" }), {
         status: 401,
