@@ -36,6 +36,9 @@ export type ReceiptSegment = ReceiptLine | ReceiptRule | ReceiptBlank | ReceiptC
 export interface ReceiptSettings {
   businessName: string;
   businessLine2: string;
+  phone: string;
+  email: string;
+  address: string;
   footer: string;
 }
 
@@ -48,11 +51,21 @@ export interface ReceiptBuildOpts {
 const DEFAULT_SETTINGS: ReceiptSettings = {
   businessName: "Washflow Saas",
   businessLine2: "Premium Car Wash",
+  phone: "",
+  email: "",
+  address: "",
   footer: "Thank you for your business!",
 };
 
 export function getDefaultReceiptSettings(): ReceiptSettings {
   return { ...DEFAULT_SETTINGS };
+}
+
+/** Format a date as "16 July 2026" — used on receipts and PDF exports. */
+export function formatReceiptDate(d: Date): string {
+  const day = d.getDate();
+  const month = d.toLocaleString(undefined, { month: "long" });
+  return `${day} ${month} ${d.getFullYear()}`;
 }
 
 export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): ReceiptSegment[] {
