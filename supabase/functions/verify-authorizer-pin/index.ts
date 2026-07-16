@@ -72,16 +72,19 @@ const pushCandidate = (
   candidates.push({ user_id: userId, pin_hash: pinHash });
 };
 
+const reply = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "Unauthorized" }, 401);
     }
 
     const anon = createClient(
@@ -91,10 +94,7 @@ Deno.serve(async (req) => {
     );
     const { data: userData, error: userErr } = await anon.auth.getUser();
     if (userErr || !userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "Unauthorized" }, 401);
     }
     const callerId = userData.user.id;
 
@@ -107,16 +107,10 @@ Deno.serve(async (req) => {
       : ["admin", "manager"];
 
     if (!rawId || !/^\d{4,6}$/.test(pinStr)) {
-      return new Response(
-        JSON.stringify({ error: "Phone or email and 4-6 digit PIN required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return reply({ error: "Phone or email and 4-6 digit PIN required" }, 400);
     }
     if (!tenant_id || typeof tenant_id !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "tenant_id required" }, 400);
     }
 
     const admin = createClient(
@@ -132,10 +126,7 @@ Deno.serve(async (req) => {
       .eq("user_id", callerId)
       .maybeSingle();
     if (!callerMember) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "Forbidden" }, 403);
     }
 
     // Resolve the authorizer via staff_pins (phone or email). We do NOT scope
@@ -187,18 +178,12 @@ Deno.serve(async (req) => {
       const msg = lookupDiag === "no_auth_user"
         ? "No account found with that email."
         : "No PIN found for that phone or email. Ask an admin to set one in Staff settings.";
-      return new Response(
-        JSON.stringify({ error: msg, diag: lookupDiag }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return reply({ ok: false, error: msg, diag: lookupDiag });
     }
 
     const rec = candidates.find((c) => safeComparePin(pinStr, c.pin_hash)) ?? null;
     if (!rec) {
-      return new Response(JSON.stringify({ error: "Invalid PIN" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ ok: false, error: "Invalid PIN" });
     }
 
     // Confirm the authorizer belongs to the tenant AND holds a required role.
@@ -209,10 +194,7 @@ Deno.serve(async (req) => {
       .eq("user_id", rec.user_id)
       .maybeSingle();
     if (!authorizerMember) {
-      return new Response(JSON.stringify({ error: "Authorizer is not a member of this workspace." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ ok: false, error: "Authorizer is not a member of this workspace." });
     }
 
     const { data: roleRows } = await admin
@@ -222,10 +204,7 @@ Deno.serve(async (req) => {
     const roles = (roleRows ?? []).map((r: any) => String(r.role));
     const matchedRole = roles.find((r) => requiredRoles.includes(r));
     if (!matchedRole) {
-      return new Response(
-        JSON.stringify({ error: "This user is not authorized to approve discounts." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return reply({ ok: false, error: "This user is not authorized to approve discounts." });
     }
 
     const { data: profile } = await admin
@@ -240,21 +219,17 @@ Deno.serve(async (req) => {
       email = authUser?.user?.email ?? null;
     } catch { /* ignore */ }
 
-    return new Response(
-      JSON.stringify({
+    return reply(
+      {
         ok: true,
         user: {
           id: rec.user_id,
           name: (profile as any)?.name || email || "Manager",
           role: matchedRole,
         },
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      },
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return reply({ error: (err as Error).message }, 500);
   }
 });
