@@ -644,7 +644,8 @@ export interface SyncHealthReport {
 export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
   if (!currentTenant) return null;
   const t = currentTenant;
-  const rows: SyncHealthRow[] = await Promise.all(
+
+  const measure = async (): Promise<SyncHealthRow[]> => Promise.all(
     MIRRORED_TABLES.map(async (table) => {
       let server: number | null = null;
       let error: string | undefined;
@@ -654,12 +655,8 @@ export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
           .select("*", { count: "exact", head: true })
           .eq("tenant_id", t);
         if (err) {
-          // Permission denied is expected for tables the user can't read (e.g. audit-only)
-          if (/permission|denied|policy/i.test(err.message)) {
-            server = null;
-          } else {
-            error = err.message;
-          }
+          if (/permission|denied|policy/i.test(err.message)) server = null;
+          else error = err.message;
         } else {
           server = count ?? 0;
           const fallbackPull = edgeFallbackPullers[table];
@@ -676,7 +673,38 @@ export async function checkSyncHealth(): Promise<SyncHealthReport | null> {
       return { table, server, local, diff, error };
     }),
   );
-  const diverged = rows.filter((r) => r.server != null && r.diff !== 0);
+
+  let rows = await measure();
+  let diverged = rows.filter((r) => r.server != null && r.diff !== 0);
+
+  // Auto-reconcile any diverged tables by replacing local rows with a fresh
+  // server pull (pending outbox writes are preserved by replacePulledRows).
+  // This clears the persistent local>server drift caused by incremental pulls
+  // that never delete stale rows.
+  if (diverged.length > 0) {
+    const pendingOutbox = await db.outbox.where("tenant_id").equals(t).toArray();
+    const busyTables = new Set(pendingOutbox.map((o) => o.table));
+    await Promise.all(diverged.map(async (r) => {
+      if (busyTables.has(r.table)) return; // don't clobber in-flight writes
+      try {
+        const fallback = edgeFallbackPullers[r.table];
+        if (fallback) {
+          await replaceTableFromFallback(r.table, t);
+        } else {
+          const { data, error } = await supabase
+            .from(r.table as any)
+            .select("*")
+            .eq("tenant_id", t);
+          if (!error) await replacePulledRows(r.table, t, (data as any[]) ?? []);
+        }
+      } catch (e) {
+        console.warn("[sync] auto-reconcile failed", r.table, e);
+      }
+    }));
+    rows = await measure();
+    diverged = rows.filter((r) => r.server != null && r.diff !== 0);
+  }
+
   return {
     tenant_id: t,
     checked_at: new Date().toISOString(),
