@@ -39,6 +39,31 @@ Deno.serve(async (req) => {
   let body: any;
   try { body = await req.json(); } catch { return reply({ error: "invalid_json" }, 400); }
 
+  const admin = createClient(url, service);
+
+  // "list" action: return audit rows for a tenant the caller belongs to.
+  // Bypasses the tenant_id/current_tenant_id() RLS check on
+  // attendance_audit_log so the Audit Log tab always reflects the DB.
+  if (body?.action === "list") {
+    const listTenant = String(body.tenant_id ?? "");
+    if (!listTenant) return reply({ error: "missing_tenant" }, 400);
+    const [{ data: member }, { data: platform }, { data: superAdm }] = await Promise.all([
+      admin.from("tenant_members").select("user_id")
+        .eq("tenant_id", listTenant).eq("user_id", caller.id).maybeSingle(),
+      admin.from("platform_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
+      admin.from("super_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
+    ]);
+    if (!member && !platform && !superAdm) return reply({ error: "not_authorized" }, 403);
+    const { data, error } = await admin
+      .from("attendance_audit_log")
+      .select("*")
+      .eq("tenant_id", listTenant)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) return reply({ error: error.message }, 500);
+    return reply({ rows: data ?? [] });
+  }
+
   const {
     tenant_id, attendance_id, target_user_id, action, reason,
     original_score = null, original_status = null, created_at = null,
