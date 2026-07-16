@@ -214,10 +214,20 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
           if (fallbackRows.length > 0) rows = fallbackRows;
         }
         if (cancelled) return;
-        // Replace tenant's local mirror so deletions on the server are reflected.
+        // Replace tenant's local mirror so deletions on the server are reflected,
+        // but PRESERVE any dirty rows still waiting to sync to the server —
+        // otherwise a fresh manual override (or offline check-in/out) is wiped
+        // before the outbox flushes and appears to "vanish" on navigation.
+        const localAll = await db.attendance_records.where("tenant_id").equals(tenantId).toArray();
+        const dirty = (localAll as any[]).filter((r) => r._dirty);
+        const dirtyIds = new Set(dirty.map((r: any) => r.id));
         await db.attendance_records.where("tenant_id").equals(tenantId).delete();
+        if (dirty.length) await db.attendance_records.bulkPut(dirty as any);
         if (rows.length) {
-          await db.attendance_records.bulkPut(rows.map((r: any) => ({ ...r, _dirty: 0 })) as any);
+          const fresh = rows.filter((r: any) => !dirtyIds.has(r.id));
+          if (fresh.length) {
+            await db.attendance_records.bulkPut(fresh.map((r: any) => ({ ...r, _dirty: 0 })) as any);
+          }
         }
       } catch (e) {
         console.warn("[attendance] direct pull failed", e);
