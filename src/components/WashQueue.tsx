@@ -579,7 +579,10 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
         onOpenChange={(open) => { if (!open) setSelectedId(null); }}
         onUpdateStatus={onUpdateStatus}
         onUpdateNotes={onUpdateNotes}
+        onApproveDiscount={onApproveDiscount}
+        onRejectDiscount={onRejectDiscount}
       />
+
 
       <AlertDialog
         open={confirmCancelIds !== null}
