@@ -823,6 +823,27 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       <td className="px-5 [&]:py-[0.3rem] text-muted-foreground whitespace-nowrap">
                         {fmtDate(o.completedAt || o.createdAt)}
                       </td>
+                      <td className="px-5 [&]:py-[0.3rem] whitespace-nowrap text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
+                            title="View details"
+                            className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDeleteOrder(o)}
+                              disabled={deletingId === o.id}
+                              title="Delete work order"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                            >
+                              {deletingId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })
