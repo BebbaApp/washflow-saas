@@ -541,7 +541,25 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               </p>
             </div>
           ) : (
-            <div className="glass-card divide-y divide-border">
+            <>
+              {duplicateInfo.totalDupItems > 0 && (
+                <div className="glass-card p-3 flex items-center justify-between gap-3 border-warning/40 bg-warning/5">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                    <span>
+                      Found {duplicateInfo.totalDupItems} items that look like duplicates (same name & category).
+                      Merge to keep a single stock record per product.
+                    </span>
+                  </div>
+                  <button
+                    onClick={mergeAllDuplicates}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity shrink-0"
+                  >
+                    <GitMerge className="w-3.5 h-3.5" /> Merge duplicates
+                  </button>
+                </div>
+              )}
+              <div className="glass-card divide-y divide-border">
               {filtered.map((item) => {
                 const state = stockState(item);
                 return (
