@@ -61,7 +61,7 @@ const PAGE_SIZE = 15;
 
 export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueueProps) => {
   const { formatPrice } = useCurrency();
-  const { eligibleOrderIds } = useRewardEligibility(orders);
+  const { eligibleOrderIds, redeemedOrderIds } = useRewardEligibility(orders);
   const { can } = usePermissions();
   const canCancel = can("queue.cancel");
   const canStart = can("queue.start");
