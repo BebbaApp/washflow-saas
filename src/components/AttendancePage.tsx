@@ -802,6 +802,18 @@ export function AttendancePage() {
               </Select>
             </div>
             <div>
+              <label className="text-xs text-muted-foreground">Date &amp; time</label>
+              <input
+                type="datetime-local"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={overrideForm.whenLocal}
+                onChange={(e) => setOverrideForm((f) => ({ ...f, whenLocal: e.target.value }))}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Leave blank to use the current time.
+              </p>
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground">Reason (required, min 5 chars)</label>
               <Textarea
                 value={overrideForm.reason}
@@ -810,6 +822,7 @@ export function AttendancePage() {
                 rows={3}
               />
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOverrideOpen(false)}>Cancel</Button>
