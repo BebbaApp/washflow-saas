@@ -517,8 +517,11 @@ function useAuthInternal(): AuthContextValue {
   const logout = useCallback(async () => {
     const uid = authedUserId;
     const em = authedEmail;
+    // Log BEFORE signOut — the auth_events RLS insert policy requires an
+    // authenticated session (user_id = auth.uid()). Awaiting ensures the
+    // insert flushes before the bearer token is cleared.
+    await logAuthEvent("sign_out", uid, em);
     await supabase.auth.signOut();
-    void logAuthEvent("sign_out", uid, em);
     resolvedUserIdRef.current = null;
     setAuthedUserId(null);
     setResolvedUser(null);
