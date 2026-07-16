@@ -9,7 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Clock, Download, Package } from "lucide-react";
+import { Clock, Download, Package, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { useInventory, type InventoryItem, type InventoryTransaction } from "@/hooks/useInventory";
 import { InventoryItemDetailsModal } from "@/components/InventoryItemDetailsModal";
 
