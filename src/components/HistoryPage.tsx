@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Car, Download, Printer, Calendar as CalendarIcon, X } from "lucide-react";
+import { Search, Car, Download, Printer, Calendar as CalendarIcon, X, Eye, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useTenant } from "@/hooks/useTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 import { formatPhone, telHref } from "@/lib/phone";
 import { useAppLogo } from "@/hooks/useAppLogo";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
