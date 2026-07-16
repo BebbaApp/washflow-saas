@@ -756,6 +756,9 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
             return next;
           });
         }
+        // Also refetch from server to guarantee the row lands in the list even
+        // if realtime doesn't deliver the service-role insert to this client.
+        void reloadAuditRef.current().catch(() => {});
         toast.success("Manual override recorded");
         return savedRecord as AttendanceRecord;
       } catch (e: any) {
