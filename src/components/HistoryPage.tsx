@@ -25,9 +25,6 @@ const extractCancelReason = (notes?: string): string | null => {
   return matches[matches.length - 1][1].trim();
 };
 
-/** True when the order has been soft-deleted via the delete-order function. */
-const isDeleted = (notes?: string) => !!notes && /\[DELETED\b/.test(notes);
-
 interface HistoryPageProps {
   // Kept for backwards compatibility. History fetches its own paginated data.
   orders?: WashOrder[];
@@ -36,7 +33,6 @@ interface HistoryPageProps {
 type Filter = "all" | "completed" | "cancelled";
 type CancelledSub = "all" | "with" | "without";
 type DatePreset = "all" | "7d" | "30d" | "90d" | "custom";
-type DeletedShow = "all" | "deleted" | "non-deleted";
 
 const statusStyles: Record<string, string> = {
   completed: "bg-success/15 text-success",
@@ -57,7 +53,6 @@ interface PersistedFilters {
   query: string;
   filter: Filter;
   cancelledSub: CancelledSub;
-  deletedShow: DeletedShow;
   datePreset: DatePreset;
   customFrom?: string; // ISO date
   customTo?: string;
@@ -66,9 +61,9 @@ interface PersistedFilters {
 function loadPersistedFilters(): PersistedFilters {
   try {
     const raw = localStorage.getItem(LS_FILTERS_KEY);
-    if (raw) return { query: "", filter: "all", cancelledSub: "all", deletedShow: "all", datePreset: "all", ...JSON.parse(raw) };
+    if (raw) return { query: "", filter: "all", cancelledSub: "all", datePreset: "all", ...JSON.parse(raw) };
   } catch {}
-  return { query: "", filter: "all", cancelledSub: "all", deletedShow: "all", datePreset: "all" };
+  return { query: "", filter: "all", cancelledSub: "all", datePreset: "all" };
 }
 
 function mapRow(row: any): WashOrder {
@@ -122,7 +117,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [debouncedQuery, setDebouncedQuery] = useState(persisted.query);
   const [filter, setFilter] = useState<Filter>(persisted.filter);
   const [cancelledSub, setCancelledSub] = useState<CancelledSub>(persisted.cancelledSub);
-  const [deletedShow, setDeletedShow] = useState<DeletedShow>(persisted.deletedShow);
   const [datePreset, setDatePreset] = useState<DatePreset>(persisted.datePreset);
   const [customRange, setCustomRange] = useState<DateRange | undefined>(() => {
     if (persisted.datePreset !== "custom") return undefined;
@@ -136,7 +130,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
-  const [counts, setCounts] = useState({ completed: 0, cancelled: 0, deleted: 0 });
+  const [counts, setCounts] = useState({ completed: 0, cancelled: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
@@ -153,13 +147,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       query,
       filter,
       cancelledSub,
-      deletedShow,
       datePreset,
       customFrom: customRange?.from?.toISOString(),
       customTo: customRange?.to?.toISOString(),
     };
     try { localStorage.setItem(LS_FILTERS_KEY, JSON.stringify(data)); } catch {}
-  }, [query, filter, cancelledSub, deletedShow, datePreset, customRange]);
+  }, [query, filter, cancelledSub, datePreset, customRange]);
 
   // Save scroll position as user scrolls
   useEffect(() => {
@@ -218,15 +211,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
     }
 
-    // Deleted / non-deleted toggle (server-side via notes marker)
-    if (deletedShow === "deleted") {
-      q = q.ilike("notes", "%[DELETED%");
-    } else if (deletedShow === "non-deleted") {
-      q = q.or("notes.is.null,notes.not.ilike.%[DELETED%");
-    }
-
     return q;
-  }, [filter, cancelledSub, deletedShow, datePreset, customRange, debouncedQuery]);
+  }, [filter, cancelledSub, datePreset, customRange, debouncedQuery]);
 
   // Fetch a specific page (offset). Returns the rows + range information.
   const fetchPage = useCallback(async (offset: number) => {
@@ -238,7 +224,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           tenant_id: tenant.id,
           status: filter,
           cancelled_reason: cancelledSub,
-          deleted_show: deletedShow,
           query: debouncedQuery.trim() || undefined,
           from: from?.toISOString().slice(0, 10),
           to: to?.toISOString().slice(0, 10),
@@ -275,17 +260,15 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         offset: 0,
         limit: 1,
       };
-      const [total, completed, cancelled, deleted] = await Promise.all([
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: filter, cancelled_reason: cancelledSub, deleted_show: deletedShow } }),
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: "completed", cancelled_reason: "all", deleted_show: "non-deleted" } }),
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: "cancelled", cancelled_reason: "all", deleted_show: "non-deleted" } }),
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: "all", cancelled_reason: "all", deleted_show: "deleted" } }),
+      const [total, completed, cancelled] = await Promise.all([
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: filter, cancelled_reason: cancelledSub } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "completed", cancelled_reason: "all" } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "cancelled", cancelled_reason: "all" } }),
       ]);
       setTotalCount(Number((total.data as any)?.count ?? 0));
       setCounts({
         completed: Number((completed.data as any)?.count ?? 0),
         cancelled: Number((cancelled.data as any)?.count ?? 0),
-        deleted: Number((deleted.data as any)?.count ?? 0),
       });
       setTotalAmountAll(0);
       return;
@@ -313,12 +296,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
       return q;
     };
-    const [{ count: completedC }, { count: cancelledC }, { count: deletedC }] = await Promise.all([
-      baseDateSearch(true).eq("status", "completed").or("notes.is.null,notes.not.ilike.%[DELETED%"),
-      baseDateSearch(true).eq("status", "cancelled").or("notes.is.null,notes.not.ilike.%[DELETED%"),
-      baseDateSearch(true).ilike("notes", "%[DELETED%"),
+    const [{ count: completedC }, { count: cancelledC }] = await Promise.all([
+      baseDateSearch(true).eq("status", "completed"),
+      baseDateSearch(true).eq("status", "cancelled"),
     ]);
-    setCounts({ completed: completedC || 0, cancelled: cancelledC || 0, deleted: deletedC || 0 });
+    setCounts({ completed: completedC || 0, cancelled: cancelledC || 0 });
 
     // Amount sum: PostgREST doesn't have an aggregate select here without RPC, so
     // approximate by summing the loaded rows for the visible total chip. We keep the
@@ -329,7 +311,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   // Reset to first page when filters/search/pageSize change
   useEffect(() => {
     setPage(1);
-  }, [filter, cancelledSub, deletedShow, datePreset, customRange, debouncedQuery, pageSize]);
+  }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
 
   // Fetch current page + totals
   useEffect(() => {
@@ -455,7 +437,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const generated = new Date().toLocaleString();
     const filterLabel = filter === "all" ? "Completed & Cancelled" : statusLabel[filter] || filter;
-    const deletedLabel = deletedShow === "deleted" ? " — Deleted only" : deletedShow === "non-deleted" ? " — Excluding deleted" : "";
     const rowsHtml = visibleRows.map((o) => {
       const phone = o.customerPhone ? formatPhone(o.customerPhone) : "—";
       const status = statusLabel[o.status] || o.status;
@@ -509,7 +490,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       <div class="header">
         <div class="brand">${logoTag}<h1>Wash Job Report</h1></div>
         <div class="meta">
-          <div><strong>Filter:</strong> ${escapeHtml(filterLabel)}${escapeHtml(deletedLabel)}</div>
+          <div><strong>Filter:</strong> ${escapeHtml(filterLabel)}</div>
           <div><strong>Range:</strong> ${escapeHtml(datePresetLabel)}</div>
           ${query ? `<div><strong>Search:</strong> ${escapeHtml(query)}</div>` : ""}
           <div>Generated ${escapeHtml(generated)}</div>
@@ -554,12 +535,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     { id: "cancelled", label: `Cancelled (${counts.cancelled})` },
   ];
 
-  const deletedTabs: { id: DeletedShow; label: string }[] = [
-    { id: "all", label: `Show all` },
-    { id: "deleted", label: `Deleted (${counts.deleted})` },
-    { id: "non-deleted", label: `Hide deleted` },
-  ];
-
   const datePresets: { id: DatePreset; label: string }[] = [
     { id: "all", label: "All time" },
     { id: "7d", label: "7 days" },
@@ -571,7 +546,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setQuery("");
     setFilter("all");
     setCancelledSub("all");
-    setDeletedShow("all");
     setDatePreset("all");
     setCustomRange(undefined);
     try { localStorage.removeItem(LS_SCROLL_KEY); } catch {}
@@ -579,7 +553,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
 
   const filtersActive =
-    !!query || filter !== "all" || cancelledSub !== "all" || deletedShow !== "all" || datePreset !== "all";
+    !!query || filter !== "all" || cancelledSub !== "all" || datePreset !== "all";
 
   const activeFilterChips: { key: string; label: string; onClear: () => void }[] = [];
   if (filter !== "all") {
@@ -594,13 +568,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       key: "sub",
       label: cancelledSub === "with" ? "With reason" : "Without reason",
       onClear: () => setCancelledSub("all"),
-    });
-  }
-  if (deletedShow !== "all") {
-    activeFilterChips.push({
-      key: "deleted",
-      label: deletedShow === "deleted" ? "Deleted only" : "Hide deleted",
-      onClear: () => setDeletedShow("all"),
     });
   }
   if (datePreset !== "all") {
@@ -721,21 +688,6 @@ export const HistoryPage = (_props: HistoryPageProps) => {
             ))}
           </div>
         )}
-
-        {/* Deleted filter */}
-        <div className="inline-flex items-center bg-card border border-border rounded-full p-1">
-          {deletedTabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setDeletedShow(t.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                deletedShow === t.id ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
 
         {/* Date range */}
         <div className="inline-flex items-center bg-card border border-border rounded-full p-1">
@@ -891,19 +843,9 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                         )}
                       </td>
                       <td className="px-5 [&]:py-[0.3rem]">
-                        <div className="inline-flex items-center gap-1.5 flex-wrap">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
-                            {statusLabel[o.status] || o.status}
-                          </span>
-                          {isDeleted(o.notes) && (
-                            <span
-                              className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-destructive text-destructive-foreground"
-                              title="Order was deleted by an admin. Inventory and loyalty transactions were reversed."
-                            >
-                              Deleted
-                            </span>
-                          )}
-                        </div>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
+                          {statusLabel[o.status] || o.status}
+                        </span>
                       </td>
                       <td className="px-5 [&]:py-[0.3rem] text-muted-foreground whitespace-nowrap">
                         {fmtDate(o.completedAt || o.createdAt)}
@@ -917,7 +859,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {canDelete && !isDeleted(o.notes) && (
+                          {canDelete && (
                             <button
                               onClick={() => handleDeleteOrder(o)}
                               disabled={deletingId === o.id}
