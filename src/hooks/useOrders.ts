@@ -8,6 +8,13 @@ import { useLiveTable } from "@/offline/useLiveTable";
 
 export type WashStatus = "waiting" | "in-progress" | "completed" | "cancelled" | "deleted";
 
+export interface PendingDiscount {
+  amount: number;
+  requestedById: string;
+  requestedByName: string;
+  requestedAt: string;
+}
+
 export interface WashOrder {
   id: string;
   orderNumber: string;
@@ -18,6 +25,7 @@ export interface WashOrder {
   service: string;
   servicePrice: number;
   discount?: number;
+  pendingDiscount?: PendingDiscount;
   status: WashStatus;
   createdAt: string;
   completedAt?: string;
@@ -31,6 +39,16 @@ const LEGACY_LABELS: Record<string, string> = { basic: "Basic Wash", premium: "P
 const LEGACY_PRICES: Record<string, number> = { basic: 15, premium: 35, detail: 75 };
 
 function mapRow(row: any): WashOrder {
+  const pd = row.pending_discount;
+  const pendingDiscount: PendingDiscount | undefined =
+    pd && typeof pd === "object" && typeof pd.amount === "number"
+      ? {
+          amount: Number(pd.amount),
+          requestedById: String(pd.requested_by_id ?? ""),
+          requestedByName: String(pd.requested_by_name ?? "Unknown"),
+          requestedAt: String(pd.requested_at ?? row.created_at ?? new Date().toISOString()),
+        }
+      : undefined;
   return {
     id: row.id,
     orderNumber: row.order_number,
@@ -41,6 +59,7 @@ function mapRow(row: any): WashOrder {
     service: row.service,
     servicePrice: Number(row.service_price),
     discount: Number(row.discount ?? 0),
+    pendingDiscount,
     status: row.status as WashStatus,
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
@@ -48,6 +67,7 @@ function mapRow(row: any): WashOrder {
     notes: row.notes ?? undefined,
   };
 }
+
 
 export function useOrders() {
   const { tenant } = useTenant();
