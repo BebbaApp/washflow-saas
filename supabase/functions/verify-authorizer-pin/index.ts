@@ -100,9 +100,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Resolve the authorizer via staff_pins (phone or email).
+    // Resolve the authorizer via staff_pins (phone or email), scoped to tenant.
     const isEmail = rawId.includes("@");
     let rec: { user_id: string; pin_hash: string } | null = null;
+    let lookupDiag = "";
 
     if (isEmail) {
       const target = rawId.toLowerCase();
@@ -111,25 +112,32 @@ Deno.serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
         { db: { schema: "auth" as any } },
       );
-      const { data: userRow } = await authAdmin
+      const { data: userRow, error: userErr } = await authAdmin
         .from("users" as any)
         .select("id, email")
         .ilike("email", target)
         .maybeSingle();
+      if (userErr) console.error("verify-authorizer-pin: auth lookup err", userErr);
       const foundUserId = (userRow as any)?.id ?? null;
-      if (foundUserId) {
+      if (!foundUserId) {
+        lookupDiag = "no_auth_user";
+      } else {
         const { data } = await admin
           .from("staff_pins")
           .select("user_id, pin_hash")
           .eq("user_id", foundUserId)
+          .eq("tenant_id", tenant_id)
           .maybeSingle();
         rec = data ?? null;
+        if (!rec) lookupDiag = "user_has_no_pin_in_tenant";
       }
     } else {
       const variants = new Set(phoneVariants(rawId));
-      const { data: pins } = await admin
+      const { data: pins, error: pinsErr } = await admin
         .from("staff_pins")
-        .select("user_id, pin_hash, phone");
+        .select("user_id, pin_hash, phone")
+        .eq("tenant_id", tenant_id);
+      if (pinsErr) console.error("verify-authorizer-pin: pins lookup err", pinsErr);
       const match = (pins ?? []).find((row: any) =>
         phoneVariants(String(row.phone ?? "")).some((k) => variants.has(k)),
       );
