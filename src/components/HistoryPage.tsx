@@ -538,6 +538,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     { id: "all", label: `All (${counts.completed + counts.cancelled})` },
     { id: "completed", label: `Completed (${counts.completed})` },
     { id: "cancelled", label: `Cancelled (${counts.cancelled})` },
+    { id: "deleted", label: `Deleted (${counts.deleted})` },
   ];
 
   const datePresets: { id: DatePreset; label: string }[] = [
