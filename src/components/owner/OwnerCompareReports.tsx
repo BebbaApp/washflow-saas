@@ -104,9 +104,12 @@ export function OwnerCompareReports() {
             {m.label}
           </Button>
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={exportCsv} className="gap-1">
             <Download className="w-3.5 h-3.5" /> Export CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportPdf} className="gap-1">
+            <FileText className="w-3.5 h-3.5" /> Export PDF
           </Button>
         </div>
       </div>
