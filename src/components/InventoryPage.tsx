@@ -1032,7 +1032,7 @@ function TransactionLog({
                       <FlowBadge flow={t.flow} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(t.createdAt).toLocaleString()} · balance {t.balance}
+                      {new Date(t.createdAt).toLocaleString()} · balance {Number(t.balance).toFixed(2)}
                       {t.notes ? ` · ${t.notes}` : ""}
                     </p>
                   </div>
