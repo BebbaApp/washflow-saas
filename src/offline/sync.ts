@@ -246,7 +246,7 @@ async function pushManualOverrideViaEdge(it: OutboxItem, payload: any) {
 
 function isPermanentOutboxError(error: unknown) {
   const message = (error as any)?.message ?? String(error);
-  return /do not have permission to edit order notes|field staff cannot modify order details|field staff cannot cancel orders|already checked in|cannot check out without an active check-in/i.test(message);
+  return /do not have permission to edit order notes|field staff cannot modify order details|field staff cannot cancel orders/i.test(message);
 }
 
 async function markLocalMutationSynced(it: OutboxItem, syncedRow: any, payload: any) {
