@@ -25,6 +25,7 @@ const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typ
   "in-progress": { label: "In Progress", classes: "bg-info/10 text-info border-info/20", Icon: Loader2 },
   completed: { label: "Completed", classes: "bg-success/10 text-success border-success/20", Icon: CheckCircle2 },
   cancelled: { label: "Cancelled", classes: "bg-destructive/10 text-destructive border-destructive/20", Icon: Clock },
+  deleted: { label: "Deleted", classes: "bg-muted text-muted-foreground border-border", Icon: Clock },
 };
 
 export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes }: OrderDetailsModalProps) => {
