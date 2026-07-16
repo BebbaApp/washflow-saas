@@ -90,7 +90,8 @@ export function AttendancePage() {
   const canAudit = isAdmin || can("attendance.audit");
   const canOverride = isAdmin;
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
-  const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
+  const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser,
+    auditPage, setAuditPage, auditTotal, auditPageSize } =
     useAttendance();
   // Whether the current user actually has a staff role in THIS workspace.
   // Platform/super admins viewing other tenants where they have no role
