@@ -725,6 +725,7 @@ export type Database = {
           id: string
           notes: string | null
           order_number: string
+          pending_discount: Json | null
           plate: string
           service: string
           service_price: number
@@ -745,6 +746,7 @@ export type Database = {
           id?: string
           notes?: string | null
           order_number: string
+          pending_discount?: Json | null
           plate: string
           service: string
           service_price?: number
@@ -765,6 +767,7 @@ export type Database = {
           id?: string
           notes?: string | null
           order_number?: string
+          pending_discount?: Json | null
           plate?: string
           service?: string
           service_price?: number
