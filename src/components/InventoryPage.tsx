@@ -188,11 +188,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       // Consolidate: if an item with the same preset (or same name+category when custom)
       // already exists, merge into it instead of creating a duplicate.
       const nameKey = trimmed.toLowerCase();
-      const existing = items.find((it) =>
-        presetId !== "custom"
-          ? it.presetId === presetId
-          : !it.presetId && it.name.trim().toLowerCase() === nameKey && it.category === category
-      );
+      const existing =
+        items.find((it) =>
+          presetId !== "custom" && it.presetId === presetId && it.category === category
+        )
+        // Fallback: match by name + category regardless of preset, so custom items
+        // and preset-linked variants still consolidate into a single record.
+        ?? items.find((it) => it.name.trim().toLowerCase() === nameKey && it.category === category);
 
       if (existing) {
         // Update descriptive fields that the user may have changed
