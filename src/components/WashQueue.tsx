@@ -55,7 +55,10 @@ interface WashQueueProps {
   orders: WashOrder[];
   onUpdateStatus?: (id: string, status: WashStatus) => Promise<void> | void;
   onUpdateNotes?: (id: string, notes: string) => Promise<boolean> | void;
+  onApproveDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
+  onRejectDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
 }
+
 
 type SortKey = "completed" | "amount" | "customer";
 type SortDir = "asc" | "desc";
