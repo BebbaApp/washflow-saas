@@ -393,8 +393,9 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       actorName: profilesMap[a.acted_by] || "Admin",
     }));
     list.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-    return list.slice(0, 500);
+    return list;
   }, [auditRows, profilesMap]);
+
 
   const loading =
     profilesLoading ||
