@@ -8,6 +8,9 @@ type Row = {
   tenant_id: string;
   business_name: string;
   business_line2: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
   footer: string;
   updated_at?: string;
 };
@@ -16,6 +19,9 @@ function rowToSettings(row: Row): ReceiptSettings {
   return {
     businessName: row.business_name,
     businessLine2: row.business_line2,
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    address: row.address ?? "",
     footer: row.footer,
   };
 }
@@ -59,6 +65,9 @@ export function useReceiptSettings() {
       const row: Partial<Row> = { tenant_id: tenantId };
       if (patch.businessName !== undefined) row.business_name = patch.businessName;
       if (patch.businessLine2 !== undefined) row.business_line2 = patch.businessLine2;
+      if (patch.phone !== undefined) row.phone = patch.phone;
+      if (patch.email !== undefined) row.email = patch.email;
+      if (patch.address !== undefined) row.address = patch.address;
       if (patch.footer !== undefined) row.footer = patch.footer;
       const { error: err } = await (supabase as any)
         .from("receipt_settings")

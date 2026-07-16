@@ -36,6 +36,9 @@ export type ReceiptSegment = ReceiptLine | ReceiptRule | ReceiptBlank | ReceiptC
 export interface ReceiptSettings {
   businessName: string;
   businessLine2: string;
+  phone: string;
+  email: string;
+  address: string;
   footer: string;
 }
 
@@ -48,11 +51,21 @@ export interface ReceiptBuildOpts {
 const DEFAULT_SETTINGS: ReceiptSettings = {
   businessName: "Washflow Saas",
   businessLine2: "Premium Car Wash",
+  phone: "",
+  email: "",
+  address: "",
   footer: "Thank you for your business!",
 };
 
 export function getDefaultReceiptSettings(): ReceiptSettings {
   return { ...DEFAULT_SETTINGS };
+}
+
+/** Format a date as "16 July 2026" — used on receipts and PDF exports. */
+export function formatReceiptDate(d: Date): string {
+  const day = d.getDate();
+  const month = d.toLocaleString(undefined, { month: "long" });
+  return `${day} ${month} ${d.getFullYear()}`;
 }
 
 export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): ReceiptSegment[] {
@@ -64,12 +77,23 @@ export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): Rec
   if (settings.businessLine2.trim()) {
     segs.push({ kind: "text", text: settings.businessLine2, align: "center", bold: true });
   }
+  if (settings.address && settings.address.trim()) {
+    for (const line of wrap(settings.address.trim(), LINE_WIDTH)) {
+      segs.push({ kind: "text", text: line, align: "center" });
+    }
+  }
+  if (settings.phone && settings.phone.trim()) {
+    segs.push({ kind: "text", text: `Tel: ${settings.phone.trim()}`, align: "center" });
+  }
+  if (settings.email && settings.email.trim()) {
+    segs.push({ kind: "text", text: settings.email.trim(), align: "center" });
+  }
   segs.push({ kind: "blank" });
 
   // Order info
   segs.push({ kind: "cols", left: "Order:", right: order.orderNumber });
   const completed = order.completedAt ? new Date(order.completedAt) : new Date();
-  segs.push({ kind: "cols", left: "Date:", right: completed.toLocaleDateString() });
+  segs.push({ kind: "cols", left: "Date:", right: formatReceiptDate(completed) });
   segs.push({
     kind: "cols",
     left: "Time:",
