@@ -512,7 +512,10 @@ export function AttendancePage() {
                 </Select>
               </div>
               <Button variant="outline" size="sm" onClick={exportSummary} className="ml-auto">
-                <Download className="w-4 h-4 mr-1" /> Export Summary
+                <Download className="w-4 h-4 mr-1" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportSummaryPdf}>
+                <FileText className="w-4 h-4 mr-1" /> PDF
               </Button>
             </div>
 
