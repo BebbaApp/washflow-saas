@@ -515,6 +515,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
                   DISCOUNT −{formatPrice(o.discount ?? 0)}
                 </div>
               )}
+              {o.pendingDiscount && o.status !== "completed" && o.status !== "cancelled" && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
+                  DISCOUNT PENDING −{formatPrice(o.pendingDiscount.amount)} · {o.pendingDiscount.requestedByName}
+                </div>
+              )}
+
 
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
