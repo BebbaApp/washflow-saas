@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Download, Droplets, FlaskConical, Calculator, Link2, AlertTriangle, Wand2, FileSpreadsheet, Sparkles } from "lucide-react";
+import { Download, Droplets, FlaskConical, Calculator, Link2, AlertTriangle, Wand2, FileSpreadsheet, Sparkles, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -82,11 +83,27 @@ export const UsageReferencePanel = () => {
     CONCENTRATES.forEach((r) => rows.push([r.name, r.dilution, ...VEHICLES.map((v) => `${r.values[v]} mL`)]));
     downloadCsv("chemical-concentrate-per-vehicle.csv", rows);
   };
+  const exportConcentratePdf = () => {
+    exportTablePdf({
+      title: "Chemical concentrate per vehicle",
+      filename: "chemical-concentrate-per-vehicle.pdf",
+      headers: ["Concentrate", "Dilution", ...VEHICLES],
+      rows: CONCENTRATES.map((r) => [r.name, r.dilution, ...VEHICLES.map((v) => `${r.values[v]} mL`)]),
+    });
+  };
   const exportWater = () => {
     const header = ["Phase", ...VEHICLES];
     const rows: (string | number)[][] = [header];
     WATER.forEach((r) => rows.push([r.phase, ...VEHICLES.map((v) => `${r.values[v]} ${r.unit}`)]));
     downloadCsv("water-usage-per-vehicle.csv", rows);
+  };
+  const exportWaterPdf = () => {
+    exportTablePdf({
+      title: "Water usage per vehicle",
+      filename: "water-usage-per-vehicle.pdf",
+      headers: ["Phase", ...VEHICLES],
+      rows: WATER.map((r) => [r.phase, ...VEHICLES.map((v) => `${r.values[v]} ${r.unit}`)]),
+    });
   };
   const exportCalc = () => {
     const header = ["Vehicle", "Count"];
@@ -100,6 +117,21 @@ export const UsageReferencePanel = () => {
     rows.push(["Bucket water (L)", totals.bucketL]);
     rows.push(["Total water (L)", totals.waterL]);
     downloadCsv("wash-usage-calculation.csv", rows);
+  };
+  const exportCalcPdf = () => {
+    const rows: (string | number)[][] = [];
+    VEHICLES.forEach((v) => rows.push(["Vehicle", v, counts[v] ?? 0]));
+    totals.concentrate.forEach((c) => rows.push(["Concentrate", c.name, `${Math.round(c.mL)} mL`]));
+    rows.push(["Water", "Pressure-washer", `${totals.pressureL.toFixed(1)} L`]);
+    rows.push(["Water", "Bucket", `${totals.bucketL.toFixed(1)} L`]);
+    rows.push(["Water", "Total", `${totals.waterL.toFixed(1)} L`]);
+    exportTablePdf({
+      title: "Wash usage calculation",
+      subtitle: `Total vehicles: ${totalCars}`,
+      filename: "wash-usage-calculation.pdf",
+      headers: ["Category", "Item", "Amount"],
+      rows,
+    });
   };
 
   const handleLogUsage = async () => {
@@ -201,6 +233,38 @@ export const UsageReferencePanel = () => {
     downloadCsv("wash-inventory-usage.csv", rows);
   };
 
+  const exportWashUsagePdf = () => {
+    const washTx = transactions.filter(
+      (t) => t.delta < 0 && (/^Order\s/i.test(t.source) || /^Manual\s.*wash/i.test(t.source)),
+    );
+    if (washTx.length === 0) {
+      toast.info("No recorded wash usage yet");
+      return;
+    }
+    const headers = ["Date", "Order/Source", "Vehicle", "Item", "Qty", "Unit", "Balance", "Flow", "Notes"];
+    const pdfRows = washTx.slice().reverse().map((t) => {
+      const item = items.find((i) => i.id === t.itemId);
+      const vMatch = (t.notes ?? "").match(/\b(Sedan|SUV S\/Cab|SUV D\/Cab|Quantum|Sprinter|4T Truck|8T Truck)\b/);
+      return [
+        new Date(t.createdAt).toLocaleString(),
+        t.source,
+        vMatch ? vMatch[1] : "",
+        t.itemName,
+        Math.abs(t.delta),
+        item?.unit ?? "",
+        t.balance,
+        t.flow ?? "",
+        t.notes ?? "",
+      ];
+    });
+    exportTablePdf({
+      title: "Wash inventory usage",
+      filename: "wash-inventory-usage.pdf",
+      headers,
+      rows: pdfRows,
+    });
+  };
+
   const updateCount = (v: Vehicle, val: string) => {
     const n = Math.max(0, parseInt(val || "0", 10) || 0);
     setCounts((prev) => ({ ...prev, [v]: n }));
@@ -220,14 +284,24 @@ export const UsageReferencePanel = () => {
               Enter how many of each vehicle type you'll wash. We'll compute total chemical concentrate and water needed.
             </p>
           </div>
-          <button
-            onClick={exportCalc}
-            disabled={totalCars === 0}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportCalc}
+              disabled={totalCars === 0}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+            <button
+              onClick={exportCalcPdf}
+              disabled={totalCars === 0}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
           {VEHICLES.map((v) => (
@@ -295,7 +369,15 @@ export const UsageReferencePanel = () => {
               title="Export recorded wash inventory usage as CSV"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span className="hidden sm:inline">Export usage</span>
+              <span className="hidden sm:inline">Usage CSV</span>
+            </button>
+            <button
+              onClick={exportWashUsagePdf}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90"
+              title="Export recorded wash inventory usage as PDF"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Usage PDF</span>
             </button>
           </div>
         </div>
@@ -420,10 +502,16 @@ export const UsageReferencePanel = () => {
               Neat product before dilution. Lower pressure (130 bar) means slightly more shampoo dwell time needed.
             </p>
           </div>
-          <button onClick={exportConcentrate} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={exportConcentrate} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+            <button onClick={exportConcentratePdf} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-separate border-spacing-0">
@@ -467,10 +555,16 @@ export const UsageReferencePanel = () => {
               Calculated at 7.5 L/min trigger time. Trigger times slightly longer than higher-flow machines because lower flow = more dwell time needed to shift dirt.
             </p>
           </div>
-          <button onClick={exportWater} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={exportWater} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+            <button onClick={exportWaterPdf} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-separate border-spacing-0">

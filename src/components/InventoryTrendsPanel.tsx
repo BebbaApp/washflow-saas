@@ -9,7 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Clock, Download, Package } from "lucide-react";
+import { Clock, Download, Package, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { useInventory, type InventoryItem, type InventoryTransaction } from "@/hooks/useInventory";
 import { InventoryItemDetailsModal } from "@/components/InventoryItemDetailsModal";
 
@@ -131,10 +132,37 @@ export function InventoryTrendsPanel() {
     downloadCsv(`depletion-forecast-${rangeLabel}.csv`, [header, ...data]);
   };
 
+  const exportForecastPdf = () => {
+    const headers = ["Item", "Category", "Stock", "Unit", "Threshold", "Weekly Use", "Days to Threshold"];
+    const rows = sortedForecast.map((r) => [
+      r.name, r.category, r.stock, r.unit, r.threshold, r.weeklyUse,
+      isFinite(r.daysToThreshold) ? Math.round(r.daysToThreshold) : "—",
+    ]);
+    exportTablePdf({
+      title: "Depletion forecast",
+      subtitle: `Range: last ${rangeDays} days`,
+      filename: `depletion-forecast-${rangeLabel}.pdf`,
+      headers,
+      rows,
+    });
+  };
+
   const exportUsage = () => {
     const header = ["Item", "Weekly Use", "Range (days)"];
     const data = usageChartData.map((r) => [r.name, r.weeklyUse, rangeDays]);
     downloadCsv(`weekly-usage-${rangeLabel}.csv`, [header, ...data]);
+  };
+
+  const exportUsagePdf = () => {
+    const headers = ["Item", "Weekly Use", "Range (days)"];
+    const rows = usageChartData.map((r) => [r.name, r.weeklyUse, rangeDays]);
+    exportTablePdf({
+      title: "Estimated weekly usage",
+      subtitle: `Range: last ${rangeDays} days`,
+      filename: `weekly-usage-${rangeLabel}.pdf`,
+      headers,
+      rows,
+    });
   };
 
   const selectedItem: InventoryItem | null =
@@ -295,6 +323,12 @@ export function InventoryTrendsPanel() {
             >
               <Download className="w-3.5 h-3.5" /> CSV
             </button>
+            <button
+              onClick={exportUsagePdf}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </button>
           </div>
         </div>
         <div className="h-72">
@@ -342,6 +376,12 @@ export function InventoryTrendsPanel() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
             >
               <Download className="w-3.5 h-3.5" /> CSV
+            </button>
+            <button
+              onClick={exportForecastPdf}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              <FileText className="w-3.5 h-3.5" /> PDF
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import {
   LineChart,
   Line,
@@ -282,6 +283,46 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     toast.success("Inventory exported");
   };
 
+  const exportPdf = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (tab === "history") {
+      if (transactions.length === 0) return toast.error("No transactions to export");
+      exportTablePdf({
+        title: "Inventory transactions",
+        subtitle: `Generated ${stamp}`,
+        filename: `inventory-transactions-${stamp}.pdf`,
+        headers: ["Timestamp", "Item", "Type", "Source", "Delta", "Balance", "Notes"],
+        rows: transactions.map((t) => [
+          new Date(t.createdAt).toLocaleString(),
+          t.itemName,
+          t.type,
+          t.source,
+          String(t.delta),
+          Number(t.balance).toFixed(2),
+          t.notes ?? "",
+        ]),
+      });
+      toast.success("Transactions exported");
+      return;
+    }
+    if (items.length === 0) return toast.error("No items to export");
+    exportTablePdf({
+      title: "Inventory",
+      subtitle: `Generated ${stamp}`,
+      filename: `inventory-${stamp}.pdf`,
+      headers: ["Name", "Category", "Quantity", "Unit", "Threshold", "Status"],
+      rows: items.map((i) => [
+        i.name,
+        i.category,
+        String(i.quantity),
+        i.unit,
+        String(i.threshold),
+        stockState(i).label,
+      ]),
+    });
+    toast.success("Inventory exported");
+  };
+
   return (
     <div className="space-y-6">
       {/* Stat cards */}
@@ -327,13 +368,22 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             </button>
           )}
           {canExport && (
-            <button
-              onClick={exportCsv}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export CSV</span>
-            </button>
+            <>
+              <button
+                onClick={exportCsv}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </button>
+              <button
+                onClick={exportPdf}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Export PDF</span>
+              </button>
+            </>
           )}
         </div>
       </div>

@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   LogIn, LogOut, UserCheck, Camera, Clock, Search, ShieldCheck,
-  Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX,
+  Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX, FileText,
 } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 
 interface StaffOption { user_id: string; name: string; role: string; }
 
@@ -252,6 +253,29 @@ export function AttendancePage() {
     downloadCsv(`attendance_${from}_to_${to}.csv`, toCsv([header, ...rows]));
   };
 
+  const handleExportRecordsPdf = () => {
+    const headers = ["Date", "Time", "Staff", "Kind", "Status", "Score", "Notes"];
+    const rows = filtered.map((r) => {
+      const d = new Date(r.created_at);
+      return [
+        d.toISOString().slice(0, 10),
+        d.toLocaleTimeString([], { hour12: false }),
+        r.staffName || "",
+        r.kind,
+        r.status,
+        r.match_score ?? "",
+        r.notes ?? "",
+      ];
+    });
+    exportTablePdf({
+      title: "Attendance records",
+      subtitle: `Range: ${from} → ${to}`,
+      filename: `attendance_${from}_to_${to}.pdf`,
+      headers,
+      rows,
+    });
+  };
+
   // === Summary report aggregation ===
   // Pair check-ins with the next check-out per user to compute hours worked.
   const summary = useMemo(() => {
@@ -304,6 +328,18 @@ export function AttendancePage() {
     const header = ["Period", "Staff", "Check-ins", "Late Count", "Total Late (min)", "Hours Worked"];
     const rows = summary.map((s) => [s.period, s.staffName, s.checkIns, s.lateCount, s.totalLateMin, s.hoursWorked.toFixed(2)]);
     downloadCsv(`attendance_summary_${from}_to_${to}.csv`, toCsv([header, ...rows]));
+  };
+
+  const exportSummaryPdf = () => {
+    const headers = ["Period", "Staff", "Check-ins", "Late", "Late (min)", "Hours"];
+    const rows = summary.map((s) => [s.period, s.staffName, s.checkIns, s.lateCount, s.totalLateMin, s.hoursWorked.toFixed(2)]);
+    exportTablePdf({
+      title: `Attendance summary (${reportGroup === "day" ? "daily" : "weekly"})`,
+      subtitle: `Range: ${from} → ${to}`,
+      filename: `attendance_summary_${from}_to_${to}.pdf`,
+      headers,
+      rows,
+    });
   };
 
   const submitOverride = async () => {
@@ -381,6 +417,9 @@ export function AttendancePage() {
             <div className="flex gap-2 ml-auto">
               <Button variant="outline" size="sm" onClick={handleExportRecords}>
                 <Download className="w-4 h-4 mr-1" /> Export CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportRecordsPdf}>
+                <FileText className="w-4 h-4 mr-1" /> Export PDF
               </Button>
               {canOverride && (
                 <Button size="sm" onClick={() => setOverrideOpen(true)}>
@@ -473,7 +512,10 @@ export function AttendancePage() {
                 </Select>
               </div>
               <Button variant="outline" size="sm" onClick={exportSummary} className="ml-auto">
-                <Download className="w-4 h-4 mr-1" /> Export Summary
+                <Download className="w-4 h-4 mr-1" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportSummaryPdf}>
+                <FileText className="w-4 h-4 mr-1" /> PDF
               </Button>
             </div>
 

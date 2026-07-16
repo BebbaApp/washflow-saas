@@ -3,7 +3,8 @@ import { useOwnerOverview } from "@/hooks/useOwnerOverview";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const METRICS = [
@@ -60,6 +61,27 @@ export function OwnerCompareReports() {
     a.click(); URL.revokeObjectURL(url);
   };
 
+  const exportPdf = () => {
+    const headers = ["Workspace", "Revenue", "Expenses", "Net", "Orders", "Completed", "Avg wait (min)", "Workers", "Top service"];
+    const rows = active.map((t) => [
+      t.name,
+      formatPrice(t.revenue),
+      formatPrice(t.expenses),
+      formatPrice(t.revenue - t.expenses),
+      t.orders_count,
+      t.completed_count,
+      t.avg_wait_minutes,
+      t.workers_total,
+      t.top_service ?? "",
+    ]);
+    exportTablePdf({
+      title: "Workspaces comparison",
+      filename: `workspaces-compare-${new Date().toISOString().slice(0, 10)}.pdf`,
+      headers,
+      rows,
+    });
+  };
+
   if (isLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
 
   return (
@@ -82,9 +104,12 @@ export function OwnerCompareReports() {
             {m.label}
           </Button>
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={exportCsv} className="gap-1">
             <Download className="w-3.5 h-3.5" /> Export CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportPdf} className="gap-1">
+            <FileText className="w-3.5 h-3.5" /> Export PDF
           </Button>
         </div>
       </div>

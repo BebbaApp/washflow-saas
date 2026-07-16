@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Gift, Trophy, Users, Search, CreditCard, Award, Calendar, Car, History, Phone as PhoneIcon, Sparkles, Download, ArrowUpDown } from "lucide-react";
+import { Gift, Trophy, Users, Search, CreditCard, Award, Calendar, Car, History, Phone as PhoneIcon, Sparkles, Download, ArrowUpDown, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { useOrders, type WashOrder } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatPhone, phoneDigits } from "@/lib/phone";
@@ -416,6 +417,43 @@ export const LoyaltyDashboard = () => {
     toast.success(`Exported ${filtered.length} customer${filtered.length !== 1 ? "s" : ""} to CSV`);
   };
 
+  const handleExportPdf = () => {
+    if (filtered.length === 0) {
+      toast.error("Nothing to export");
+      return;
+    }
+    const headers = [
+      "Rank", "Name", "Phone", "Plates", "Visits", "Total Spend",
+      "Points", "Eligible", "Next in", "Last Visit",
+    ];
+    const rows = filtered.map((m, i) => {
+      const eligible = m.loyaltyPoints >= FREE_WASH_COST;
+      const nextRewardVisits = eligible
+        ? 0
+        : Math.ceil((FREE_WASH_COST - m.loyaltyPoints) / POINTS_PER_WASH);
+      return [
+        i + 1,
+        m.name,
+        m.phones[0] ? formatPhone(m.phones[0]) : "",
+        m.plates.join(" / "),
+        m.totalWashes,
+        m.totalSpend.toFixed(2),
+        m.loyaltyPoints,
+        eligible ? "Yes" : "No",
+        nextRewardVisits,
+        new Date(m.lastVisit).toLocaleDateString(),
+      ];
+    });
+    exportTablePdf({
+      title: "Loyalty leaderboard",
+      subtitle: `Range: ${range} · Sort: ${sortKey}`,
+      filename: `loyalty-leaderboard-${range}-${sortKey}-${new Date().toISOString().slice(0, 10)}.pdf`,
+      headers,
+      rows,
+    });
+    toast.success(`Exported ${filtered.length} customer${filtered.length !== 1 ? "s" : ""} to PDF`);
+  };
+
   return (
     <div className="space-y-5 -mt-4">
       {/* Toolbar */}
@@ -504,6 +542,12 @@ export const LoyaltyDashboard = () => {
               className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary/10 text-primary border border-primary/30 text-xs font-semibold hover:bg-primary/20 transition-colors self-start sm:self-auto"
             >
               <Download className="w-3.5 h-3.5" /> Export CSV
+            </button>
+            <button
+              onClick={handleExportPdf}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary/10 text-primary border border-primary/30 text-xs font-semibold hover:bg-primary/20 transition-colors self-start sm:self-auto"
+            >
+              <FileText className="w-3.5 h-3.5" /> Export PDF
             </button>
           </>
         )}

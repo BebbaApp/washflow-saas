@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
+import { exportTablePdf } from "@/lib/pdfExport";
 
 interface Overview {
   range: { from: string; to: string };
@@ -153,6 +154,30 @@ export function ConsoleDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const exportPdf = () => {
+    if (!data) return;
+    const rows: (string | number)[][] = [];
+    rows.push(["Totals", "Revenue", fmt.format(data.totals.revenue)]);
+    rows.push(["Totals", "Expenses", fmt.format(data.totals.expenses)]);
+    rows.push(["Totals", "Net profit", fmt.format(data.totals.net_profit)]);
+    rows.push(["Totals", "Invoiced (paid)", fmt.format(data.totals.invoice_revenue)]);
+    rows.push(["Totals", "Orders", data.totals.orders]);
+    rows.push(["Totals", "Completed orders", data.totals.completed_orders]);
+    data.top_services.forEach((s) =>
+      rows.push([`Top: ${s.service}`, `${s.count} orders`, fmt.format(s.revenue)]),
+    );
+    data.expense_categories.forEach((c) =>
+      rows.push([`Expense: ${c.category}`, "", fmt.format(c.amount)]),
+    );
+    exportTablePdf({
+      title: "Platform console report",
+      subtitle: `Range: ${data.range.from} → ${data.range.to}`,
+      filename: `console-report-${from}_${to}.pdf`,
+      headers: ["Section", "Detail", "Value"],
+      rows,
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="glass-card p-4 space-y-3">
@@ -181,6 +206,9 @@ export function ConsoleDashboard() {
           <div className="flex-1" />
           <Button variant="outline" onClick={exportCsv} disabled={!data}>
             <Download className="w-4 h-4 mr-2" /> Export CSV
+          </Button>
+          <Button variant="outline" onClick={exportPdf} disabled={!data}>
+            <FileText className="w-4 h-4 mr-2" /> Export PDF
           </Button>
           <Button variant="outline" onClick={() => window.print()} disabled={!data}>
             <FileText className="w-4 h-4 mr-2" /> Print report
