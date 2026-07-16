@@ -60,12 +60,15 @@ Deno.serve(async (req) => {
     // Load the order.
     const { data: order, error: orderErr } = await admin
       .from("orders")
-      .select("id, order_number, tenant_id")
+      .select("id, order_number, tenant_id, status, notes")
       .eq("id", order_id)
       .eq("tenant_id", tenant_id)
       .maybeSingle();
     if (orderErr) return json({ error: orderErr.message }, 500);
     if (!order) return json({ error: "Order not found" }, 404);
+    if ((order as { status: string }).status === "deleted") {
+      return json({ error: "Order already deleted" }, 400);
+    }
 
     const source = `Order ${order.order_number}`;
 
@@ -121,10 +124,15 @@ Deno.serve(async (req) => {
     // Delete loyalty transactions linked to this order.
     await admin.from("loyalty_transactions").delete().eq("tenant_id", tenant_id).eq("order_id", order_id);
 
-    // Finally, delete the order.
+    // Soft-delete the order: keep the row so it stays visible in the Deleted
+    // tab of History, but mark it as deleted and record who/when in notes.
+    const stamp = new Date().toISOString();
+    const marker = `[DELETED ${stamp} by ${callerEmail || callerId}]`;
+    const existingNotes = ((order as { notes: string | null }).notes ?? "").trim();
+    const nextNotes = existingNotes ? `${existingNotes}\n${marker}` : marker;
     const { error: delErr } = await admin
       .from("orders")
-      .delete()
+      .update({ status: "deleted", notes: nextNotes, updated_at: stamp })
       .eq("id", order_id)
       .eq("tenant_id", tenant_id);
     if (delErr) return json({ error: delErr.message }, 500);

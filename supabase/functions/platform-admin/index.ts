@@ -67,7 +67,7 @@ const ActionSchema = z.discriminatedUnion("action", [
     tenant_id: z.string().uuid().optional() }),
   z.object({ action: z.literal("history_orders"),
     tenant_id: z.string().uuid(),
-    status: z.enum(["all", "completed", "cancelled"]).default("all"),
+    status: z.enum(["all", "completed", "cancelled", "deleted"]).default("all"),
     cancelled_reason: z.enum(["all", "with", "without"]).default("all"),
     query: z.string().max(120).optional(),
     from: z.string().optional(),

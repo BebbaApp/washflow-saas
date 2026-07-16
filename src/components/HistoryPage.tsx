@@ -30,18 +30,20 @@ interface HistoryPageProps {
   orders?: WashOrder[];
 }
 
-type Filter = "all" | "completed" | "cancelled";
+type Filter = "all" | "completed" | "cancelled" | "deleted";
 type CancelledSub = "all" | "with" | "without";
 type DatePreset = "all" | "7d" | "30d" | "90d" | "custom";
 
 const statusStyles: Record<string, string> = {
   completed: "bg-success/15 text-success",
   cancelled: "bg-destructive/15 text-destructive",
+  deleted: "bg-muted text-muted-foreground",
 };
 
 const statusLabel: Record<string, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
+  deleted: "Deleted",
 };
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -130,7 +132,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
-  const [counts, setCounts] = useState({ completed: 0, cancelled: 0 });
+  const [counts, setCounts] = useState({ completed: 0, cancelled: 0, deleted: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
@@ -260,15 +262,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         offset: 0,
         limit: 1,
       };
-      const [total, completed, cancelled] = await Promise.all([
+      const [total, completed, cancelled, deleted] = await Promise.all([
         supabase.functions.invoke("platform-admin", { body: { ...common, status: filter, cancelled_reason: cancelledSub } }),
         supabase.functions.invoke("platform-admin", { body: { ...common, status: "completed", cancelled_reason: "all" } }),
         supabase.functions.invoke("platform-admin", { body: { ...common, status: "cancelled", cancelled_reason: "all" } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "deleted", cancelled_reason: "all" } }),
       ]);
       setTotalCount(Number((total.data as any)?.count ?? 0));
       setCounts({
         completed: Number((completed.data as any)?.count ?? 0),
         cancelled: Number((cancelled.data as any)?.count ?? 0),
+        deleted: Number((deleted.data as any)?.count ?? 0),
       });
       setTotalAmountAll(0);
       return;
@@ -296,11 +300,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
       return q;
     };
-    const [{ count: completedC }, { count: cancelledC }] = await Promise.all([
+    const [{ count: completedC }, { count: cancelledC }, { count: deletedC }] = await Promise.all([
       baseDateSearch(true).eq("status", "completed"),
       baseDateSearch(true).eq("status", "cancelled"),
+      baseDateSearch(true).eq("status", "deleted"),
     ]);
-    setCounts({ completed: completedC || 0, cancelled: cancelledC || 0 });
+    setCounts({ completed: completedC || 0, cancelled: cancelledC || 0, deleted: deletedC || 0 });
 
     // Amount sum: PostgREST doesn't have an aggregate select here without RPC, so
     // approximate by summing the loaded rows for the visible total chip. We keep the
@@ -533,6 +538,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     { id: "all", label: `All (${counts.completed + counts.cancelled})` },
     { id: "completed", label: `Completed (${counts.completed})` },
     { id: "cancelled", label: `Cancelled (${counts.cancelled})` },
+    { id: "deleted", label: `Deleted (${counts.deleted})` },
   ];
 
   const datePresets: { id: DatePreset; label: string }[] = [
@@ -859,7 +865,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {canDelete && (
+                          {canDelete && o.status !== "deleted" && (
                             <button
                               onClick={() => handleDeleteOrder(o)}
                               disabled={deletingId === o.id}
