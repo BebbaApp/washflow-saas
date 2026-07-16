@@ -769,10 +769,10 @@ export const HistoryPage = (_props: HistoryPageProps) => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">Loading…</td></tr>
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">Loading…</td></tr>
               ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
                     No matching history. Adjust your filters or date range.
                   </td>
                 </tr>
