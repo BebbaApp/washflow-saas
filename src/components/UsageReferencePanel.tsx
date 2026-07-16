@@ -359,7 +359,15 @@ export const UsageReferencePanel = () => {
               title="Export recorded wash inventory usage as CSV"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span className="hidden sm:inline">Export usage</span>
+              <span className="hidden sm:inline">Usage CSV</span>
+            </button>
+            <button
+              onClick={exportWashUsagePdf}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90"
+              title="Export recorded wash inventory usage as PDF"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Usage PDF</span>
             </button>
           </div>
         </div>
