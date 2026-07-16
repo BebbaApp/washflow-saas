@@ -631,6 +631,15 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                           <Minus className="w-4 h-4" />
                         </button>
                       )}
+                      {duplicateInfo.primaryOf.has(item.id) && duplicateInfo.primaryOf.get(item.id) !== item.id && (
+                        <button
+                          onClick={() => mergeOneItem(item.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
+                          title="Merge into primary duplicate"
+                        >
+                          <GitMerge className="w-4 h-4" />
+                        </button>
+                      )}
                       {canEdit && (
                         <button
                           onClick={() => startEdit(item)}
