@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     if (attendanceNotes.length > 1000) return reply({ error: "attendance_notes_too_long" }, 400);
   }
 
-  const admin = createClient(url, service);
+  // `admin` already created above.
 
   // Verify caller is a member of this tenant with an admin-ish role
   // (or a platform/super admin).
