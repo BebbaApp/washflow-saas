@@ -484,10 +484,16 @@ export const UsageReferencePanel = () => {
               Neat product before dilution. Lower pressure (130 bar) means slightly more shampoo dwell time needed.
             </p>
           </div>
-          <button onClick={exportConcentrate} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={exportConcentrate} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+            <button onClick={exportConcentratePdf} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-separate border-spacing-0">
