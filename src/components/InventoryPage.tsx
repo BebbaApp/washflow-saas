@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import {
   LineChart,
   Line,
