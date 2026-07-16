@@ -124,10 +124,15 @@ Deno.serve(async (req) => {
     // Delete loyalty transactions linked to this order.
     await admin.from("loyalty_transactions").delete().eq("tenant_id", tenant_id).eq("order_id", order_id);
 
-    // Finally, delete the order.
+    // Soft-delete the order: keep the row so it stays visible in the Deleted
+    // tab of History, but mark it as deleted and record who/when in notes.
+    const stamp = new Date().toISOString();
+    const marker = `[DELETED ${stamp} by ${callerEmail || callerId}]`;
+    const existingNotes = ((order as { notes: string | null }).notes ?? "").trim();
+    const nextNotes = existingNotes ? `${existingNotes}\n${marker}` : marker;
     const { error: delErr } = await admin
       .from("orders")
-      .delete()
+      .update({ status: "deleted", notes: nextNotes, updated_at: stamp })
       .eq("id", order_id)
       .eq("tenant_id", tenant_id);
     if (delErr) return json({ error: delErr.message }, 500);
