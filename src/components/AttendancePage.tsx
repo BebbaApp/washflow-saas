@@ -345,13 +345,16 @@ export function AttendancePage() {
 
   const submitOverride = async () => {
     if (!overrideForm.targetUserId) { return; }
+    const whenIso = overrideForm.whenLocal ? new Date(overrideForm.whenLocal).toISOString() : undefined;
     const r = await manualOverride({
       targetUserId: overrideForm.targetUserId,
       kind: overrideForm.kind,
       reason: overrideForm.reason,
+      whenIso,
     });
-    if (r) { setOverrideOpen(false); setOverrideForm({ targetUserId: "", kind: "check_in", reason: "" }); }
+    if (r) { setOverrideOpen(false); setOverrideForm({ targetUserId: "", kind: "check_in", reason: "", whenLocal: "" }); }
   };
+
 
   // Default tab: "log" for everyone — check-in lives on the Staff page now.
   // A `?sub=` URL param can preselect a specific sub-tab (e.g. ?sub=enroll
