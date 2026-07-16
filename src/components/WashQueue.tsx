@@ -40,6 +40,7 @@ const statusBadge: Record<WashStatus, string> = {
   "in-progress": "bg-info/10 text-info border-info/20",
   "completed": "bg-success/10 text-success border-success/20",
   "cancelled": "bg-destructive/10 text-destructive border-destructive/20",
+  "deleted": "bg-muted text-muted-foreground border-border",
 };
 
 const statusLabel: Record<WashStatus, string> = {
@@ -47,6 +48,7 @@ const statusLabel: Record<WashStatus, string> = {
   "in-progress": "In Progress",
   "completed": "Completed",
   "cancelled": "Cancelled",
+  "deleted": "Deleted",
 };
 
 interface WashQueueProps {
