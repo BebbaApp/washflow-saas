@@ -207,6 +207,9 @@ export function ConsoleDashboard() {
           <Button variant="outline" onClick={exportCsv} disabled={!data}>
             <Download className="w-4 h-4 mr-2" /> Export CSV
           </Button>
+          <Button variant="outline" onClick={exportPdf} disabled={!data}>
+            <FileText className="w-4 h-4 mr-2" /> Export PDF
+          </Button>
           <Button variant="outline" onClick={() => window.print()} disabled={!data}>
             <FileText className="w-4 h-4 mr-2" /> Print report
           </Button>
