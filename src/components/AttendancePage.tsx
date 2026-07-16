@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   LogIn, LogOut, UserCheck, Camera, Clock, Search, ShieldCheck,
-  Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX,
+  Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX, FileText,
 } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 
 interface StaffOption { user_id: string; name: string; role: string; }
 
