@@ -100,9 +100,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Resolve the authorizer via staff_pins (phone or email), scoped to tenant.
+    // Resolve the authorizer via staff_pins (phone or email). We do NOT scope
+    // the PIN lookup by tenant_id — some legacy rows may have a null or
+    // different tenant_id yet still be the user's active PIN. We enforce
+    // tenant membership + required role on the resolved user_id below.
     const isEmail = rawId.includes("@");
-    let rec: { user_id: string; pin_hash: string } | null = null;
+    const candidates: { user_id: string; pin_hash: string }[] = [];
     let lookupDiag = "";
 
     if (isEmail) {
@@ -112,12 +115,11 @@ Deno.serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
         { db: { schema: "auth" as any } },
       );
-      const { data: userRow, error: userErr } = await authAdmin
+      const { data: userRow } = await authAdmin
         .from("users" as any)
         .select("id, email")
         .ilike("email", target)
         .maybeSingle();
-      if (userErr) console.error("verify-authorizer-pin: auth lookup err", userErr);
       const foundUserId = (userRow as any)?.id ?? null;
       if (!foundUserId) {
         lookupDiag = "no_auth_user";
@@ -125,31 +127,26 @@ Deno.serve(async (req) => {
         const { data } = await admin
           .from("staff_pins")
           .select("user_id, pin_hash")
-          .eq("user_id", foundUserId)
-          .eq("tenant_id", tenant_id)
-          .maybeSingle();
-        rec = data ?? null;
-        if (!rec) lookupDiag = "user_has_no_pin_in_tenant";
+          .eq("user_id", foundUserId);
+        for (const r of data ?? []) candidates.push(r as any);
+        if (!candidates.length) lookupDiag = "user_has_no_pin";
       }
     } else {
       const variants = new Set(phoneVariants(rawId));
-      const { data: pins, error: pinsErr } = await admin
+      const { data: pins } = await admin
         .from("staff_pins")
-        .select("user_id, pin_hash, phone")
-        .eq("tenant_id", tenant_id);
-      if (pinsErr) console.error("verify-authorizer-pin: pins lookup err", pinsErr);
-      const match = (pins ?? []).find((row: any) =>
-        phoneVariants(String(row.phone ?? "")).some((k) => variants.has(k)),
-      );
-      rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
-      if (!rec) lookupDiag = "no_phone_match_in_tenant";
+        .select("user_id, pin_hash, phone");
+      for (const row of pins ?? []) {
+        if (phoneVariants(String((row as any).phone ?? "")).some((k) => variants.has(k))) {
+          candidates.push({ user_id: (row as any).user_id, pin_hash: (row as any).pin_hash });
+        }
+      }
+      if (!candidates.length) lookupDiag = "no_phone_match";
     }
 
-    if (!rec) {
-      const msg = lookupDiag === "user_has_no_pin_in_tenant"
-        ? "That user has no PIN set in this workspace. Ask an admin to set one in Staff settings."
-        : lookupDiag === "no_auth_user"
-        ? "No account found with that email in this workspace."
+    if (!candidates.length) {
+      const msg = lookupDiag === "no_auth_user"
+        ? "No account found with that email."
         : "No PIN found for that phone or email. Ask an admin to set one in Staff settings.";
       return new Response(
         JSON.stringify({ error: msg, diag: lookupDiag }),
@@ -157,7 +154,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!bcrypt.compareSync(pinStr, rec.pin_hash)) {
+    const rec = candidates.find((c) => bcrypt.compareSync(pinStr, c.pin_hash)) ?? null;
+    if (!rec) {
       return new Response(JSON.stringify({ error: "Invalid PIN" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
