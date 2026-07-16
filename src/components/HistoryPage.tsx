@@ -872,7 +872,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {canDelete && (
+                          {canDelete && !isDeleted(o.notes) && (
                             <button
                               onClick={() => handleDeleteOrder(o)}
                               disabled={deletingId === o.id}
