@@ -99,11 +99,25 @@ Deno.serve(async (req) => {
       created_at: attendanceCreatedAt,
     };
 
-    const { data: insertedRecord, error: attendanceError } = await admin
+    // Try the caller-scoped insert first so database triggers that inspect
+    // auth.uid() can recognize the admin actor and allow manual overrides.
+    // If the JWT tenant claim is stale and RLS blocks it, fall back to the
+    // already-authorized service-role insert.
+    let insertResult = await userClient
       .from("attendance_records")
       .insert(attendanceRow)
       .select("id,tenant_id,user_id,kind,selfie_url,match_score,status,notes,created_at")
       .single();
+
+    if (insertResult.error) {
+      insertResult = await admin
+        .from("attendance_records")
+        .insert(attendanceRow)
+        .select("id,tenant_id,user_id,kind,selfie_url,match_score,status,notes,created_at")
+        .single();
+    }
+
+    const { data: insertedRecord, error: attendanceError } = insertResult;
     if (attendanceError) return reply({ error: attendanceError.message }, 500);
     attendanceRow = insertedRecord;
     attendanceId = insertedRecord.id;
