@@ -721,6 +721,21 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           </div>
         )}
 
+        {/* Deleted filter */}
+        <div className="inline-flex items-center bg-card border border-border rounded-full p-1">
+          {deletedTabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setDeletedShow(t.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                deletedShow === t.id ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Date range */}
         <div className="inline-flex items-center bg-card border border-border rounded-full p-1">
           {datePresets.map((p) => (
