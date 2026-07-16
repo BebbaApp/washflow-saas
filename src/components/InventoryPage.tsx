@@ -41,6 +41,7 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { UsageReferencePanel } from "@/components/UsageReferencePanel";
+import { InventoryItemDetailsModal } from "@/components/InventoryItemDetailsModal";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/hooks/useCurrency";
 import { BookOpen } from "lucide-react";
@@ -78,6 +79,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [undoOpen, setUndoOpen] = useState(false);
   const [adjusting, setAdjusting] = useState<{ item: InventoryItem; mode: "add" | "remove" } | null>(null);
   const [thresholdEditing, setThresholdEditing] = useState<InventoryItem | null>(null);
+  const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<InventoryCategory>(INVENTORY_CATEGORIES[0] ?? "Soap");
@@ -482,12 +484,22 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                 const state = stockState(item);
                 return (
                   <div key={item.id} className="flex items-center gap-4 p-4">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDetailsItemId(item.id)}
+                      className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
+                      title="View transaction history"
+                    >
                       <Package className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailsItemId(item.id)}
+                      className="min-w-0 flex-1 text-left group"
+                      title="View transaction history"
+                    >
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
+                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{item.name}</p>
                         <span className={`status-badge ${state.className}`}>
                           {item.quantity <= effectiveMin(item) && <AlertTriangle className="w-3 h-3 mr-1" />}
                           {state.label}
@@ -509,7 +521,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                       </p>
 
 
-                    </div>
+                    </button>
                     <div className="flex items-center gap-1">
                       {canAdjust && (
                         <button
@@ -604,6 +616,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
           toast.success("Thresholds updated");
           setThresholdEditing(null);
         }}
+      />
+
+      <InventoryItemDetailsModal
+        open={detailsItemId !== null}
+        item={items.find((i) => i.id === detailsItemId) ?? null}
+        transactions={detailsItemId ? transactions.filter((t) => t.itemId === detailsItemId) : []}
+        onOpenChange={(o) => { if (!o) setDetailsItemId(null); }}
       />
 
       <UndoDialog
