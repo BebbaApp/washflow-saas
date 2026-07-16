@@ -275,15 +275,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         offset: 0,
         limit: 1,
       };
-      const [total, completed, cancelled] = await Promise.all([
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: filter, cancelled_reason: cancelledSub } }),
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: "completed", cancelled_reason: "all" } }),
-        supabase.functions.invoke("platform-admin", { body: { ...common, status: "cancelled", cancelled_reason: "all" } }),
+      const [total, completed, cancelled, deleted] = await Promise.all([
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: filter, cancelled_reason: cancelledSub, deleted_show: deletedShow } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "completed", cancelled_reason: "all", deleted_show: "non-deleted" } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "cancelled", cancelled_reason: "all", deleted_show: "non-deleted" } }),
+        supabase.functions.invoke("platform-admin", { body: { ...common, status: "all", cancelled_reason: "all", deleted_show: "deleted" } }),
       ]);
       setTotalCount(Number((total.data as any)?.count ?? 0));
       setCounts({
         completed: Number((completed.data as any)?.count ?? 0),
         cancelled: Number((cancelled.data as any)?.count ?? 0),
+        deleted: Number((deleted.data as any)?.count ?? 0),
       });
       setTotalAmountAll(0);
       return;
