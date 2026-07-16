@@ -218,8 +218,15 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
     }
 
+    // Deleted / non-deleted toggle (server-side via notes marker)
+    if (deletedShow === "deleted") {
+      q = q.ilike("notes", "%[DELETED%");
+    } else if (deletedShow === "non-deleted") {
+      q = q.or("notes.is.null,notes.not.ilike.%[DELETED%");
+    }
+
     return q;
-  }, [filter, cancelledSub, datePreset, customRange, debouncedQuery]);
+  }, [filter, cancelledSub, deletedShow, datePreset, customRange, debouncedQuery]);
 
   // Fetch a specific page (offset). Returns the rows + range information.
   const fetchPage = useCallback(async (offset: number) => {
