@@ -4,12 +4,7 @@
 // target tenant (and has an admin-ish role) before inserting.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 const ATTENDANCE_KINDS = new Set(["check_in", "check_out"]);
