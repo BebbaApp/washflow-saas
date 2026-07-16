@@ -570,6 +570,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setQuery("");
     setFilter("all");
     setCancelledSub("all");
+    setDeletedShow("all");
     setDatePreset("all");
     setCustomRange(undefined);
     try { localStorage.removeItem(LS_SCROLL_KEY); } catch {}
@@ -577,7 +578,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
 
   const filtersActive =
-    !!query || filter !== "all" || cancelledSub !== "all" || datePreset !== "all";
+    !!query || filter !== "all" || cancelledSub !== "all" || deletedShow !== "all" || datePreset !== "all";
 
   const activeFilterChips: { key: string; label: string; onClear: () => void }[] = [];
   if (filter !== "all") {
