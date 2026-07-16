@@ -676,8 +676,9 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     reason: string;
     originalScore?: number | null;
     originalStatus?: string | null;
+    whenIso?: string | null;
   }) => {
-    const { targetUserId, kind, reason, originalScore = null, originalStatus = null } = params;
+    const { targetUserId, kind, reason, originalScore = null, originalStatus = null, whenIso = null } = params;
     if (!reason || reason.trim().length < 5) {
       toast.error("Please provide a reason (min 5 chars)."); return null;
     }
@@ -686,49 +687,72 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Not signed in"); return null; }
 
-    // Create attendance record offline-first
+    const createdAt = whenIso ?? new Date().toISOString();
+
+    // Create attendance record offline-first (allows custom created_at for backdated entries)
     const rec = await offlineInsert("attendance_records", tenantId, {
       user_id: targetUserId, kind,
       selfie_url: null, match_score: null, status: "manual",
       notes: `Admin override: ${reason}`,
+      created_at: createdAt,
     });
 
-    // Audit log — write to Supabase if online, cache locally if offline
+    // Audit log — write via service-role edge function (bypasses RLS
+    // pitfalls when the JWT lacks an active_tenant_id claim); fall back
+    // to direct insert / local cache on failure.
+    const action = originalScore != null
+      ? "override_failed_verification"
+      : kind === "check_in" ? "manual_check_in" : "manual_check_out";
     const auditEntry = {
       id: crypto.randomUUID(),
       tenant_id: tenantId,
       attendance_id: rec.id,
       target_user_id: targetUserId,
       acted_by: user.id,
-      action: originalScore != null
-        ? "override_failed_verification"
-        : kind === "check_in" ? "manual_check_in" : "manual_check_out",
+      action,
       reason: reason.trim(),
       original_score: originalScore,
       original_status: originalStatus,
-      created_at: new Date().toISOString(),
+      created_at: createdAt,
     };
 
     if (navigator.onLine) {
-      const { error: aErr } = await supabase
-        .from("attendance_audit_log").insert(auditEntry as any);
-      if (aErr) {
-        // Cache locally for retry
-        const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
-        cached.unshift(auditEntry);
-        lsSave(AUDIT_CACHE_KEY, cached);
-        toast.error("Override saved but audit log failed: " + aErr.message);
-      } else {
-        toast.success("Manual override recorded");
+      let logged = false;
+      try {
+        const { data, error } = await supabase.functions.invoke("log-attendance-audit", {
+          body: {
+            tenant_id: tenantId,
+            attendance_id: rec.id,
+            target_user_id: targetUserId,
+            action,
+            reason: reason.trim(),
+            original_score: originalScore,
+            original_status: originalStatus,
+            created_at: createdAt,
+          },
+        });
+        if (!error && !data?.error) logged = true;
+      } catch { /* fall through */ }
+
+      if (!logged) {
+        // Fallback: try direct insert; if RLS blocks it, cache locally.
+        const { error: aErr } = await supabase
+          .from("attendance_audit_log").insert(auditEntry as any);
+        if (aErr) {
+          const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
+          cached.unshift(auditEntry);
+          lsSave(AUDIT_CACHE_KEY, cached);
+          toast.warning("Override saved. Audit log cached locally and will retry.");
+        } else {
+          logged = true;
+        }
       }
+      if (logged) toast.success("Manual override recorded");
     } else {
-      // Offline: save audit entry to localStorage and queue for Supabase
       const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
       cached.unshift(auditEntry);
       lsSave(AUDIT_CACHE_KEY, cached);
       setAuditRows(cached);
-      // Queue audit log for sync (note: attendance_audit_log isn't in MIRRORED_TABLES
-      // so we push directly via outbox with a custom table flag)
       await enqueueOutbox({
         tenant_id: tenantId,
         table: "attendance_audit_log" as any,
@@ -740,6 +764,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
 
     return rec as unknown as AttendanceRecord;
   }, [tenantId]);
+
 
   const refetch = useCallback(async () => { await loadProfiles(); }, [loadProfiles]);
 
