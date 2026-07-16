@@ -132,10 +132,37 @@ export function InventoryTrendsPanel() {
     downloadCsv(`depletion-forecast-${rangeLabel}.csv`, [header, ...data]);
   };
 
+  const exportForecastPdf = () => {
+    const headers = ["Item", "Category", "Stock", "Unit", "Threshold", "Weekly Use", "Days to Threshold"];
+    const rows = sortedForecast.map((r) => [
+      r.name, r.category, r.stock, r.unit, r.threshold, r.weeklyUse,
+      isFinite(r.daysToThreshold) ? Math.round(r.daysToThreshold) : "—",
+    ]);
+    exportTablePdf({
+      title: "Depletion forecast",
+      subtitle: `Range: last ${rangeDays} days`,
+      filename: `depletion-forecast-${rangeLabel}.pdf`,
+      headers,
+      rows,
+    });
+  };
+
   const exportUsage = () => {
     const header = ["Item", "Weekly Use", "Range (days)"];
     const data = usageChartData.map((r) => [r.name, r.weeklyUse, rangeDays]);
     downloadCsv(`weekly-usage-${rangeLabel}.csv`, [header, ...data]);
+  };
+
+  const exportUsagePdf = () => {
+    const headers = ["Item", "Weekly Use", "Range (days)"];
+    const rows = usageChartData.map((r) => [r.name, r.weeklyUse, rangeDays]);
+    exportTablePdf({
+      title: "Estimated weekly usage",
+      subtitle: `Range: last ${rangeDays} days`,
+      filename: `weekly-usage-${rangeLabel}.pdf`,
+      headers,
+      rows,
+    });
   };
 
   const selectedItem: InventoryItem | null =
