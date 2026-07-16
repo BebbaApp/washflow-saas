@@ -6,7 +6,7 @@ import { db } from "@/offline/db";
 import { enqueueOutbox } from "@/offline/sync";
 import { useLiveTable } from "@/offline/useLiveTable";
 
-export type WashStatus = "waiting" | "in-progress" | "completed" | "cancelled";
+export type WashStatus = "waiting" | "in-progress" | "completed" | "cancelled" | "deleted";
 
 export interface WashOrder {
   id: string;
