@@ -64,7 +64,7 @@ type SortKey = "completed" | "amount" | "customer";
 type SortDir = "asc" | "desc";
 const PAGE_SIZE = 15;
 
-export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueueProps) => {
+export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount }: WashQueueProps) => {
   const { formatPrice } = useCurrency();
   const { eligibleOrderIds, redeemedOrderIds } = useRewardEligibility(orders);
   const { can } = usePermissions();
