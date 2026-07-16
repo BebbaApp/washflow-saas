@@ -618,6 +618,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
         }}
       />
 
+      <InventoryItemDetailsModal
+        open={detailsItemId !== null}
+        item={items.find((i) => i.id === detailsItemId) ?? null}
+        transactions={detailsItemId ? transactions.filter((t) => t.itemId === detailsItemId) : []}
+        onOpenChange={(o) => { if (!o) setDetailsItemId(null); }}
+      />
+
       <UndoDialog
         open={undoOpen}
         last={transactions[0] ?? null}
