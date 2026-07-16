@@ -313,6 +313,75 @@ export function useInventory() {
     await offlineDelete("inventory_items", tenantId, id);
   }, [tenantId]);
 
+  // Merge a duplicate inventory item into a target:
+  // - reassigns all transactions of `sourceId` to `targetId`
+  // - adds source.quantity onto target (logs an adjust entry so history is clear)
+  // - updates vehicle map / waterItemId if they referenced source
+  // - deletes source
+  const mergeItems = useCallback(async (sourceId: string, targetId: string) => {
+    if (!tenantId) return { ok: false as const, reason: "No workspace" };
+    if (sourceId === targetId) return { ok: false as const, reason: "Same item" };
+    const source = items.find((i) => i.id === sourceId);
+    const target = items.find((i) => i.id === targetId);
+    if (!source || !target) return { ok: false as const, reason: "Item not found" };
+
+    // Reassign all source transactions to target (both in Dexie and Supabase outbox)
+    const sourceTx = (txRows ?? []).filter((r: any) => r.item_id === sourceId);
+    for (const tx of sourceTx) {
+      await offlineUpdate("inventory_transactions", tenantId, tx.id, {
+        item_id: targetId,
+        item_name: target.name,
+      });
+    }
+
+    // Transfer stock and log an adjust entry on the target
+    const transferred = Number(source.quantity) || 0;
+    if (transferred > 0) {
+      await applyDeltaAndLog(target, transferred, {
+        type: "adjust",
+        source: "Merge duplicate",
+        notes: `Merged from "${source.name}" (${transferred}${source.unit ? ` ${source.unit}` : ""})`,
+        flow: "manual",
+      });
+    }
+
+    // Rewire vehicle map / water link if source was linked
+    if (waterItemId === sourceId) {
+      await setWaterItemIdSafe(targetId);
+    }
+    const linkedKeys = Object.entries(vehicleMap).filter(([, id]) => id === sourceId).map(([k]) => k);
+    for (const key of linkedKeys) {
+      await setVehicleMappingSafe(key, targetId);
+    }
+
+    // Delete the source item
+    await offlineDelete("inventory_items", tenantId, sourceId);
+    return { ok: true as const, transferred };
+  }, [items, txRows, tenantId, applyDeltaAndLog, waterItemId, vehicleMap]);
+
+  // Local helpers that mirror setWaterItem / setVehicleMapping without needing the
+  // full callbacks to be declared above. Kept lightweight (Dexie/Supabase only).
+  async function setWaterItemIdSafe(itemId: string) {
+    setWaterItemIdState(itemId);
+    lsSave(WATER_ITEM_KEY, itemId);
+    if (navigator.onLine && tenantId) {
+      supabase.from("inventory_vehicle_map" as any).upsert(
+        { tenant_id: tenantId, key: WATER_KEY, item_id: itemId },
+        { onConflict: "tenant_id,key" },
+      ).then(() => {});
+    }
+  }
+  async function setVehicleMappingSafe(key: string, itemId: string) {
+    setVehicleMap((prev) => { const next = { ...prev, [key]: itemId }; lsSave(VEHICLE_MAP_KEY, next); return next; });
+    if (navigator.onLine && tenantId) {
+      supabase.from("inventory_vehicle_map" as any).upsert(
+        { tenant_id: tenantId, key, item_id: itemId },
+        { onConflict: "tenant_id,key" },
+      ).then(() => {});
+    }
+  }
+
+
   const adjustStock = useCallback(async (itemId: string, delta: number, notes?: string, source = "Manual") => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
@@ -632,7 +701,7 @@ export function useInventory() {
 
   return {
     items, transactions, recipes, vehicleMap, waterItemId, categoryDefaults, loading,
-    addItem, updateItem, deleteItem, adjustStock, reorderItem,
+    addItem, updateItem, deleteItem, adjustStock, reorderItem, mergeItems,
     setRecipe, previewConsumption, confirmConsumption, undoLastTransaction,
     processCompletedOrders, setVehicleMapping, setWaterItem,
     previewVehicleConsumption, consumeForWash, commitWashConsumption,

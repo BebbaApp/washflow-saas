@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { Search, Package, Pencil, Trash2, AlertTriangle, Download, ClipboardList, Boxes, Sliders, Plus, Minus, X, PackagePlus, Undo2, SlidersHorizontal, TrendingUp, RefreshCw, ChevronLeft, ChevronRight, FileText, GitMerge } from "lucide-react";
 import { exportTablePdf } from "@/lib/pdfExport";
 import {
   LineChart,
@@ -54,7 +54,7 @@ interface Props {
 type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
-  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, reorderItem, setRecipe, undoLastTransaction, waterItemId } = useInventory();
+  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, reorderItem, mergeItems, setRecipe, undoLastTransaction, waterItemId } = useInventory();
   const { suppliers } = useSuppliers();
   const [reordering, setReordering] = useState<InventoryItem | null>(null);
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
@@ -188,11 +188,13 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       // Consolidate: if an item with the same preset (or same name+category when custom)
       // already exists, merge into it instead of creating a duplicate.
       const nameKey = trimmed.toLowerCase();
-      const existing = items.find((it) =>
-        presetId !== "custom"
-          ? it.presetId === presetId
-          : !it.presetId && it.name.trim().toLowerCase() === nameKey && it.category === category
-      );
+      const existing =
+        items.find((it) =>
+          presetId !== "custom" && it.presetId === presetId && it.category === category
+        )
+        // Fallback: match by name + category regardless of preset, so custom items
+        // and preset-linked variants still consolidate into a single record.
+        ?? items.find((it) => it.name.trim().toLowerCase() === nameKey && it.category === category);
 
       if (existing) {
         // Update descriptive fields that the user may have changed
@@ -274,6 +276,68 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     const ids = new Set(items.map((i) => i.presetId).filter(Boolean) as string[]);
     return INVENTORY_PRESETS.filter((p) => ids.has(p.id));
   }, [items, INVENTORY_PRESETS]);
+
+  // Detect duplicates by (name + category), case-insensitive. Pick a canonical
+  // "primary" per group: waterItemId when relevant, otherwise the earliest-created.
+  const duplicateInfo = useMemo(() => {
+    const groups = new Map<string, InventoryItem[]>();
+    for (const it of items) {
+      const key = `${it.category}::${it.name.trim().toLowerCase()}`;
+      const arr = groups.get(key) ?? [];
+      arr.push(it);
+      groups.set(key, arr);
+    }
+    const primaryOf = new Map<string, string>(); // itemId -> primaryId (only for dup items)
+    const dupCount = new Map<string, number>();  // primaryId -> total duplicates in group
+    let totalDupItems = 0;
+    for (const [, arr] of groups) {
+      if (arr.length < 2) continue;
+      const withWater = arr.find((x) => x.id === waterItemId);
+      // Prefer water-linked, else the item with the most stock, else first
+      const primary = withWater
+        ?? [...arr].sort((a, b) => b.quantity - a.quantity)[0];
+      for (const it of arr) primaryOf.set(it.id, primary.id);
+      dupCount.set(primary.id, arr.length);
+      totalDupItems += arr.length;
+    }
+    return { primaryOf, dupCount, totalDupItems };
+  }, [items, waterItemId]);
+
+  const mergeAllDuplicates = async () => {
+    if (!confirm("Merge all duplicate items? Stock will be combined into a single record per name and their transaction history preserved.")) return;
+    const groups = new Map<string, InventoryItem[]>();
+    for (const it of items) {
+      const key = `${it.category}::${it.name.trim().toLowerCase()}`;
+      const arr = groups.get(key) ?? [];
+      arr.push(it);
+      groups.set(key, arr);
+    }
+    let merged = 0;
+    for (const [, arr] of groups) {
+      if (arr.length < 2) continue;
+      const withWater = arr.find((x) => x.id === waterItemId);
+      const primary = withWater ?? [...arr].sort((a, b) => b.quantity - a.quantity)[0];
+      for (const it of arr) {
+        if (it.id === primary.id) continue;
+        const res = await mergeItems(it.id, primary.id);
+        if (res.ok) merged += 1;
+      }
+    }
+    toast.success(merged > 0 ? `Merged ${merged} duplicate item${merged === 1 ? "" : "s"}` : "No duplicates to merge");
+  };
+
+  const mergeOneItem = async (sourceId: string) => {
+    const targetId = duplicateInfo.primaryOf.get(sourceId);
+    if (!targetId || targetId === sourceId) return;
+    const target = items.find((i) => i.id === targetId);
+    const source = items.find((i) => i.id === sourceId);
+    if (!target || !source) return;
+    if (!confirm(`Merge "${source.name}" into the primary record? Stock will be added to the existing item and history preserved.`)) return;
+    const res = await mergeItems(sourceId, targetId);
+    if (res.ok) toast.success(`Merged into "${target.name}"`);
+    else toast.error(res.reason ?? "Could not merge");
+  };
+
 
   const downloadCsv = (filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers, ...rows]
@@ -479,7 +543,25 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               </p>
             </div>
           ) : (
-            <div className="glass-card divide-y divide-border">
+            <>
+              {duplicateInfo.totalDupItems > 0 && (
+                <div className="glass-card p-3 flex items-center justify-between gap-3 border-warning/40 bg-warning/5">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                    <span>
+                      Found {duplicateInfo.totalDupItems} items that look like duplicates (same name & category).
+                      Merge to keep a single stock record per product.
+                    </span>
+                  </div>
+                  <button
+                    onClick={mergeAllDuplicates}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity shrink-0"
+                  >
+                    <GitMerge className="w-3.5 h-3.5" /> Merge duplicates
+                  </button>
+                </div>
+              )}
+              <div className="glass-card divide-y divide-border">
               {filtered.map((item) => {
                 const state = stockState(item);
                 return (
@@ -551,6 +633,15 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                           <Minus className="w-4 h-4" />
                         </button>
                       )}
+                      {duplicateInfo.primaryOf.has(item.id) && duplicateInfo.primaryOf.get(item.id) !== item.id && (
+                        <button
+                          onClick={() => mergeOneItem(item.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
+                          title="Merge into primary duplicate"
+                        >
+                          <GitMerge className="w-4 h-4" />
+                        </button>
+                      )}
                       {canEdit && (
                         <button
                           onClick={() => startEdit(item)}
@@ -582,7 +673,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
         </>
       )}
