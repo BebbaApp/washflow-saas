@@ -495,9 +495,19 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                 </span>
               </div>
 
-              {eligibleOrderIds.has(o.id) && (
+              {eligibleOrderIds.has(o.id) && !redeemedOrderIds.has(o.id) && (
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
                   <Gift className="w-3.5 h-3.5" /> FREE WASH REWARD
+                </div>
+              )}
+              {redeemedOrderIds.has(o.id) && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
+                  <Gift className="w-3.5 h-3.5" /> FREE WASH APPLIED
+                </div>
+              )}
+              {!redeemedOrderIds.has(o.id) && (o.discount ?? 0) > 0 && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
+                  DISCOUNT −{formatPrice(o.discount ?? 0)}
                 </div>
               )}
 
