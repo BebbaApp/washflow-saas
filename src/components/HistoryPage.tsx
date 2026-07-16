@@ -238,6 +238,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           tenant_id: tenant.id,
           status: filter,
           cancelled_reason: cancelledSub,
+          deleted_show: deletedShow,
           query: debouncedQuery.trim() || undefined,
           from: from?.toISOString().slice(0, 10),
           to: to?.toISOString().slice(0, 10),
