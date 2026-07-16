@@ -12,6 +12,7 @@ const corsHeaders = {
 };
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+const ATTENDANCE_KINDS = new Set(["check_in", "check_out"]);
 
 function reply(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -44,12 +45,24 @@ Deno.serve(async (req) => {
   const {
     tenant_id, attendance_id, target_user_id, action, reason,
     original_score = null, original_status = null, created_at = null,
+    attendance_record = null,
   } = body ?? {};
 
   if (!tenant_id || !target_user_id || !action || !reason) {
     return reply({ error: "missing_fields" }, 400);
   }
   if (String(reason).trim().length < 5) return reply({ error: "reason_too_short" }, 400);
+
+  const shouldCreateAttendance = attendance_record && typeof attendance_record === "object";
+  const attendanceKind = shouldCreateAttendance ? String(attendance_record.kind ?? "") : "";
+  const attendanceCreatedAt = String(attendance_record?.created_at ?? created_at ?? new Date().toISOString());
+  const attendanceNotes = String(attendance_record?.notes ?? `Admin override: ${String(reason).trim()}`);
+
+  if (shouldCreateAttendance) {
+    if (!ATTENDANCE_KINDS.has(attendanceKind)) return reply({ error: "invalid_attendance_kind" }, 400);
+    if (Number.isNaN(new Date(attendanceCreatedAt).getTime())) return reply({ error: "invalid_attendance_date" }, 400);
+    if (attendanceNotes.length > 1000) return reply({ error: "attendance_notes_too_long" }, 400);
+  }
 
   const admin = createClient(url, service);
 
@@ -70,10 +83,36 @@ Deno.serve(async (req) => {
     return reply({ error: "not_authorized" }, 403);
   }
 
+  let attendanceId = attendance_id ?? null;
+  let attendanceRow: Record<string, unknown> | null = null;
+
+  if (shouldCreateAttendance) {
+    attendanceRow = {
+      id: crypto.randomUUID(),
+      tenant_id,
+      user_id: target_user_id,
+      kind: attendanceKind,
+      selfie_url: null,
+      match_score: null,
+      status: "manual",
+      notes: attendanceNotes,
+      created_at: attendanceCreatedAt,
+    };
+
+    const { data: insertedRecord, error: attendanceError } = await admin
+      .from("attendance_records")
+      .insert(attendanceRow)
+      .select("id,tenant_id,user_id,kind,selfie_url,match_score,status,notes,created_at")
+      .single();
+    if (attendanceError) return reply({ error: attendanceError.message }, 500);
+    attendanceRow = insertedRecord;
+    attendanceId = insertedRecord.id;
+  }
+
   const row = {
     id: crypto.randomUUID(),
     tenant_id,
-    attendance_id: attendance_id ?? null,
+    attendance_id: attendanceId,
     target_user_id,
     acted_by: caller.id,
     action,
@@ -86,5 +125,5 @@ Deno.serve(async (req) => {
   const { error } = await admin.from("attendance_audit_log").insert(row);
   if (error) return reply({ error: error.message }, 500);
 
-  return reply({ ok: true, row });
+  return reply({ ok: true, row, record: attendanceRow });
 });
