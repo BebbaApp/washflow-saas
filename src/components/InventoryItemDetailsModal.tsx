@@ -197,7 +197,7 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                 </div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-secondary/40 border-y border-border sticky top-0">
+                  <thead className="bg-secondary border-y border-border sticky top-0">
                     <tr className="text-left text-muted-foreground">
                       <th className="px-4 py-2 font-medium">When</th>
                       <th className="px-4 py-2 font-medium">Type</th>
