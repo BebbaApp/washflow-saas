@@ -701,7 +701,7 @@ export function useInventory() {
 
   return {
     items, transactions, recipes, vehicleMap, waterItemId, categoryDefaults, loading,
-    addItem, updateItem, deleteItem, adjustStock, reorderItem,
+    addItem, updateItem, deleteItem, adjustStock, reorderItem, mergeItems,
     setRecipe, previewConsumption, confirmConsumption, undoLastTransaction,
     processCompletedOrders, setVehicleMapping, setWaterItem,
     previewVehicleConsumption, consumeForWash, commitWashConsumption,
