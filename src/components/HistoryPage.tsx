@@ -894,6 +894,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           </div>
         )}
       </div>
+
+      <OrderDetailsModal
+        order={selectedOrder}
+        open={detailsOpen}
+        onOpenChange={(o) => { setDetailsOpen(o); if (!o) setSelectedOrder(null); }}
+      />
     </div>
   );
 };
