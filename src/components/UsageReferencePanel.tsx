@@ -531,10 +531,16 @@ export const UsageReferencePanel = () => {
               Calculated at 7.5 L/min trigger time. Trigger times slightly longer than higher-flow machines because lower flow = more dwell time needed to shift dirt.
             </p>
           </div>
-          <button onClick={exportWater} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={exportWater} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+            <button onClick={exportWaterPdf} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-separate border-spacing-0">
