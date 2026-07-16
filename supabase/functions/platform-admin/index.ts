@@ -69,6 +69,7 @@ const ActionSchema = z.discriminatedUnion("action", [
     tenant_id: z.string().uuid(),
     status: z.enum(["all", "completed", "cancelled"]).default("all"),
     cancelled_reason: z.enum(["all", "with", "without"]).default("all"),
+    deleted_show: z.enum(["all", "deleted", "non-deleted"]).default("all"),
     query: z.string().max(120).optional(),
     from: z.string().optional(),
     to: z.string().optional(),
