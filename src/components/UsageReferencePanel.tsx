@@ -284,14 +284,24 @@ export const UsageReferencePanel = () => {
               Enter how many of each vehicle type you'll wash. We'll compute total chemical concentrate and water needed.
             </p>
           </div>
-          <button
-            onClick={exportCalc}
-            disabled={totalCars === 0}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportCalc}
+              disabled={totalCars === 0}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+            <button
+              onClick={exportCalcPdf}
+              disabled={totalCars === 0}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
           {VEHICLES.map((v) => (
