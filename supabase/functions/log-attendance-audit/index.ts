@@ -68,9 +68,11 @@ Deno.serve(async (req) => {
 
   // Verify caller is a member of this tenant with an admin-ish role
   // (or a platform/super admin).
-  const [{ data: membership }, { data: platform }, { data: superAdm }] = await Promise.all([
+  const [{ data: membership }, { data: roleRow }, { data: platform }, { data: superAdm }] = await Promise.all([
     admin.from("tenant_members").select("tenant_role")
       .eq("tenant_id", tenant_id).eq("user_id", caller.id).maybeSingle(),
+    admin.from("user_roles").select("role")
+      .eq("tenant_id", tenant_id).eq("user_id", caller.id).eq("role", "admin").maybeSingle(),
     admin.from("platform_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
     admin.from("super_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
   ]);
@@ -78,8 +80,9 @@ Deno.serve(async (req) => {
   const isPlatform = !!platform || !!superAdm;
   const memberRole = membership?.tenant_role as string | undefined;
   const isAdminMember = memberRole ? ADMIN_ROLES.has(memberRole) : false;
+  const isAdminRole = !!roleRow;
 
-  if (!isPlatform && !isAdminMember) {
+  if (!isPlatform && !isAdminMember && !isAdminRole) {
     return reply({ error: "not_authorized" }, 403);
   }
 
