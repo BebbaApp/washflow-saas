@@ -662,7 +662,8 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
         </>
       )}
