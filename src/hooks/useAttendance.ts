@@ -699,20 +699,73 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
 
     const createdAt = whenIso ?? new Date().toISOString();
 
-    // Create attendance record offline-first (allows custom created_at for backdated entries)
-    const rec = await offlineInsert("attendance_records", tenantId, {
-      user_id: targetUserId, kind,
-      selfie_url: null, match_score: null, status: "manual",
-      notes: `Admin override: ${reason}`,
-      created_at: createdAt,
-    });
-
-    // Audit log — write via service-role edge function (bypasses RLS
-    // pitfalls when the JWT lacks an active_tenant_id claim); fall back
-    // to direct insert / local cache on failure.
+    // Audit log action for this override. Online overrides are now saved by
+    // the edge function in one server-side operation (attendance row + audit
+    // row), so a processed override cannot remain local-only and vanish after
+    // the next server reconciliation.
     const action = originalScore != null
       ? "override_failed_verification"
       : kind === "check_in" ? "manual_check_in" : "manual_check_out";
+
+    if (navigator.onLine) {
+      try {
+        const { data, error } = await supabase.functions.invoke("log-attendance-audit", {
+          body: {
+            tenant_id: tenantId,
+            target_user_id: targetUserId,
+            action,
+            reason: reason.trim(),
+            original_score: originalScore,
+            original_status: originalStatus,
+            created_at: createdAt,
+            attendance_record: {
+              kind,
+              created_at: createdAt,
+              notes: `Admin override: ${reason.trim()}`,
+            },
+          },
+        });
+        if (error) {
+          const { message } = await extractInvokeError(error);
+          toast.error("Manual override failed: " + message);
+          return null;
+        }
+        if ((data as any)?.error) {
+          toast.error("Manual override failed: " + String((data as any).error));
+          return null;
+        }
+
+        const savedRecord = (data as any)?.record;
+        const savedAudit = (data as any)?.row;
+        if (!savedRecord?.id) {
+          toast.error("Manual override failed: attendance record was not returned.");
+          return null;
+        }
+
+        await cacheAttendanceRecord(savedRecord);
+        if (savedAudit?.id) {
+          setAuditRows((prev) => {
+            const next = [savedAudit, ...(prev ?? []).filter((r: any) => r.id !== savedAudit.id)];
+            lsSave(AUDIT_CACHE_KEY, next);
+            return next;
+          });
+        }
+        toast.success("Manual override recorded");
+        return savedRecord as AttendanceRecord;
+      } catch (e: any) {
+        toast.error("Manual override failed: " + (e?.message || String(e)));
+        return null;
+      }
+    }
+
+    // Offline: create attendance record locally and queue it for sync.
+    const rec = await offlineInsert("attendance_records", tenantId, {
+      user_id: targetUserId, kind,
+      selfie_url: null, match_score: null, status: "manual",
+      notes: `Admin override: ${reason.trim()}`,
+      created_at: createdAt,
+    });
+
     const auditEntry = {
       id: crypto.randomUUID(),
       tenant_id: tenantId,
@@ -726,67 +779,17 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       created_at: createdAt,
     };
 
-    if (navigator.onLine) {
-      let logged = false;
-      let savedRow: any = null;
-      try {
-        const { data, error } = await supabase.functions.invoke("log-attendance-audit", {
-          body: {
-            tenant_id: tenantId,
-            attendance_id: rec.id,
-            target_user_id: targetUserId,
-            action,
-            reason: reason.trim(),
-            original_score: originalScore,
-            original_status: originalStatus,
-            created_at: createdAt,
-          },
-        });
-        if (!error && !data?.error) {
-          logged = true;
-          savedRow = (data as any)?.row ?? null;
-        }
-      } catch { /* fall through */ }
-
-      if (!logged) {
-        // Fallback: try direct insert; if RLS blocks it, cache locally.
-        const { data: inserted, error: aErr } = await supabase
-          .from("attendance_audit_log").insert(auditEntry as any).select().maybeSingle();
-        if (aErr) {
-          const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
-          cached.unshift(auditEntry);
-          lsSave(AUDIT_CACHE_KEY, cached);
-          setAuditRows((prev) => [auditEntry, ...(prev ?? [])]);
-          toast.warning("Override saved. Audit log cached locally and will retry.");
-        } else {
-          logged = true;
-          savedRow = inserted ?? auditEntry;
-        }
-      }
-      if (logged) {
-        // Optimistically prepend so the Audit Log tab updates immediately
-        // even if realtime doesn't fire for service-role inserts.
-        const row = savedRow ?? auditEntry;
-        setAuditRows((prev) => {
-          const next = [row, ...(prev ?? []).filter((r: any) => r.id !== row.id)];
-          lsSave(AUDIT_CACHE_KEY, next);
-          return next;
-        });
-        toast.success("Manual override recorded");
-      }
-    } else {
-      const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
-      cached.unshift(auditEntry);
-      lsSave(AUDIT_CACHE_KEY, cached);
-      setAuditRows(cached);
-      await enqueueOutbox({
-        tenant_id: tenantId,
-        table: "attendance_audit_log" as any,
-        op: "insert",
-        payload: auditEntry,
-      });
-      toast.success("Manual override recorded (offline — will sync when online)");
-    }
+    const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
+    cached.unshift(auditEntry);
+    lsSave(AUDIT_CACHE_KEY, cached);
+    setAuditRows(cached);
+    await enqueueOutbox({
+      tenant_id: tenantId,
+      table: "attendance_audit_log" as any,
+      op: "insert",
+      payload: auditEntry,
+    });
+    toast.success("Manual override recorded (offline — will sync when online)");
 
     return rec as unknown as AttendanceRecord;
   }, [tenantId]);
