@@ -60,12 +60,15 @@ Deno.serve(async (req) => {
     // Load the order.
     const { data: order, error: orderErr } = await admin
       .from("orders")
-      .select("id, order_number, tenant_id")
+      .select("id, order_number, tenant_id, status, notes")
       .eq("id", order_id)
       .eq("tenant_id", tenant_id)
       .maybeSingle();
     if (orderErr) return json({ error: orderErr.message }, 500);
     if (!order) return json({ error: "Order not found" }, 404);
+    if ((order as { status: string }).status === "deleted") {
+      return json({ error: "Order already deleted" }, 400);
+    }
 
     const source = `Order ${order.order_number}`;
 
