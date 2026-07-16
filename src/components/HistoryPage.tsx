@@ -595,6 +595,13 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       onClear: () => setCancelledSub("all"),
     });
   }
+  if (deletedShow !== "all") {
+    activeFilterChips.push({
+      key: "deleted",
+      label: deletedShow === "deleted" ? "Deleted only" : "Hide deleted",
+      onClear: () => setDeletedShow("all"),
+    });
+  }
   if (datePreset !== "all") {
     activeFilterChips.push({
       key: "date",
