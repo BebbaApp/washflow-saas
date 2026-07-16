@@ -300,11 +300,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
       return q;
     };
-    const [{ count: completedC }, { count: cancelledC }] = await Promise.all([
+    const [{ count: completedC }, { count: cancelledC }, { count: deletedC }] = await Promise.all([
       baseDateSearch(true).eq("status", "completed"),
       baseDateSearch(true).eq("status", "cancelled"),
+      baseDateSearch(true).eq("status", "deleted"),
     ]);
-    setCounts({ completed: completedC || 0, cancelled: cancelledC || 0 });
+    setCounts({ completed: completedC || 0, cancelled: cancelledC || 0, deleted: deletedC || 0 });
 
     // Amount sum: PostgREST doesn't have an aggregate select here without RPC, so
     // approximate by summing the loaded rows for the visible total chip. We keep the
