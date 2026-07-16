@@ -142,11 +142,17 @@ Deno.serve(async (req) => {
         phoneVariants(String(row.phone ?? "")).some((k) => variants.has(k)),
       );
       rec = match ? { user_id: match.user_id, pin_hash: match.pin_hash } : null;
+      if (!rec) lookupDiag = "no_phone_match_in_tenant";
     }
 
     if (!rec) {
+      const msg = lookupDiag === "user_has_no_pin_in_tenant"
+        ? "That user has no PIN set in this workspace. Ask an admin to set one in Staff settings."
+        : lookupDiag === "no_auth_user"
+        ? "No account found with that email in this workspace."
+        : "No PIN found for that phone or email. Ask an admin to set one in Staff settings.";
       return new Response(
-        JSON.stringify({ error: "No PIN found for that phone or email." }),
+        JSON.stringify({ error: msg, diag: lookupDiag }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
