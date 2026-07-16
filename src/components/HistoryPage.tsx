@@ -764,6 +764,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                 <th className="text-left font-medium px-5 py-3.5">Amount</th>
                 <th className="text-left font-medium px-5 py-3.5">Status</th>
                 <th className="text-left font-medium px-5 py-3.5">Date</th>
+                <th className="text-right font-medium px-5 py-3.5">Actions</th>
               </tr>
             </thead>
             <tbody>
