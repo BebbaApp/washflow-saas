@@ -846,9 +846,19 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                         )}
                       </td>
                       <td className="px-5 [&]:py-[0.3rem]">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
-                          {statusLabel[o.status] || o.status}
-                        </span>
+                        <div className="inline-flex items-center gap-1.5 flex-wrap">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
+                            {statusLabel[o.status] || o.status}
+                          </span>
+                          {isDeleted(o.notes) && (
+                            <span
+                              className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-destructive text-destructive-foreground"
+                              title="Order was deleted by an admin. Inventory and loyalty transactions were reversed."
+                            >
+                              Deleted
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 [&]:py-[0.3rem] text-muted-foreground whitespace-nowrap">
                         {fmtDate(o.completedAt || o.createdAt)}
