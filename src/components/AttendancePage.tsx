@@ -88,7 +88,7 @@ export function AttendancePage() {
   const canReport = isAdmin || can("reports.attendance");
   const canEnroll = isAdmin || can("attendance.enroll");
   const canAudit = isAdmin || can("attendance.audit");
-  const canOverride = isAdmin || can("attendance.manualOverride");
+  const canOverride = isAdmin;
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser } =
     useAttendance();

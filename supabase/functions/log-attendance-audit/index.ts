@@ -11,7 +11,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ADMIN_ROLES = new Set(["owner", "admin", "manager", "supervisor"]);
+const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 function reply(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
