@@ -54,14 +54,20 @@ Deno.serve(async (req) => {
       admin.from("super_admins").select("user_id").eq("user_id", caller.id).maybeSingle(),
     ]);
     if (!member && !platform && !superAdm) return reply({ error: "not_authorized" }, 403);
-    const { data, error } = await admin
+
+    const rawLimit = Number(body.limit ?? 50);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 200) : 50;
+    const rawOffset = Number(body.offset ?? 0);
+    const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+
+    const { data, error, count } = await admin
       .from("attendance_audit_log")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("tenant_id", listTenant)
       .order("created_at", { ascending: false })
-      .limit(500);
+      .range(offset, offset + limit - 1);
     if (error) return reply({ error: error.message }, 500);
-    return reply({ rows: data ?? [] });
+    return reply({ rows: data ?? [], total: count ?? 0, limit, offset });
   }
 
   const {

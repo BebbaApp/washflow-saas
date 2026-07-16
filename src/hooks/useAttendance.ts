@@ -260,35 +260,46 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     };
   }, [tenantId]);
 
-  // Audit log — fetch from Supabase when online, use localStorage cache when offline
+  // Audit log — server-side paginated fetch when online; localStorage cache when offline
+  const AUDIT_PAGE_SIZE = 50;
   const [auditRows, setAuditRows] = useState<any[] | undefined>(undefined);
+  const [auditTotal, setAuditTotal] = useState<number>(0);
+  const [auditPage, setAuditPage] = useState<number>(0);
   const reloadAuditRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
-    if (!tenantId) { setAuditRows([]); return; }
+    if (!tenantId) { setAuditRows([]); setAuditTotal(0); return; }
     let active = true;
 
     const load = async () => {
       if (navigator.onLine) {
         try {
-          // Use the log-attendance-audit edge function (service role) so the
-          // read isn't blocked by the tenant_id/current_tenant_id() RLS check
-          // when the JWT active_tenant_id claim is missing or stale.
           const { data, error } = await supabase.functions.invoke("log-attendance-audit", {
-            body: { action: "list", tenant_id: tenantId },
+            body: {
+              action: "list",
+              tenant_id: tenantId,
+              limit: AUDIT_PAGE_SIZE,
+              offset: auditPage * AUDIT_PAGE_SIZE,
+            },
           });
           if (error) throw error;
           if (!active) return;
           const rows = ((data as any)?.rows as any[]) ?? [];
+          const total = Number((data as any)?.total ?? rows.length);
           setAuditRows(rows);
-          lsSave(AUDIT_CACHE_KEY, rows);
+          setAuditTotal(total);
+          if (auditPage === 0) lsSave(AUDIT_CACHE_KEY, rows);
           return;
         } catch (e) {
           console.warn("[attendance] audit load failed", e);
         }
       }
-      // Offline: use cached audit log
-      if (active) setAuditRows(lsLoad<any[]>(AUDIT_CACHE_KEY, []));
+      // Offline: use cached audit log (first page only)
+      if (active) {
+        const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
+        setAuditRows(cached);
+        setAuditTotal(cached.length);
+      }
     };
 
     reloadAuditRef.current = load;
@@ -303,7 +314,8 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     }
 
     return () => { active = false; if (ch) supabase.removeChannel(ch); };
-  }, [tenantId]);
+  }, [tenantId, auditPage]);
+
 
   // Profiles — Supabase when online, Dexie tenant_members + localStorage cache when offline
   const [profilesMap, setProfilesMap] = useState<Record<string, string>>(
@@ -381,8 +393,9 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       actorName: profilesMap[a.acted_by] || "Admin",
     }));
     list.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-    return list.slice(0, 500);
+    return list;
   }, [auditRows, profilesMap]);
+
 
   const loading =
     profilesLoading ||
@@ -810,6 +823,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     records, enrollments, auditLog, profilesMap, loading,
     enrollFace, recordAttendance, recordAttendanceFor,
     manualOverride, lastForUser, refetch,
+    auditPage, setAuditPage, auditTotal, auditPageSize: AUDIT_PAGE_SIZE,
   };
 }
 
