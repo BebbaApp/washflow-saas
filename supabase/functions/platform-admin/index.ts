@@ -69,6 +69,7 @@ const ActionSchema = z.discriminatedUnion("action", [
     tenant_id: z.string().uuid(),
     status: z.enum(["all", "completed", "cancelled"]).default("all"),
     cancelled_reason: z.enum(["all", "with", "without"]).default("all"),
+    deleted_show: z.enum(["all", "deleted", "non-deleted"]).default("all"),
     query: z.string().max(120).optional(),
     from: z.string().optional(),
     to: z.string().optional(),
@@ -518,6 +519,8 @@ Deno.serve(async (req) => {
           if (body.cancelled_reason === "with") q = q.ilike("notes", "%[CANCELLED%");
           else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
         }
+        if (body.deleted_show === "deleted") q = q.ilike("notes", "%[DELETED%");
+        if (body.deleted_show === "non-deleted") q = q.or("notes.is.null,notes.not.ilike.%[DELETED%");
         if (body.from) q = q.gte("created_at", new Date(`${body.from}T00:00:00.000Z`).toISOString());
         if (body.to) q = q.lte("created_at", new Date(`${body.to}T23:59:59.999Z`).toISOString());
         const term = (body.query ?? "").trim().replace(/[%,()]/g, " ").trim();
