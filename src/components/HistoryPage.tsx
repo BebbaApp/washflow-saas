@@ -25,6 +25,9 @@ const extractCancelReason = (notes?: string): string | null => {
   return matches[matches.length - 1][1].trim();
 };
 
+/** True when the order has been soft-deleted via the delete-order function. */
+const isDeleted = (notes?: string) => !!notes && /\[DELETED\b/.test(notes);
+
 interface HistoryPageProps {
   // Kept for backwards compatibility. History fetches its own paginated data.
   orders?: WashOrder[];
