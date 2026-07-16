@@ -585,6 +585,33 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     });
   }
 
+  const handleDeleteOrder = async (o: WashOrder) => {
+    if (!tenant?.id) return;
+    const ok = window.confirm(
+      `Delete work order ${o.orderNumber} for ${o.customer}?\n\nThis will permanently remove the order and reverse any inventory and loyalty transactions linked to it. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setDeletingId(o.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-order", {
+        body: { tenant_id: tenant.id, order_id: o.id },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || "Failed to delete order");
+      }
+      toast.success(`Order ${o.orderNumber} deleted`, {
+        description: `Reversed ${(data as any)?.reversed_transactions ?? 0} inventory transaction(s).`,
+      });
+      const offset = (page - 1) * pageSize;
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+      setRows(pageRows);
+    } catch (err: any) {
+      toast.error("Delete failed", { description: err?.message || String(err) });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
