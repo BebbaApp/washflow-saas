@@ -262,6 +262,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
 
   // Audit log — fetch from Supabase when online, use localStorage cache when offline
   const [auditRows, setAuditRows] = useState<any[] | undefined>(undefined);
+  const reloadAuditRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!tenantId) { setAuditRows([]); return; }
@@ -270,29 +271,34 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     const load = async () => {
       if (navigator.onLine) {
         try {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("attendance_audit_log")
             .select("*")
+            .eq("tenant_id", tenantId)
             .order("created_at", { ascending: false })
             .limit(500);
+          if (error) throw error;
           if (!active) return;
           const rows = (data as any[]) ?? [];
           setAuditRows(rows);
           lsSave(AUDIT_CACHE_KEY, rows); // cache for offline
           return;
-        } catch { /* fall through */ }
+        } catch (e) {
+          console.warn("[attendance] audit load failed", e);
+        }
       }
       // Offline: use cached audit log
       if (active) setAuditRows(lsLoad<any[]>(AUDIT_CACHE_KEY, []));
     };
 
+    reloadAuditRef.current = load;
     load();
 
     let ch: ReturnType<typeof supabase.channel> | null = null;
     if (navigator.onLine) {
       ch = supabase
         .channel(`audit-${tenantId}-${crypto.randomUUID()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "attendance_audit_log" }, () => load())
+        .on("postgres_changes", { event: "*", schema: "public", table: "attendance_audit_log", filter: `tenant_id=eq.${tenantId}` }, () => load())
         .subscribe();
     }
 
@@ -750,6 +756,9 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
             return next;
           });
         }
+        // Also refetch from server to guarantee the row lands in the list even
+        // if realtime doesn't deliver the service-role insert to this client.
+        void reloadAuditRef.current().catch(() => {});
         toast.success("Manual override recorded");
         return savedRecord as AttendanceRecord;
       } catch (e: any) {
