@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Download, Droplets, FlaskConical, Calculator, Link2, AlertTriangle, Wand2, FileSpreadsheet, Sparkles } from "lucide-react";
+import { Download, Droplets, FlaskConical, Calculator, Link2, AlertTriangle, Wand2, FileSpreadsheet, Sparkles, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
