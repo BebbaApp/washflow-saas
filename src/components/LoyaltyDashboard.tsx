@@ -417,6 +417,43 @@ export const LoyaltyDashboard = () => {
     toast.success(`Exported ${filtered.length} customer${filtered.length !== 1 ? "s" : ""} to CSV`);
   };
 
+  const handleExportPdf = () => {
+    if (filtered.length === 0) {
+      toast.error("Nothing to export");
+      return;
+    }
+    const headers = [
+      "Rank", "Name", "Phone", "Plates", "Visits", "Total Spend",
+      "Points", "Eligible", "Next in", "Last Visit",
+    ];
+    const rows = filtered.map((m, i) => {
+      const eligible = m.loyaltyPoints >= FREE_WASH_COST;
+      const nextRewardVisits = eligible
+        ? 0
+        : Math.ceil((FREE_WASH_COST - m.loyaltyPoints) / POINTS_PER_WASH);
+      return [
+        i + 1,
+        m.name,
+        m.phones[0] ? formatPhone(m.phones[0]) : "",
+        m.plates.join(" / "),
+        m.totalWashes,
+        m.totalSpend.toFixed(2),
+        m.loyaltyPoints,
+        eligible ? "Yes" : "No",
+        nextRewardVisits,
+        new Date(m.lastVisit).toLocaleDateString(),
+      ];
+    });
+    exportTablePdf({
+      title: "Loyalty leaderboard",
+      subtitle: `Range: ${range} · Sort: ${sortKey}`,
+      filename: `loyalty-leaderboard-${range}-${sortKey}-${new Date().toISOString().slice(0, 10)}.pdf`,
+      headers,
+      rows,
+    });
+    toast.success(`Exported ${filtered.length} customer${filtered.length !== 1 ? "s" : ""} to PDF`);
+  };
+
   return (
     <div className="space-y-5 -mt-4">
       {/* Toolbar */}
