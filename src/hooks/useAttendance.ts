@@ -271,17 +271,17 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     const load = async () => {
       if (navigator.onLine) {
         try {
-          const { data, error } = await supabase
-            .from("attendance_audit_log")
-            .select("*")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(500);
+          // Use the log-attendance-audit edge function (service role) so the
+          // read isn't blocked by the tenant_id/current_tenant_id() RLS check
+          // when the JWT active_tenant_id claim is missing or stale.
+          const { data, error } = await supabase.functions.invoke("log-attendance-audit", {
+            body: { action: "list", tenant_id: tenantId },
+          });
           if (error) throw error;
           if (!active) return;
-          const rows = (data as any[]) ?? [];
+          const rows = ((data as any)?.rows as any[]) ?? [];
           setAuditRows(rows);
-          lsSave(AUDIT_CACHE_KEY, rows); // cache for offline
+          lsSave(AUDIT_CACHE_KEY, rows);
           return;
         } catch (e) {
           console.warn("[attendance] audit load failed", e);
