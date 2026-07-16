@@ -105,6 +105,28 @@ export function ConsoleExpenses() {
     URL.revokeObjectURL(url);
   };
 
+  const exportPdf = () => {
+    if (rows.length === 0) return;
+    const headers = ["Date", "Tenant", "Category", "Description", "Vendor", "Amount", "Notes"];
+    const body = rows.map((r) => [
+      r.date?.slice(0, 10) ?? "",
+      tenantName(r.tenant_id),
+      r.category,
+      r.description,
+      r.vendor ?? "",
+      fmt.format(Number(r.amount || 0)),
+      r.notes ?? "",
+    ]);
+    body.push(["", "", "", "", "Total", fmt.format(total), ""]);
+    exportTablePdf({
+      title: "Platform expenses",
+      subtitle: `Range: ${from} → ${to}`,
+      filename: `expenses-${from}_${to}.pdf`,
+      headers,
+      rows: body,
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="glass-card p-4">
