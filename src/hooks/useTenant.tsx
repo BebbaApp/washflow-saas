@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { perfMark } from "@/lib/perf";
 import { wipeTenantMirror } from "@/offline/db";
+import { setPdfBrand } from "@/lib/pdfExport";
 
 
 export type TenantStatus = "trialing" | "active" | "past_due" | "suspended" | "cancelled";
@@ -296,6 +297,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       void wipeTenantMirror(t.id).then(() => window.location.reload());
     }
   }, [tenant]);
+
+  // Keep PDF exports branded with the active workspace name.
+  useEffect(() => {
+    setPdfBrand({ shopName: tenant?.name ?? null });
+  }, [tenant?.name]);
+
+
 
   const switchTenant = useCallback(async (tenantId: string) => {
     setSwitchError(null);
