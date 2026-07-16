@@ -297,6 +297,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }, [tenant]);
 
+  // Keep PDF exports branded with the active workspace name.
+  useEffect(() => {
+    setPdfBrand({ shopName: tenant?.name ?? null });
+  }, [tenant?.name]);
+
+
+
   const switchTenant = useCallback(async (tenantId: string) => {
     setSwitchError(null);
     // Optimistic: persist immediately so a refresh mid-switch lands on the
