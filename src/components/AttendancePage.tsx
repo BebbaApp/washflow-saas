@@ -129,9 +129,10 @@ export function AttendancePage() {
 
   // Override dialog
   const [overrideOpen, setOverrideOpen] = useState(false);
-  const [overrideForm, setOverrideForm] = useState<{ targetUserId: string; kind: "check_in" | "check_out"; reason: string }>(
-    { targetUserId: "", kind: "check_in", reason: "" }
+  const [overrideForm, setOverrideForm] = useState<{ targetUserId: string; kind: "check_in" | "check_out"; reason: string; whenLocal: string }>(
+    { targetUserId: "", kind: "check_in", reason: "", whenLocal: "" }
   );
+
 
   // Report grouping
   const [reportGroup, setReportGroup] = useState<"day" | "week">("day");
