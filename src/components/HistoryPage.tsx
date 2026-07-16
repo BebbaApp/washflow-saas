@@ -30,18 +30,20 @@ interface HistoryPageProps {
   orders?: WashOrder[];
 }
 
-type Filter = "all" | "completed" | "cancelled";
+type Filter = "all" | "completed" | "cancelled" | "deleted";
 type CancelledSub = "all" | "with" | "without";
 type DatePreset = "all" | "7d" | "30d" | "90d" | "custom";
 
 const statusStyles: Record<string, string> = {
   completed: "bg-success/15 text-success",
   cancelled: "bg-destructive/15 text-destructive",
+  deleted: "bg-muted text-muted-foreground",
 };
 
 const statusLabel: Record<string, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
+  deleted: "Deleted",
 };
 
 const DEFAULT_PAGE_SIZE = 50;
