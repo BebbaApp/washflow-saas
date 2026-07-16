@@ -3,7 +3,8 @@ import { useOwnerOverview } from "@/hooks/useOwnerOverview";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const METRICS = [
