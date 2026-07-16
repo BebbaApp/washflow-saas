@@ -166,6 +166,9 @@ export function ConsoleExpenses() {
           <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
             <Download className="w-4 h-4 mr-2" /> Export CSV
           </Button>
+          <Button variant="outline" onClick={exportPdf} disabled={rows.length === 0}>
+            <FileText className="w-4 h-4 mr-2" /> Export PDF
+          </Button>
         </div>
       </div>
 
