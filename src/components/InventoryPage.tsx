@@ -53,7 +53,7 @@ interface Props {
 type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
-  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction, waterItemId } = useInventory();
+  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, reorderItem, setRecipe, undoLastTransaction, waterItemId } = useInventory();
   const { suppliers } = useSuppliers();
   const [reordering, setReordering] = useState<InventoryItem | null>(null);
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
@@ -183,8 +183,46 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
       updateItem(editing.id, payload);
       toast.success("Item updated");
     } else {
-      addItem(payload);
-      toast.success(purchasePrice > 0 && q > 0 ? `Item added · expense ${formatPrice(purchasePrice)} logged` : "Item added");
+      // Consolidate: if an item with the same preset (or same name+category when custom)
+      // already exists, merge into it instead of creating a duplicate.
+      const nameKey = trimmed.toLowerCase();
+      const existing = items.find((it) =>
+        presetId !== "custom"
+          ? it.presetId === presetId
+          : !it.presetId && it.name.trim().toLowerCase() === nameKey && it.category === category
+      );
+
+      if (existing) {
+        // Update descriptive fields that the user may have changed
+        const fieldPatch: Partial<Omit<InventoryItem, "id" | "quantity" | "unitCost">> = {
+          threshold: t,
+          subtype: subtype.trim() || undefined,
+          recommendedMin: minN,
+          recommendedMax: maxN,
+          packSize: ps,
+          supplierId: supplierId === "__none" ? undefined : supplierId,
+          expenseCategory: expenseCategory === "__default" ? undefined : expenseCategory,
+          unit: unit.trim() || existing.unit,
+        };
+        updateItem(existing.id, fieldPatch);
+
+        if (q > 0) {
+          // Log a restock (creates an expense when unitPrice > 0) and add stock
+          reorderItem({
+            itemId: existing.id,
+            quantity: q,
+            unitCost: unitPrice,
+            supplierId: supplierId === "__none" ? null : supplierId,
+            notes: "Added via New Item form",
+          });
+          toast.success(`Existing item "${existing.name}" — quantity +${q} added${purchasePrice > 0 ? ` · expense ${formatPrice(purchasePrice)} logged` : ""}`);
+        } else {
+          toast.success(`Existing item "${existing.name}" updated`);
+        }
+      } else {
+        addItem(payload);
+        toast.success(purchasePrice > 0 && q > 0 ? `Item added · expense ${formatPrice(purchasePrice)} logged` : "Item added");
+      }
     }
     onAddOpenChange(false);
     resetForm();

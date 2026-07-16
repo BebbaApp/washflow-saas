@@ -965,25 +965,34 @@ export type Database = {
       }
       receipt_settings: {
         Row: {
+          address: string
           business_line2: string
           business_name: string
+          email: string
           footer: string
+          phone: string
           tenant_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          address?: string
           business_line2?: string
           business_name?: string
+          email?: string
           footer?: string
+          phone?: string
           tenant_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          address?: string
           business_line2?: string
           business_name?: string
+          email?: string
           footer?: string
+          phone?: string
           tenant_id?: string
           updated_at?: string
           updated_by?: string | null
