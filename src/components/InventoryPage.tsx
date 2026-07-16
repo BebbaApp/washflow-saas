@@ -259,7 +259,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
           t.type,
           t.source,
           String(t.delta),
-          String(t.balance),
+          Number(t.balance).toFixed(2),
           t.notes ?? "",
         ])
       );
@@ -1669,7 +1669,7 @@ function UndoDialog({
               <div className="flex items-center justify-between border-t border-border pt-2">
                 <span className="text-muted-foreground">Balance after undo</span>
                 <span className="font-mono font-semibold text-foreground">
-                  {last.balance + (-last.delta)}
+                  {(last.balance + (-last.delta)).toFixed(2)}
                 </span>
               </div>
               {last.notes && (
