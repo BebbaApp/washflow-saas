@@ -140,7 +140,16 @@ Deno.serve(async (req) => {
   };
 
   const { error } = await admin.from("attendance_audit_log").insert(row);
-  if (error) return reply({ error: error.message }, 500);
+  if (error) {
+    if (attendanceRow?.id) {
+      await admin
+        .from("attendance_records")
+        .delete()
+        .eq("tenant_id", tenant_id)
+        .eq("id", attendanceRow.id);
+    }
+    return reply({ error: error.message }, 500);
+  }
 
   return reply({ ok: true, row, record: attendanceRow });
 });
