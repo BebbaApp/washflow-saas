@@ -323,6 +323,12 @@ export function InventoryTrendsPanel() {
             >
               <Download className="w-3.5 h-3.5" /> CSV
             </button>
+            <button
+              onClick={exportUsagePdf}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </button>
           </div>
         </div>
         <div className="h-72">
