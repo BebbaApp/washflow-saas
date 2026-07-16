@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Package, ArrowDownCircle, ArrowUpCircle, RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Package, ArrowDownCircle, ArrowUpCircle, RefreshCw, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { InventoryItem, InventoryTransaction } from "@/hooks/useInventory";
 import {
@@ -23,7 +23,12 @@ interface Props {
 const fmtDate = (s: string) =>
   new Date(s).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 
+type TxTab = "all" | "restock" | "consume";
+
 export function InventoryItemDetailsModal({ open, item, transactions, onOpenChange }: Props) {
+  const [txTab, setTxTab] = useState<TxTab>("all");
+  const [zoom, setZoom] = useState(1); // 1 = show all; higher = show most recent slice
+
   // Build stock-history series (oldest → newest) using the recorded balance.
   const history = useMemo(() => {
     if (!item) return [];
@@ -36,13 +41,40 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
       }));
   }, [item, transactions]);
 
+  const zoomedHistory = useMemo(() => {
+    if (history.length === 0) return history;
+    const visibleCount = Math.max(2, Math.ceil(history.length / zoom));
+    return history.slice(-visibleCount);
+  }, [history, zoom]);
+
   const consumed = transactions.filter((t) => t.type === "consume").reduce((s, t) => s + Math.abs(t.delta), 0);
   const restocked = transactions.filter((t) => t.type === "restock").reduce((s, t) => s + t.delta, 0);
   const adjustments = transactions.filter((t) => t.type === "adjust").length;
 
+  const restockTx = transactions.filter((t) => t.type === "restock");
+  const consumeTx = transactions.filter((t) => t.type === "consume");
+  const visibleTx = txTab === "restock" ? restockTx : txTab === "consume" ? consumeTx : transactions;
+
   if (!item) return null;
 
   const isLow = item.quantity <= item.threshold;
+
+  const zoomIn = () => setZoom((z) => Math.min(16, +(z * 1.5).toFixed(2)));
+  const zoomOut = () => setZoom((z) => Math.max(1, +(z / 1.5).toFixed(2)));
+  const zoomReset = () => setZoom(1);
+
+  const TabBtn = ({ id, label, count }: { id: TxTab; label: string; count: number }) => (
+    <button
+      onClick={() => setTxTab(id)}
+      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+        txTab === id
+          ? "bg-card text-foreground shadow-sm border border-border"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label} <span className="opacity-60">({count})</span>
+    </button>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,7 +118,38 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
 
           {/* Stock history chart */}
           <div className="glass-card p-4">
-            <h4 className="text-sm font-semibold text-foreground mb-2">Stock History</h4>
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <h4 className="text-sm font-semibold text-foreground">Stock History</h4>
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-muted-foreground mr-1">
+                  {zoom > 1 ? `Last ${zoomedHistory.length} of ${history.length}` : `${history.length} points`}
+                </span>
+                <button
+                  onClick={zoomOut}
+                  disabled={zoom <= 1}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={zoomIn}
+                  disabled={zoomedHistory.length <= 2}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={zoomReset}
+                  disabled={zoom === 1}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Reset zoom"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
             <div className="h-56">
               {history.length < 2 ? (
                 <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
@@ -94,9 +157,9 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <LineChart data={zoomedHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} hide={history.length > 8} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} hide={zoomedHistory.length > 8} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                     <Tooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
@@ -112,13 +175,26 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
 
           {/* Transactions */}
           <div className="glass-card overflow-hidden">
-            <div className="p-4 pb-2">
-              <h4 className="text-sm font-semibold text-foreground">Transactions</h4>
-              <p className="text-xs text-muted-foreground">Most recent first</p>
+            <div className="p-4 pb-2 flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">Transactions</h4>
+                <p className="text-xs text-muted-foreground">Most recent first</p>
+              </div>
+              <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border">
+                <TabBtn id="all" label="All" count={transactions.length} />
+                <TabBtn id="restock" label="Restock" count={restockTx.length} />
+                <TabBtn id="consume" label="Consumed" count={consumeTx.length} />
+              </div>
             </div>
             <div className="max-h-72 overflow-y-auto">
-              {transactions.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">No transactions recorded.</div>
+              {visibleTx.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  {txTab === "restock"
+                    ? "No restock transactions recorded."
+                    : txTab === "consume"
+                    ? "No consumption transactions recorded."
+                    : "No transactions recorded."}
+                </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/40 border-y border-border sticky top-0">
@@ -131,7 +207,7 @@ export function InventoryItemDetailsModal({ open, item, transactions, onOpenChan
                     </tr>
                   </thead>
                   <tbody>
-                    {transactions.map((t) => {
+                    {visibleTx.map((t) => {
                       const Icon = t.type === "consume" ? ArrowDownCircle : t.type === "restock" ? ArrowUpCircle : RefreshCw;
                       const tone = t.type === "consume" ? "text-destructive" : t.type === "restock" ? "text-success" : "text-info";
                       return (
