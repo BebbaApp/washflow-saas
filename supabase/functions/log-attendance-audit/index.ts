@@ -86,6 +86,16 @@ Deno.serve(async (req) => {
     return reply({ error: "not_authorized" }, 403);
   }
 
+  const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+    admin.from("tenant_members").select("user_id")
+      .eq("tenant_id", tenant_id).eq("user_id", target_user_id).maybeSingle(),
+    admin.from("user_roles").select("user_id")
+      .eq("tenant_id", tenant_id).eq("user_id", target_user_id).maybeSingle(),
+  ]);
+  if (!targetMember && !targetRole) {
+    return reply({ error: "target_not_in_workspace" }, 400);
+  }
+
   let attendanceId = attendance_id ?? null;
   let attendanceRow: Record<string, unknown> | null = null;
 
