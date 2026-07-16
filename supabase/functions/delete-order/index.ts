@@ -124,13 +124,18 @@ Deno.serve(async (req) => {
     // Delete loyalty transactions linked to this order.
     await admin.from("loyalty_transactions").delete().eq("tenant_id", tenant_id).eq("order_id", order_id);
 
-    // Finally, delete the order.
-    const { error: delErr } = await admin
+    // Soft-delete the order: mark cancelled + prepend a [DELETED <iso>] marker in notes.
+    const stamp = new Date().toISOString();
+    const marker = `[DELETED ${stamp}] Deleted by admin (${callerEmail || callerId}). Inventory and loyalty transactions reversed.`;
+    const nextNotes = order.notes && order.notes.trim().length > 0
+      ? `${marker}\n${order.notes}`
+      : marker;
+    const { error: updErr } = await admin
       .from("orders")
-      .delete()
+      .update({ status: "cancelled", notes: nextNotes })
       .eq("id", order_id)
       .eq("tenant_id", tenant_id);
-    if (delErr) return json({ error: delErr.message }, 500);
+    if (updErr) return json({ error: updErr.message }, 500);
 
     return json({ ok: true, reversed_items: perItem.size, reversed_transactions: txs?.length ?? 0 });
   } catch (err) {
