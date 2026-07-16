@@ -823,6 +823,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     records, enrollments, auditLog, profilesMap, loading,
     enrollFace, recordAttendance, recordAttendanceFor,
     manualOverride, lastForUser, refetch,
+    auditPage, setAuditPage, auditTotal, auditPageSize: AUDIT_PAGE_SIZE,
   };
 }
 
