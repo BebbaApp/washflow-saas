@@ -1,6 +1,6 @@
 [package]
 name = "washflow"
-version = "1.0.33"
+version = "1.0.34"
 description = "Washflow Car Wash Management System"
 authors = ["Aumsoft Technology (Pty) Ltd"]
 license = "MIT"
