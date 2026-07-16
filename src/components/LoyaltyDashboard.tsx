@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Gift, Trophy, Users, Search, CreditCard, Award, Calendar, Car, History, Phone as PhoneIcon, Sparkles, Download, ArrowUpDown } from "lucide-react";
+import { Gift, Trophy, Users, Search, CreditCard, Award, Calendar, Car, History, Phone as PhoneIcon, Sparkles, Download, ArrowUpDown, FileText } from "lucide-react";
+import { exportTablePdf } from "@/lib/pdfExport";
 import { useOrders, type WashOrder } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatPhone, phoneDigits } from "@/lib/phone";
