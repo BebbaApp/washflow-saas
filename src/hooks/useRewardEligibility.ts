@@ -189,6 +189,27 @@ export function useRewardEligibility(orders: WashOrder[]) {
           }
           continue;
         }
+
+        // Zero out the order's revenue: move remaining service_price into discount.
+        if (o.servicePrice > 0) {
+          const { data: current } = await supabase
+            .from("orders")
+            .select("service_price, discount")
+            .eq("id", o.id)
+            .maybeSingle();
+          const currentPrice = Number(current?.service_price ?? o.servicePrice) || 0;
+          const currentDiscount = Number(current?.discount ?? 0) || 0;
+          if (currentPrice > 0) {
+            await supabase
+              .from("orders")
+              .update({
+                service_price: 0,
+                discount: +(currentDiscount + currentPrice).toFixed(2),
+              })
+              .eq("id", o.id);
+          }
+        }
+
         toast.success(`🎁 Free wash auto-applied for ${o.customer} (${o.orderNumber})`);
       }
       await refresh();
