@@ -455,7 +455,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const generated = new Date().toLocaleString();
     const filterLabel = filter === "all" ? "Completed & Cancelled" : statusLabel[filter] || filter;
-    const deletedLabel = deletedShow === "deleted" ? " — Deleted only" : deletedShow === "non-deleted" ? " — Excluding deleted" : "";";
+    const deletedLabel = deletedShow === "deleted" ? " — Deleted only" : deletedShow === "non-deleted" ? " — Excluding deleted" : "";
     const rowsHtml = visibleRows.map((o) => {
       const phone = o.customerPhone ? formatPhone(o.customerPhone) : "—";
       const status = statusLabel[o.status] || o.status;
