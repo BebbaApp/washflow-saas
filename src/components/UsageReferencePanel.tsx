@@ -83,11 +83,27 @@ export const UsageReferencePanel = () => {
     CONCENTRATES.forEach((r) => rows.push([r.name, r.dilution, ...VEHICLES.map((v) => `${r.values[v]} mL`)]));
     downloadCsv("chemical-concentrate-per-vehicle.csv", rows);
   };
+  const exportConcentratePdf = () => {
+    exportTablePdf({
+      title: "Chemical concentrate per vehicle",
+      filename: "chemical-concentrate-per-vehicle.pdf",
+      headers: ["Concentrate", "Dilution", ...VEHICLES],
+      rows: CONCENTRATES.map((r) => [r.name, r.dilution, ...VEHICLES.map((v) => `${r.values[v]} mL`)]),
+    });
+  };
   const exportWater = () => {
     const header = ["Phase", ...VEHICLES];
     const rows: (string | number)[][] = [header];
     WATER.forEach((r) => rows.push([r.phase, ...VEHICLES.map((v) => `${r.values[v]} ${r.unit}`)]));
     downloadCsv("water-usage-per-vehicle.csv", rows);
+  };
+  const exportWaterPdf = () => {
+    exportTablePdf({
+      title: "Water usage per vehicle",
+      filename: "water-usage-per-vehicle.pdf",
+      headers: ["Phase", ...VEHICLES],
+      rows: WATER.map((r) => [r.phase, ...VEHICLES.map((v) => `${r.values[v]} ${r.unit}`)]),
+    });
   };
   const exportCalc = () => {
     const header = ["Vehicle", "Count"];
@@ -101,6 +117,21 @@ export const UsageReferencePanel = () => {
     rows.push(["Bucket water (L)", totals.bucketL]);
     rows.push(["Total water (L)", totals.waterL]);
     downloadCsv("wash-usage-calculation.csv", rows);
+  };
+  const exportCalcPdf = () => {
+    const rows: (string | number)[][] = [];
+    VEHICLES.forEach((v) => rows.push(["Vehicle", v, counts[v] ?? 0]));
+    totals.concentrate.forEach((c) => rows.push(["Concentrate", c.name, `${Math.round(c.mL)} mL`]));
+    rows.push(["Water", "Pressure-washer", `${totals.pressureL.toFixed(1)} L`]);
+    rows.push(["Water", "Bucket", `${totals.bucketL.toFixed(1)} L`]);
+    rows.push(["Water", "Total", `${totals.waterL.toFixed(1)} L`]);
+    exportTablePdf({
+      title: "Wash usage calculation",
+      subtitle: `Total vehicles: ${totalCars}`,
+      filename: "wash-usage-calculation.pdf",
+      headers: ["Category", "Item", "Amount"],
+      rows,
+    });
   };
 
   const handleLogUsage = async () => {
