@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Car, Hash, Phone, Clock, Calendar, StickyNote, CheckCircle2, Loader2, Play, Save, Loader, Receipt } from "lucide-react";
+import { Car, Hash, Phone, Clock, Calendar, StickyNote, CheckCircle2, Loader2, Play, Save, Loader, Receipt, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import { formatPhone, telHref } from "@/lib/phone";
 import {
   Dialog,
@@ -8,9 +8,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/hooks/useAuth";
 import { PrintReceiptButton } from "@/components/PrintReceiptButton";
+import { DiscountAuthorizeDialog, type AuthorizerIdentity } from "@/components/DiscountAuthorizeDialog";
 
 interface OrderDetailsModalProps {
   order: WashOrder | null;
@@ -18,6 +22,8 @@ interface OrderDetailsModalProps {
   onOpenChange: (open: boolean) => void;
   onUpdateStatus?: (id: string, status: WashStatus) => void;
   onUpdateNotes?: (id: string, notes: string) => Promise<boolean> | void;
+  onApproveDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
+  onRejectDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
 }
 
 const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typeof Clock }> = {
@@ -28,10 +34,14 @@ const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typ
   deleted: { label: "Deleted", classes: "bg-muted text-muted-foreground border-border", Icon: Clock },
 };
 
-export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes }: OrderDetailsModalProps) => {
+export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount }: OrderDetailsModalProps) => {
   const { formatPrice } = useCurrency();
+  const { can } = usePermissions();
+  const { user } = useAuth();
+  const canApprove = can("queue.approveDiscount");
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
 
   useEffect(() => {
     setNotesDraft(order?.notes ?? "");
@@ -44,6 +54,23 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
   const completed = order.completedAt ? new Date(order.completedAt) : null;
   const nextStatus: WashStatus | null =
     order.status === "waiting" ? "in-progress" : order.status === "in-progress" ? "completed" : null;
+
+  const pending = order.pendingDiscount;
+  const canActOnPending = pending && order.status !== "completed" && order.status !== "cancelled";
+  const previewFinal = pending ? Math.max(0, order.servicePrice - pending.amount) : order.servicePrice;
+
+  const approveAsCurrentUser = async () => {
+    if (!onApproveDiscount || !user) return;
+    await onApproveDiscount(order.id, { id: user.id, name: user.name || user.email });
+  };
+  const rejectAsCurrentUser = async () => {
+    if (!onRejectDiscount || !user) return;
+    await onRejectDiscount(order.id, { id: user.id, name: user.name || user.email });
+  };
+  const handlePinAuthorized = async (auth: AuthorizerIdentity) => {
+    if (!onApproveDiscount) return;
+    await onApproveDiscount(order.id, { id: auth.id, name: auth.name });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -120,6 +147,61 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
               </>
             ) : null}
           </div>
+
+          {canActOnPending && pending && (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+                <div className="text-sm text-foreground flex-1 min-w-0">
+                  <p className="font-semibold text-warning">
+                    Discount requested by {pending.requestedByName}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    − {formatPrice(pending.amount)} · Final would be {formatPrice(previewFinal)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                {canApprove ? (
+                  <>
+                    {onRejectDiscount && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={rejectAsCurrentUser}
+                        className="gap-1"
+                      >
+                        <X className="w-3.5 h-3.5" /> Reject
+                      </Button>
+                    )}
+                    {onApproveDiscount && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={approveAsCurrentUser}
+                        className="gap-1 bg-success text-success-foreground hover:opacity-90"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" /> Approve discount
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  onApproveDiscount && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPinOpen(true)}
+                      className="gap-1"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> Authorize with manager PIN
+                    </Button>
+                  )
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border border-border bg-secondary/40 p-3">
@@ -215,6 +297,17 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
             </div>
           ) : null}
         </div>
+
+        <DiscountAuthorizeDialog
+          open={pinOpen}
+          onOpenChange={setPinOpen}
+          onAuthorized={handlePinAuthorized}
+          description={
+            pending
+              ? `A manager or admin must enter their PIN to approve the ${formatPrice(pending.amount)} discount.`
+              : undefined
+          }
+        />
       </DialogContent>
     </Dialog>
   );
