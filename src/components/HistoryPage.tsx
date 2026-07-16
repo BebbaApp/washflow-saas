@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Car, Download, Printer, Calendar as CalendarIcon, X } from "lucide-react";
+import { Search, Car, Download, Printer, Calendar as CalendarIcon, X, Eye, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useTenant } from "@/hooks/useTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 import { formatPhone, telHref } from "@/lib/phone";
 import { useAppLogo } from "@/hooks/useAppLogo";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
@@ -103,6 +106,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const { formatPrice, currency } = useCurrency();
   const { logo } = useAppLogo();
   const { isSuperAdmin, tenant } = useTenant();
+  const { isAdmin } = usePermissions();
+  const canDelete = isAdmin || isSuperAdmin;
+  const [selectedOrder, setSelectedOrder] = useState<WashOrder | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const persisted = useRef<PersistedFilters>(loadPersistedFilters()).current;
   const [query, setQuery] = useState(persisted.query);
@@ -577,6 +585,33 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     });
   }
 
+  const handleDeleteOrder = async (o: WashOrder) => {
+    if (!tenant?.id) return;
+    const ok = window.confirm(
+      `Delete work order ${o.orderNumber} for ${o.customer}?\n\nThis will permanently remove the order and reverse any inventory and loyalty transactions linked to it. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setDeletingId(o.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-order", {
+        body: { tenant_id: tenant.id, order_id: o.id },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || "Failed to delete order");
+      }
+      toast.success(`Order ${o.orderNumber} deleted`, {
+        description: `Reversed ${(data as any)?.reversed_transactions ?? 0} inventory transaction(s).`,
+      });
+      const offset = (page - 1) * pageSize;
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+      setRows(pageRows);
+    } catch (err: any) {
+      toast.error("Delete failed", { description: err?.message || String(err) });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -756,14 +791,15 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                 <th className="text-left font-medium px-5 py-3.5">Amount</th>
                 <th className="text-left font-medium px-5 py-3.5">Status</th>
                 <th className="text-left font-medium px-5 py-3.5">Date</th>
+                <th className="text-right font-medium px-5 py-3.5">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">Loading…</td></tr>
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">Loading…</td></tr>
               ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
                     No matching history. Adjust your filters or date range.
                   </td>
                 </tr>
@@ -814,6 +850,27 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       <td className="px-5 [&]:py-[0.3rem] text-muted-foreground whitespace-nowrap">
                         {fmtDate(o.completedAt || o.createdAt)}
                       </td>
+                      <td className="px-5 [&]:py-[0.3rem] whitespace-nowrap text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
+                            title="View details"
+                            className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDeleteOrder(o)}
+                              disabled={deletingId === o.id}
+                              title="Delete work order"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                            >
+                              {deletingId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })
@@ -837,6 +894,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           </div>
         )}
       </div>
+
+      <OrderDetailsModal
+        order={selectedOrder}
+        open={detailsOpen}
+        onOpenChange={(o) => { setDetailsOpen(o); if (!o) setSelectedOrder(null); }}
+      />
     </div>
   );
 };
