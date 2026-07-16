@@ -728,6 +728,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
 
     if (navigator.onLine) {
       let logged = false;
+      let savedRow: any = null;
       try {
         const { data, error } = await supabase.functions.invoke("log-attendance-audit", {
           body: {
@@ -741,23 +742,38 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
             created_at: createdAt,
           },
         });
-        if (!error && !data?.error) logged = true;
+        if (!error && !data?.error) {
+          logged = true;
+          savedRow = (data as any)?.row ?? null;
+        }
       } catch { /* fall through */ }
 
       if (!logged) {
         // Fallback: try direct insert; if RLS blocks it, cache locally.
-        const { error: aErr } = await supabase
-          .from("attendance_audit_log").insert(auditEntry as any);
+        const { data: inserted, error: aErr } = await supabase
+          .from("attendance_audit_log").insert(auditEntry as any).select().maybeSingle();
         if (aErr) {
           const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
           cached.unshift(auditEntry);
           lsSave(AUDIT_CACHE_KEY, cached);
+          setAuditRows((prev) => [auditEntry, ...(prev ?? [])]);
           toast.warning("Override saved. Audit log cached locally and will retry.");
         } else {
           logged = true;
+          savedRow = inserted ?? auditEntry;
         }
       }
-      if (logged) toast.success("Manual override recorded");
+      if (logged) {
+        // Optimistically prepend so the Audit Log tab updates immediately
+        // even if realtime doesn't fire for service-role inserts.
+        const row = savedRow ?? auditEntry;
+        setAuditRows((prev) => {
+          const next = [row, ...(prev ?? []).filter((r: any) => r.id !== row.id)];
+          lsSave(AUDIT_CACHE_KEY, next);
+          return next;
+        });
+        toast.success("Manual override recorded");
+      }
     } else {
       const cached = lsLoad<any[]>(AUDIT_CACHE_KEY, []);
       cached.unshift(auditEntry);
