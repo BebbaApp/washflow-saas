@@ -122,6 +122,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [debouncedQuery, setDebouncedQuery] = useState(persisted.query);
   const [filter, setFilter] = useState<Filter>(persisted.filter);
   const [cancelledSub, setCancelledSub] = useState<CancelledSub>(persisted.cancelledSub);
+  const [deletedShow, setDeletedShow] = useState<DeletedShow>(persisted.deletedShow);
   const [datePreset, setDatePreset] = useState<DatePreset>(persisted.datePreset);
   const [customRange, setCustomRange] = useState<DateRange | undefined>(() => {
     if (persisted.datePreset !== "custom") return undefined;
