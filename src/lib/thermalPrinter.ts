@@ -77,12 +77,23 @@ export function buildReceiptModel(order: WashOrder, opts: ReceiptBuildOpts): Rec
   if (settings.businessLine2.trim()) {
     segs.push({ kind: "text", text: settings.businessLine2, align: "center", bold: true });
   }
+  if (settings.address && settings.address.trim()) {
+    for (const line of wrap(settings.address.trim(), LINE_WIDTH)) {
+      segs.push({ kind: "text", text: line, align: "center" });
+    }
+  }
+  if (settings.phone && settings.phone.trim()) {
+    segs.push({ kind: "text", text: `Tel: ${settings.phone.trim()}`, align: "center" });
+  }
+  if (settings.email && settings.email.trim()) {
+    segs.push({ kind: "text", text: settings.email.trim(), align: "center" });
+  }
   segs.push({ kind: "blank" });
 
   // Order info
   segs.push({ kind: "cols", left: "Order:", right: order.orderNumber });
   const completed = order.completedAt ? new Date(order.completedAt) : new Date();
-  segs.push({ kind: "cols", left: "Date:", right: completed.toLocaleDateString() });
+  segs.push({ kind: "cols", left: "Date:", right: formatReceiptDate(completed) });
   segs.push({
     kind: "cols",
     left: "Time:",
