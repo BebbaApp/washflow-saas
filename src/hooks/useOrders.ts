@@ -8,6 +8,13 @@ import { useLiveTable } from "@/offline/useLiveTable";
 
 export type WashStatus = "waiting" | "in-progress" | "completed" | "cancelled" | "deleted";
 
+export interface PendingDiscount {
+  amount: number;
+  requestedById: string;
+  requestedByName: string;
+  requestedAt: string;
+}
+
 export interface WashOrder {
   id: string;
   orderNumber: string;
@@ -18,6 +25,7 @@ export interface WashOrder {
   service: string;
   servicePrice: number;
   discount?: number;
+  pendingDiscount?: PendingDiscount;
   status: WashStatus;
   createdAt: string;
   completedAt?: string;
@@ -31,6 +39,16 @@ const LEGACY_LABELS: Record<string, string> = { basic: "Basic Wash", premium: "P
 const LEGACY_PRICES: Record<string, number> = { basic: 15, premium: 35, detail: 75 };
 
 function mapRow(row: any): WashOrder {
+  const pd = row.pending_discount;
+  const pendingDiscount: PendingDiscount | undefined =
+    pd && typeof pd === "object" && typeof pd.amount === "number"
+      ? {
+          amount: Number(pd.amount),
+          requestedById: String(pd.requested_by_id ?? ""),
+          requestedByName: String(pd.requested_by_name ?? "Unknown"),
+          requestedAt: String(pd.requested_at ?? row.created_at ?? new Date().toISOString()),
+        }
+      : undefined;
   return {
     id: row.id,
     orderNumber: row.order_number,
@@ -41,6 +59,7 @@ function mapRow(row: any): WashOrder {
     service: row.service,
     servicePrice: Number(row.service_price),
     discount: Number(row.discount ?? 0),
+    pendingDiscount,
     status: row.status as WashStatus,
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
@@ -48,6 +67,7 @@ function mapRow(row: any): WashOrder {
     notes: row.notes ?? undefined,
   };
 }
+
 
 export function useOrders() {
   const { tenant } = useTenant();
@@ -61,7 +81,16 @@ export function useOrders() {
   }, [rows]);
 
   const addOrder = useCallback(
-    async (data: { customer: string; customerPhone?: string; vehicle: string; plate: string; service: string; servicePrice?: number; discount?: number }) => {
+    async (data: {
+      customer: string;
+      customerPhone?: string;
+      vehicle: string;
+      plate: string;
+      service: string;
+      servicePrice?: number;
+      discount?: number;
+      pendingDiscount?: PendingDiscount;
+    }) => {
       if (!tenant?.id) {
         toast.error("No workspace selected.");
         return null;
@@ -71,8 +100,21 @@ export function useOrders() {
         typeof data.servicePrice === "number"
           ? data.servicePrice
           : LEGACY_PRICES[data.service] ?? 0;
-      const discount = Math.max(0, Math.min(Number(data.discount) || 0, basePrice));
+      const rawDiscount = Math.max(0, Math.min(Number(data.discount) || 0, basePrice));
+
+      // If a pending-discount request is attached, DO NOT apply the discount:
+      // the order stays at full price until a manager approves it.
+      const hasPending = !!data.pendingDiscount && data.pendingDiscount.amount > 0;
+      const discount = hasPending ? 0 : rawDiscount;
       const servicePrice = +(basePrice - discount).toFixed(2);
+      const pendingPayload = hasPending
+        ? {
+            amount: Math.max(0, Math.min(Number(data.pendingDiscount!.amount) || 0, basePrice)),
+            requested_by_id: data.pendingDiscount!.requestedById,
+            requested_by_name: data.pendingDiscount!.requestedByName,
+            requested_at: data.pendingDiscount!.requestedAt || new Date().toISOString(),
+          }
+        : null;
 
       // Try to get a sequential order number when online; fall back to a local
       // placeholder offline so the row is still usable until sync resolves it.
@@ -84,12 +126,6 @@ export function useOrders() {
         /* offline */
       }
       if (!orderNum) {
-        // Offline: continue the W-XXX sequence using a "WO-XXX" prefix so the
-        // reference is visibly distinct from server-issued numbers. We seed
-        // from the highest known order_number in the local mirror (server
-        // W-### + offline WO-###) so it picks up where the last reference
-        // left off. The sync engine swaps WO-XXX for a canonical W-XXX from
-        // next_order_number() on reconnect.
         const allLocal = await db.orders.toArray();
         let highest = 0;
         for (const r of allLocal as any[]) {
@@ -108,7 +144,7 @@ export function useOrders() {
 
       const id = crypto.randomUUID();
       const nowIso = new Date().toISOString();
-      const payload = {
+      const payload: any = {
         id,
         tenant_id: tenant.id,
         order_number: orderNum,
@@ -119,6 +155,7 @@ export function useOrders() {
         service: serviceLabel,
         service_price: servicePrice,
         discount,
+        pending_discount: pendingPayload,
         status: "waiting" as const,
         created_at: nowIso,
         updated_at: nowIso,
@@ -126,7 +163,13 @@ export function useOrders() {
 
       await db.orders.put({ ...payload, _dirty: 1, _op: "insert" });
       await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "insert", payload });
-      toast.success(`Order created for ${data.customer}`);
+      if (hasPending) {
+        toast.success(
+          `Order created at full price. Discount pending manager approval.`,
+        );
+      } else {
+        toast.success(`Order created for ${data.customer}`);
+      }
       return mapRow(payload);
     },
     [tenant?.id],
@@ -142,6 +185,9 @@ export function useOrders() {
       if (newStatus === "completed") {
         patch.completed_at = new Date().toISOString();
         patch.wait_minutes = Math.round((Date.now() - new Date(existing.created_at as string).getTime()) / 60000);
+        // Completing without approval discards any pending discount request —
+        // the record is finalised at the full amount that's already stored.
+        if (existing.pending_discount) patch.pending_discount = null;
       }
 
       const merged = { ...existing, ...patch };
@@ -172,5 +218,61 @@ export function useOrders() {
     [tenant?.id],
   );
 
-  return { orders, addOrder, updateStatus, updateNotes, loading };
+  const approveDiscount = useCallback(
+    async (orderId: string, authorizer?: { id: string; name: string }) => {
+      if (!tenant?.id) return false;
+      const existing = (await db.orders.get(orderId)) as any;
+      if (!existing) return false;
+      const pd = existing.pending_discount;
+      if (!pd || typeof pd !== "object" || typeof pd.amount !== "number") return false;
+
+      const basePrice = Number(existing.service_price) + Number(existing.discount ?? 0);
+      const amount = Math.max(0, Math.min(Number(pd.amount) || 0, basePrice));
+      const newDiscount = +(Number(existing.discount ?? 0) + amount).toFixed(2);
+      const newServicePrice = +(basePrice - newDiscount).toFixed(2);
+      const nowIso = new Date().toISOString();
+
+      const auditLine = `[DISCOUNT APPROVED ${nowIso.replace("T", " ").slice(0, 16)}] ${
+        authorizer?.name ? `by ${authorizer.name}` : ""
+      } — R${amount.toFixed(2)} (requested by ${pd.requested_by_name ?? "staff"})`.trim();
+      const mergedNotes = existing.notes ? `${existing.notes}\n${auditLine}` : auditLine;
+
+      const patch: any = {
+        discount: newDiscount,
+        service_price: newServicePrice,
+        pending_discount: null,
+        notes: mergedNotes,
+        updated_at: nowIso,
+      };
+      const merged = { ...existing, ...patch };
+      await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: { id: orderId, ...patch } });
+      toast.success("Discount approved");
+      return true;
+    },
+    [tenant?.id],
+  );
+
+  const rejectDiscount = useCallback(
+    async (orderId: string, authorizer?: { id: string; name: string }) => {
+      if (!tenant?.id) return false;
+      const existing = (await db.orders.get(orderId)) as any;
+      if (!existing || !existing.pending_discount) return false;
+      const nowIso = new Date().toISOString();
+      const auditLine = `[DISCOUNT REJECTED ${nowIso.replace("T", " ").slice(0, 16)}]${
+        authorizer?.name ? ` by ${authorizer.name}` : ""
+      }`;
+      const mergedNotes = existing.notes ? `${existing.notes}\n${auditLine}` : auditLine;
+      const patch: any = { pending_discount: null, notes: mergedNotes, updated_at: nowIso };
+      const merged = { ...existing, ...patch };
+      await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
+      await enqueueOutbox({ tenant_id: tenant.id, table: "orders", op: "update", payload: { id: orderId, ...patch } });
+      toast.message("Discount request rejected");
+      return true;
+    },
+    [tenant?.id],
+  );
+
+  return { orders, addOrder, updateStatus, updateNotes, approveDiscount, rejectDiscount, loading };
 }
+

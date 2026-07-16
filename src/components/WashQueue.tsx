@@ -55,13 +55,16 @@ interface WashQueueProps {
   orders: WashOrder[];
   onUpdateStatus?: (id: string, status: WashStatus) => Promise<void> | void;
   onUpdateNotes?: (id: string, notes: string) => Promise<boolean> | void;
+  onApproveDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
+  onRejectDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
 }
+
 
 type SortKey = "completed" | "amount" | "customer";
 type SortDir = "asc" | "desc";
 const PAGE_SIZE = 15;
 
-export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueueProps) => {
+export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount }: WashQueueProps) => {
   const { formatPrice } = useCurrency();
   const { eligibleOrderIds, redeemedOrderIds } = useRewardEligibility(orders);
   const { can } = usePermissions();
@@ -512,6 +515,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
                   DISCOUNT −{formatPrice(o.discount ?? 0)}
                 </div>
               )}
+              {o.pendingDiscount && o.status !== "completed" && o.status !== "cancelled" && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
+                  DISCOUNT PENDING −{formatPrice(o.pendingDiscount.amount)} · {o.pendingDiscount.requestedByName}
+                </div>
+              )}
+
 
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
@@ -570,7 +579,10 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes }: WashQueuePr
         onOpenChange={(open) => { if (!open) setSelectedId(null); }}
         onUpdateStatus={onUpdateStatus}
         onUpdateNotes={onUpdateNotes}
+        onApproveDiscount={onApproveDiscount}
+        onRejectDiscount={onRejectDiscount}
       />
+
 
       <AlertDialog
         open={confirmCancelIds !== null}

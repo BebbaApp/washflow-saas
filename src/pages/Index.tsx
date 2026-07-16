@@ -81,7 +81,7 @@ const Index = () => {
   const [pendingComplete, setPendingComplete] = useState<null | { id: string; service: string; orderNumber: string; customer: string; vehicle?: string }>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [printPreviewId, setPrintPreviewId] = useState<string | null>(null);
-  const { orders, addOrder, updateStatus, updateNotes } = useOrders();
+  const { orders, addOrder, updateStatus, updateNotes, approveDiscount, rejectDiscount } = useOrders();
   const { user, login, signup, logout, updateProfile, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { processCompletedOrders } = useInventory();
@@ -461,7 +461,7 @@ const Index = () => {
             </header>
           )}
 
-          {activeTab === "queue" && <WashQueue orders={orders} onUpdateStatus={handleStatusUpdate} onUpdateNotes={updateNotes} />}
+          {activeTab === "queue" && <WashQueue orders={orders} onUpdateStatus={handleStatusUpdate} onUpdateNotes={updateNotes} onApproveDiscount={approveDiscount} onRejectDiscount={rejectDiscount} />}
           {activeTab === "services" && <ServicePackages addOpen={addServiceOpen} onAddOpenChange={setAddServiceOpen} />}
           {activeTab === "history" && <HistoryPage orders={orders} />}
           {activeTab === "loyalty" && <LoyaltyDashboard />}

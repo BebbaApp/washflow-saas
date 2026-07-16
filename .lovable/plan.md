@@ -1,123 +1,68 @@
-## Per-Tenant Backup System
+## Goal
+Only admins and managers can authorize a discount on a wash order. A cashier/washer/driver/supervisor entering a discount must either (a) get inline PIN authorization from a manager/admin on the same screen, or (b) submit the order at full price with a "discount requested" flag showing their name. Admins/managers can also approve the pending discount later from the order card before completion. If the order completes without approval, it is recorded at full amount.
 
-Adds a nightly snapshot + restore + export + health-check system that is fully **additive** — no existing table, hook, edge function, or UI component changes behavior.
+## Changes
 
-### 1. New tables (migration)
+### 1. New permission
+`src/lib/permissions.ts`
+- Add `queue.approveDiscount` ("Authorize Discount") to the "Wash Queue" group.
+- Default: admin + manager = true; supervisor/cashier/washer/driver = false.
 
-```
-tenant_backups
-  id uuid pk
-  tenant_id uuid  (FK tenants)
-  created_at timestamptz default now()
-  kind text  ('nightly' | 'manual' | 'pre_restore')
-  row_counts jsonb              -- {orders: 1234, customers: 88, ...}
-  snapshot jsonb                -- {orders: [...], customers: [...], ...}
-  size_bytes bigint
-  checksum text                 -- sha256 of snapshot
-  created_by uuid null
+### 2. Data model
+Migration `phase47_orders_pending_discount.sql`
+- `ALTER TABLE public.orders ADD COLUMN pending_discount jsonb NULL` — stores `{ amount, requested_by_id, requested_by_name, requested_at }`. Existing grants cover the new column.
 
-tenant_health_checks
-  id uuid pk
-  tenant_id uuid
-  checked_at timestamptz
-  status text  ('ok' | 'warning' | 'critical')
-  findings jsonb                -- [{check:'orphan_orders', count:3, sample:[...]}]
-```
+`src/hooks/useOrders.ts`
+- Extend `WashOrder` with `pendingDiscount?: { amount; requestedById; requestedByName; requestedAt }`.
+- `mapRow` reads `row.pending_discount`.
+- `addOrder` accepts `pendingDiscount?`; when set, stores full base `service_price` with `discount = 0` and `pending_discount = {...}`.
+- New `approveDiscount(orderId)`: moves `pending_discount.amount` into `discount`, subtracts from `service_price`, clears `pending_discount`.
+- New `rejectDiscount(orderId)`: clears `pending_discount`.
+- `updateStatus`: when completing, if `pending_discount` still set, clear it (record stays at full amount).
 
-Both **service_role only** (no anon/authenticated grants, no SELECT policies). RLS enabled and deny-all — accessed exclusively through edge functions.
+### 3. Inline PIN gate (same screen)
+New edge function `supabase/functions/verify-authorizer-pin/index.ts`
+- Reuses the same hashing/lookup logic as `pin-login` but does NOT mint a session.
+- Input: `{ identifier, pin, requiredRoles: ["admin","manager"] }`.
+- Output: `{ ok: true, user: { id, name, role } }` on success, 401 otherwise.
+- Uses service role to read `staff_pins` + `user_roles` + `profiles` and confirm the PIN owner has one of the required roles in the caller's tenant.
 
-Retention: keep last 14 nightly + 12 monthly (first-of-month) + all manual/pre_restore. Cleanup runs in the same nightly job.
+New component `src/components/DiscountAuthorizeDialog.tsx`
+- Small modal launched from the "Override" button in `NewOrderDialog`.
+- Fields: identifier (phone or email) + 4–6 digit PIN.
+- Calls `verify-authorizer-pin` with `requiredRoles: ["admin","manager"]`.
+- On success, returns the authorizing user (id/name/role) to the parent — no session change, current cashier stays logged in.
 
-### 2. Nightly snapshot (`backup-tenants` edge function + pg_cron 02:00)
+### 4. New Order dialog
+`src/components/NewOrderDialog.tsx`
+- Import `usePermissions`, `useAuth`, and the new `DiscountAuthorizeDialog`.
+- Compute `canAuthorize = can("queue.approveDiscount")`.
+- Next to the Discount input, render an "Override" button:
+  - Hidden if `canAuthorize` (their discount already applies immediately).
+  - Otherwise visible; disabled until `discount > 0`.
+  - Clicking opens `DiscountAuthorizeDialog`. On success, store `authorizedBy = { id, name, role }` in local state and show a green "Authorized by {name}" chip; discount will now apply immediately on submit.
+- Submit behaviour:
+  - `canAuthorize` or `authorizedBy` set → submit with discount applied (current behaviour), pass `authorizedBy` through so we can record it in notes/audit (optional; minimal version just applies).
+  - Discount > 0 and no authorization → submit with `pendingDiscount: { amount, requestedById: user.id, requestedByName: user.name, requestedAt: now }`, servicePrice = full base, discount = 0.
 
-For each tenant, service-role client selects rows from the mirrored tables (same set the offline sync uses: `orders, customers, services, expenses, expense_categories, inventory_items, inventory_transactions, suppliers, loyalty_transactions, shifts, shift_templates, time_off_requests, staff_pins, staff_compensation, tenant_members, receipt_settings, tenant_settings, user_roles, attendance_records`), writes one `tenant_backups` row with `snapshot` JSONB, row counts, size, sha256 checksum.
+### 5. Wash queue card + details
+`src/components/WashQueue.tsx`
+- On rows/cards with `order.pendingDiscount`, show a warning chip: "Discount requested by {name} — {amount}".
 
-Large tenants (>5 MB snapshot): write to Supabase Storage bucket `tenant-backups` (service-role only) and store the path in `snapshot` instead of the inline JSON. Keeps the table lean.
+`src/components/OrderDetailsModal.tsx`
+- When `pendingDiscount` is set and status is not `completed`/`cancelled`:
+  - Banner in the price block: "Discount requested by {name}: −{amount}. Final would be {computedFinal}."
+  - If current viewer `can("queue.approveDiscount")` → "Approve discount" and "Reject" buttons wired to `approveDiscount` / `rejectDiscount`.
+  - Otherwise, offer an "Authorize with manager PIN" button that opens the same `DiscountAuthorizeDialog`; on success, immediately calls `approveDiscount(orderId)`. This lets a cashier get inline approval on the card too.
 
-### 3. Health checks (same nightly job)
+### 6. Wiring
+`src/pages/Index.tsx` — pass new `approveDiscount`/`rejectDiscount` from `useOrders` down through `WashQueue` to `OrderDetailsModal`. Widen `NewOrderDialog` `onSubmit` to include `pendingDiscount?`.
 
-Runs these queries per tenant and writes to `tenant_health_checks`:
-- Orphan orders (customer_id set but no matching customer row)
-- Orphan inventory_transactions
-- Duplicate `order_number` within tenant
-- Negative `current_stock` inventory items
-- `service_price < 0` or `discount > service_price` on orders
-- Row count deltas vs previous night beyond ±50% (possible mass delete)
-- Missing `updated_at` on any mirrored table
+## Out of scope
+- Auditing every authorization event to a dedicated table (we rely on the notes/pending_discount trail). Can be added later.
+- Server-side RLS enforcement of the "only admin/manager can set discount" rule — the PIN verification is server-side, but the final `orders` update runs as the cashier. If you want DB-enforced authorization, add a trigger that rejects `discount > 0` writes from non-privileged roles unless a signed authorizer token is attached; flagged but not included.
 
-`status=critical` triggers a Resend email to the tenant owner + platform admins.
-
-### 4. Restore (`restore-tenant` edge function)
-
-Manual, platform-admin only, requires typing the tenant slug to confirm.
-
-Flow (inside a single Postgres transaction via `service_role`):
-1. Take a `pre_restore` snapshot first (safety net).
-2. Bump a new `tenants.restored_at` column so clients know to wipe local cache.
-3. Delete tenant rows in **reverse FK order**: inventory_transactions → orders → loyalty_transactions → inventory_items → services → customers → expenses → ... → tenant_members (kept).
-4. Re-insert snapshot rows in **forward FK order**.
-5. Commit. Realtime pushes the changes to any connected clients.
-
-Client side: `useTenant` reads `tenants.restored_at`; if it advanced since local cache timestamp, offline mirror (`src/offline/db.ts`) wipes IndexedDB for that tenant and re-syncs. Only ~15 lines added.
-
-Not restored: `auth.users` (Supabase-reserved), storage objects, `tenant_backups`, `tenant_health_checks`, `platform_admins`, `super_admins`.
-
-### 5. JSON export (`export-tenant` edge function)
-
-Owner or platform-admin only. Returns a downloadable `.json` file: either the latest snapshot or a fresh one built on demand. Also offered as a zipped folder of one JSON file per table for readability.
-
-### 6. UI (new tab in Platform Console)
-
-New file `src/components/platform/ConsoleBackups.tsx` added as a tab in `src/pages/Platform.tsx`. Shows:
-- Table of tenants with: last backup time, last backup size, health status badge, "Export JSON" / "Restore…" / "View history" buttons.
-- History drawer lists all snapshots for a tenant with download + restore-from-this-snapshot.
-- Health findings panel shows current critical/warning items with the affected row IDs.
-
-Owner Portal (`/owner`) gets an "Export my data" button per workspace (calls `export-tenant`), but no restore (platform-admin only).
-
-### 7. Impact on existing code
-
-| Area | Change |
-|---|---|
-| Existing tables | none |
-| RLS policies | none changed |
-| `useOrders`, `useTenant`, `useInventory`, etc. | none (except ~15 lines in `useTenant` to react to `restored_at`) |
-| Offline mirror (`src/offline/`) | small addition to wipe IndexedDB when `restored_at` advances |
-| Realtime subscribers | unaffected (they just see row churn during a restore) |
-| Existing edge functions | none |
-
-### 8. Files to add/edit
-
-**New SQL** — `supabase/sql/phase45_tenant_backups.sql` (tables, grants, RLS deny-all, `tenants.restored_at` column, pg_cron schedule)
-
-**New edge functions**
-- `supabase/functions/backup-tenants/index.ts` (cron target: snapshot + health + retention)
-- `supabase/functions/restore-tenant/index.ts` (platform-admin)
-- `supabase/functions/export-tenant/index.ts` (owner or platform-admin)
-
-**New UI**
-- `src/components/platform/ConsoleBackups.tsx`
-- `src/hooks/useTenantBackups.ts`
-
-**Small edits**
-- `src/pages/Platform.tsx` — add "Backups" tab
-- `src/components/owner/OwnerOverviewGrid.tsx` — add "Export data" button
-- `src/hooks/useTenant.tsx` — watch `restored_at`
-- `src/offline/db.ts` — wipe on restored_at change
-
-### 9. Secrets
-
-Reuses existing `RESEND_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. Nothing new to add.
-
-### 10. Cost / storage note
-
-Estimated snapshot size per active tenant ≈ 200 KB–2 MB compressed JSONB. 14 nightlies + 12 monthlies ≈ 26 snapshots ≈ 5–50 MB per tenant. Storage bucket path used above 5 MB. Well within Supabase free-tier limits for a small number of tenants; monitor and tune retention if it grows.
-
-### 11. Rollout order
-
-1. Migration + grants
-2. Deploy `backup-tenants`, run once manually, verify snapshots
-3. Deploy `export-tenant`, wire Owner Portal button
-4. Deploy `restore-tenant`, add Console UI (behind a confirm dialog)
-5. Enable pg_cron nightly schedule
-6. Turn on Resend alert for `critical` health checks
+## Technical notes
+- The PIN verification endpoint never mints a session, so the cashier remains signed in throughout the flow.
+- `pending_discount` is nullable JSON so offline writes and existing rows stay valid; approve/reject use the same offline outbox path as `updateStatus`.
+- `DiscountAuthorizeDialog` is reused in both the New Order dialog and the Order Details modal, keeping one PIN UX.

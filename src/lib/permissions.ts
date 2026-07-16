@@ -30,8 +30,10 @@ export const PERMISSION_GROUPS: PermGroup[] = [
       { key: "queue.cancel", label: "Cancel Order" },
       { key: "queue.editNotes", label: "Edit Order Notes" },
       { key: "queue.delete", label: "Delete Order" },
+      { key: "queue.approveDiscount", label: "Authorize Discount" },
     ],
   },
+
   {
     key: "services",
     label: "Services",
@@ -197,7 +199,9 @@ export function getDefaultMatrix(): PermissionMatrix {
     "attendance.viewAll", "attendance.enroll",
     "attendance.manualOverride", "attendance.audit",
     "inventory.bundles", "inventory.mapping",
+    "queue.approveDiscount",
   ]);
+
 
   allow("supervisor", ["attendance.assisted"]);
   allow("manager", ["attendance.assisted"]);
