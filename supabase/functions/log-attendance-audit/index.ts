@@ -85,6 +85,10 @@ Deno.serve(async (req) => {
   const attendanceKind = shouldCreateAttendance ? String(attendance_record.kind ?? "") : "";
   const attendanceCreatedAt = String(attendance_record?.created_at ?? created_at ?? new Date().toISOString());
   const attendanceNotes = String(attendance_record?.notes ?? `Admin override: ${String(reason).trim()}`);
+  const providedAttendanceId = shouldCreateAttendance ? String(attendance_record?.id ?? "") : "";
+  const attendanceRowId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(providedAttendanceId)
+    ? providedAttendanceId
+    : crypto.randomUUID();
 
   if (shouldCreateAttendance) {
     if (!ATTENDANCE_KINDS.has(attendanceKind)) return reply({ error: "invalid_attendance_kind" }, 400);
@@ -129,7 +133,7 @@ Deno.serve(async (req) => {
 
   if (shouldCreateAttendance) {
     attendanceRow = {
-      id: crypto.randomUUID(),
+      id: attendanceRowId,
       tenant_id,
       user_id: target_user_id,
       kind: attendanceKind,
@@ -185,9 +189,26 @@ Deno.serve(async (req) => {
 
 
     const { data: insertedRecord, error: attendanceError } = insertResult;
-    if (attendanceError) return reply({ error: attendanceError.message }, 500);
-    attendanceRow = insertedRecord;
-    attendanceId = insertedRecord.id;
+    if (attendanceError) {
+      const msg = String(attendanceError.message ?? attendanceError);
+      if (/duplicate key|already exists|23505/i.test(msg)) {
+        const { data: existingRecord, error: existingError } = await admin
+          .from("attendance_records")
+          .select("id,tenant_id,user_id,kind,selfie_url,match_score,status,notes,created_at")
+          .eq("tenant_id", tenant_id)
+          .eq("id", attendanceRow.id)
+          .maybeSingle();
+        if (existingError) return reply({ error: existingError.message }, 500);
+        if (!existingRecord) return reply({ error: msg }, 500);
+        attendanceRow = existingRecord;
+        attendanceId = existingRecord.id;
+      } else {
+        return reply({ error: msg }, 500);
+      }
+    } else {
+      attendanceRow = insertedRecord;
+      attendanceId = insertedRecord.id;
+    }
   }
 
   const row = {

@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useLiveTable } from "@/offline/useLiveTable";
 import { db } from "@/offline/db";
-import { offlineInsert } from "@/offline/offlineWrite";
 import { enqueueOutbox } from "@/offline/sync";
 
 // supabase.functions.invoke turns any non-2xx into a generic
@@ -780,18 +779,27 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
       }
     }
 
-    // Offline: create attendance record locally and queue it for sync.
-    const rec = await offlineInsert("attendance_records", tenantId, {
-      user_id: targetUserId, kind,
+    // Offline: create the local attendance/audit preview, but queue a single
+    // manual-override sync item. Replaying a raw attendance_records insert can
+    // hit the normal check-in/check-out sequence trigger and get stuck forever;
+    // the edge function writes the attendance row + audit row atomically with
+    // the same admin override path used online.
+    const recordId = crypto.randomUUID();
+    const rec = {
+      id: recordId,
+      tenant_id: tenantId,
+      user_id: targetUserId,
+      kind,
       selfie_url: null, match_score: null, status: "manual",
       notes: `Admin override: ${reason.trim()}`,
       created_at: createdAt,
-    });
+    };
+    await db.attendance_records.put({ ...rec, _dirty: 1, _op: "insert" } as any);
 
     const auditEntry = {
       id: crypto.randomUUID(),
       tenant_id: tenantId,
-      attendance_id: rec.id,
+      attendance_id: recordId,
       target_user_id: targetUserId,
       acted_by: user.id,
       action,
@@ -807,9 +815,24 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     setAuditRows(cached);
     await enqueueOutbox({
       tenant_id: tenantId,
-      table: "attendance_audit_log" as any,
+      table: "attendance_manual_overrides",
       op: "insert",
-      payload: auditEntry,
+      payload: {
+        local_attendance_id: recordId,
+        target_user_id: targetUserId,
+        kind,
+        action,
+        reason: reason.trim(),
+        original_score: originalScore,
+        original_status: originalStatus,
+        created_at: createdAt,
+        attendance_record: {
+          id: recordId,
+          kind,
+          created_at: createdAt,
+          notes: `Admin override: ${reason.trim()}`,
+        },
+      },
     });
     toast.success("Manual override recorded (offline — will sync when online)");
 

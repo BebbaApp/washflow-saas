@@ -92,6 +92,28 @@ const EDGE_SYNC_WRITE_TABLES = new Set<string>([
   "inventory_transactions",
 ]);
 
+const MANUAL_OVERRIDE_OUTBOX_TABLE = "attendance_manual_overrides";
+
+async function extractFunctionError(error: any) {
+  let detail = error?.message ?? String(error);
+  try {
+    const resp = error?.context;
+    if (resp && typeof resp.text === "function") {
+      const text = await resp.clone?.().text?.() ?? await resp.text();
+      if (text) {
+        try {
+          const parsed = JSON.parse(text);
+          const err = parsed?.error ?? parsed?.message ?? parsed;
+          detail = typeof err === "string" ? err : JSON.stringify(err);
+        } catch {
+          detail = text;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return detail;
+}
+
 async function pushMutationViaEdge(it: OutboxItem, payload: any) {
   const { data, error } = await supabase.functions.invoke("sync-mutation", {
     body: {
@@ -129,9 +151,102 @@ async function pushMutationViaEdge(it: OutboxItem, payload: any) {
   return (data as any)?.row ?? null;
 }
 
+function isManualOverrideAttendancePayload(payload: any) {
+  return payload?.status === "manual"
+    && typeof payload?.user_id === "string"
+    && (payload?.kind === "check_in" || payload?.kind === "check_out")
+    && /^Admin override:/i.test(String(payload?.notes ?? ""));
+}
+
+function reasonFromManualNotes(notes: unknown) {
+  const text = String(notes ?? "").trim();
+  return text.replace(/^Admin override:\s*/i, "").trim() || "Manual override";
+}
+
+async function findRelatedAuditOutbox(it: OutboxItem, localAttendanceId: string | null, payload: any) {
+  const candidates = await db.outbox.where("tenant_id").equals(it.tenant_id).toArray();
+  return candidates.find((candidate) => {
+    if (candidate.id === it.id || candidate.table !== "attendance_audit_log") return false;
+    const audit = candidate.payload ?? {};
+    if (localAttendanceId && audit.attendance_id === localAttendanceId) return true;
+    return audit.target_user_id === payload?.user_id
+      && audit.created_at === payload?.created_at
+      && audit.reason === reasonFromManualNotes(payload?.notes);
+  }) ?? null;
+}
+
+async function deleteRelatedAuditOutbox(it: OutboxItem, localAttendanceId: string | null, body: any) {
+  const candidates = await db.outbox.where("tenant_id").equals(it.tenant_id).toArray();
+  const ids = candidates
+    .filter((candidate) => {
+      if (!candidate.id || candidate.id === it.id || candidate.table !== "attendance_audit_log") return false;
+      const audit = candidate.payload ?? {};
+      if (localAttendanceId && audit.attendance_id === localAttendanceId) return true;
+      return audit.target_user_id === body?.target_user_id
+        && audit.created_at === body?.created_at
+        && audit.reason === body?.reason;
+    })
+    .map((candidate) => candidate.id!);
+  if (ids.length > 0) await db.outbox.bulkDelete(ids);
+}
+
+async function pushManualOverrideViaEdge(it: OutboxItem, payload: any) {
+  const localAttendanceId = String(payload?.local_attendance_id ?? payload?.attendance_record?.id ?? payload?.id ?? "") || null;
+  const relatedAudit = it.table === "attendance_records"
+    ? await findRelatedAuditOutbox(it, localAttendanceId, payload)
+    : null;
+  const auditPayload = relatedAudit?.payload ?? (it.table === "attendance_audit_log" ? payload : null);
+  const kind = payload?.kind ?? payload?.attendance_record?.kind;
+  const targetUserId = payload?.target_user_id ?? payload?.user_id ?? auditPayload?.target_user_id;
+  const createdAt = payload?.created_at ?? payload?.attendance_record?.created_at ?? auditPayload?.created_at;
+  const reason = payload?.reason ?? auditPayload?.reason ?? reasonFromManualNotes(payload?.notes ?? payload?.attendance_record?.notes);
+
+  const body: any = {
+    tenant_id: it.tenant_id,
+    target_user_id: targetUserId,
+    action: payload?.action ?? auditPayload?.action ?? (kind === "check_out" ? "manual_check_out" : "manual_check_in"),
+    reason,
+    original_score: payload?.original_score ?? auditPayload?.original_score ?? null,
+    original_status: payload?.original_status ?? auditPayload?.original_status ?? null,
+    created_at: createdAt,
+  };
+
+  if (kind === "check_in" || kind === "check_out") {
+    body.attendance_record = {
+      id: localAttendanceId ?? undefined,
+      kind,
+      created_at: createdAt,
+      notes: payload?.attendance_record?.notes ?? payload?.notes ?? `Admin override: ${reason}`,
+    };
+  } else if (auditPayload?.attendance_id) {
+    body.attendance_id = auditPayload.attendance_id;
+  }
+
+  const { data, error } = await supabase.functions.invoke("log-attendance-audit", { body });
+  if (error) throw new Error(await extractFunctionError(error));
+  if ((data as any)?.error) throw new Error(String((data as any).error));
+
+  const savedRecord = (data as any)?.record;
+  if (savedRecord?.id) {
+    if (localAttendanceId && savedRecord.id !== localAttendanceId) {
+      try { await db.attendance_records.delete(localAttendanceId); } catch { /* ignore */ }
+    }
+    await db.attendance_records.put({ ...savedRecord, _dirty: 0 as 0 } as any);
+  } else if (localAttendanceId) {
+    const existing = await db.attendance_records.get(localAttendanceId);
+    if (existing) {
+      const next = { ...existing, _dirty: 0 as 0 } as any;
+      delete next._op;
+      await db.attendance_records.put(next);
+    }
+  }
+  await deleteRelatedAuditOutbox(it, localAttendanceId, body);
+  return savedRecord ?? null;
+}
+
 function isPermanentOutboxError(error: unknown) {
   const message = (error as any)?.message ?? String(error);
-  return /do not have permission to edit order notes|field staff cannot modify order details|field staff cannot cancel orders/i.test(message);
+  return /do not have permission to edit order notes|field staff cannot modify order details|field staff cannot cancel orders|already checked in|cannot check out without an active check-in/i.test(message);
 }
 
 async function markLocalMutationSynced(it: OutboxItem, syncedRow: any, payload: any) {
@@ -425,7 +540,13 @@ async function drainOutbox() {
         return rest;
       };
       let syncedRow: any = null;
-      if (EDGE_SYNC_WRITE_TABLES.has(it.table)) {
+      if (it.table === MANUAL_OVERRIDE_OUTBOX_TABLE) {
+        await pushManualOverrideViaEdge(it, it.payload);
+      } else if (it.table === "attendance_records" && it.op === "insert" && isManualOverrideAttendancePayload(it.payload)) {
+        await pushManualOverrideViaEdge(it, it.payload);
+      } else if (it.table === "attendance_audit_log" && it.op === "insert") {
+        await pushManualOverrideViaEdge(it, it.payload);
+      } else if (EDGE_SYNC_WRITE_TABLES.has(it.table)) {
         let payload: any = stripUA(it.payload);
         syncedRow = await pushMutationViaEdge(it, payload);
         await markLocalMutationSynced(it, syncedRow, payload);
