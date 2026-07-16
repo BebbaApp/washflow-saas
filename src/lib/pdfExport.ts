@@ -56,7 +56,8 @@ export function exportTablePdf(opts: ExportTablePdfOptions): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 40;
-  const generatedAt = new Date().toLocaleString();
+  const now = new Date();
+  const generatedAt = `${formatReceiptDate(now)}, ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`;
 
   const drawHeader = () => {
     // Shop name (brand)
