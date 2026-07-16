@@ -275,6 +275,68 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
     return INVENTORY_PRESETS.filter((p) => ids.has(p.id));
   }, [items, INVENTORY_PRESETS]);
 
+  // Detect duplicates by (name + category), case-insensitive. Pick a canonical
+  // "primary" per group: waterItemId when relevant, otherwise the earliest-created.
+  const duplicateInfo = useMemo(() => {
+    const groups = new Map<string, InventoryItem[]>();
+    for (const it of items) {
+      const key = `${it.category}::${it.name.trim().toLowerCase()}`;
+      const arr = groups.get(key) ?? [];
+      arr.push(it);
+      groups.set(key, arr);
+    }
+    const primaryOf = new Map<string, string>(); // itemId -> primaryId (only for dup items)
+    const dupCount = new Map<string, number>();  // primaryId -> total duplicates in group
+    let totalDupItems = 0;
+    for (const [, arr] of groups) {
+      if (arr.length < 2) continue;
+      const withWater = arr.find((x) => x.id === waterItemId);
+      // Prefer water-linked, else the item with the most stock, else first
+      const primary = withWater
+        ?? [...arr].sort((a, b) => b.quantity - a.quantity)[0];
+      for (const it of arr) primaryOf.set(it.id, primary.id);
+      dupCount.set(primary.id, arr.length);
+      totalDupItems += arr.length;
+    }
+    return { primaryOf, dupCount, totalDupItems };
+  }, [items, waterItemId]);
+
+  const mergeAllDuplicates = async () => {
+    if (!confirm("Merge all duplicate items? Stock will be combined into a single record per name and their transaction history preserved.")) return;
+    const groups = new Map<string, InventoryItem[]>();
+    for (const it of items) {
+      const key = `${it.category}::${it.name.trim().toLowerCase()}`;
+      const arr = groups.get(key) ?? [];
+      arr.push(it);
+      groups.set(key, arr);
+    }
+    let merged = 0;
+    for (const [, arr] of groups) {
+      if (arr.length < 2) continue;
+      const withWater = arr.find((x) => x.id === waterItemId);
+      const primary = withWater ?? [...arr].sort((a, b) => b.quantity - a.quantity)[0];
+      for (const it of arr) {
+        if (it.id === primary.id) continue;
+        const res = await mergeItems(it.id, primary.id);
+        if (res.ok) merged += 1;
+      }
+    }
+    toast.success(merged > 0 ? `Merged ${merged} duplicate item${merged === 1 ? "" : "s"}` : "No duplicates to merge");
+  };
+
+  const mergeOneItem = async (sourceId: string) => {
+    const targetId = duplicateInfo.primaryOf.get(sourceId);
+    if (!targetId || targetId === sourceId) return;
+    const target = items.find((i) => i.id === targetId);
+    const source = items.find((i) => i.id === sourceId);
+    if (!target || !source) return;
+    if (!confirm(`Merge "${source.name}" into the primary record? Stock will be added to the existing item and history preserved.`)) return;
+    const res = await mergeItems(sourceId, targetId);
+    if (res.ok) toast.success(`Merged into "${target.name}"`);
+    else toast.error(res.reason ?? "Could not merge");
+  };
+
+
   const downloadCsv = (filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
