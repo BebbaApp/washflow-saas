@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
+import { exportTablePdf } from "@/lib/pdfExport";
 
 interface Overview {
   range: { from: string; to: string };
