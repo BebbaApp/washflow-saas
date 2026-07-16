@@ -81,8 +81,20 @@ export const DiscountAuthorizeDialog = ({
           },
         },
       );
-      if (fnErr) throw fnErr;
       const payload = data as any;
+      if (fnErr || payload?.error) {
+        let friendly = payload?.error ?? null;
+        if (!friendly) {
+          try {
+            const res = (fnErr as any)?.context;
+            if (res && typeof res.json === "function") {
+              const body = await res.clone().json();
+              friendly = body?.error ?? null;
+            }
+          } catch { /* ignore */ }
+        }
+        throw new Error(friendly || fnErr?.message || "Authorization failed");
+      }
       if (!payload?.ok || !payload?.user) {
         throw new Error(payload?.error || "Authorization failed");
       }

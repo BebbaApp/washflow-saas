@@ -34,16 +34,57 @@ const phoneVariants = (raw: string): string[] => {
   return Array.from(variants);
 };
 
+const safeComparePin = (pin: string, hash: unknown): boolean => {
+  if (typeof hash !== "string") return false;
+  const trimmedHash = hash.trim();
+  if (!trimmedHash) return false;
+
+  // bcryptjs accepts the hashes this app creates. Some imported/legacy bcrypt
+  // hashes can use $2y$/$2b$ prefixes, so retry with the widely-supported $2a$
+  // prefix before deciding the PIN is wrong.
+  const variants = new Set<string>([
+    trimmedHash,
+    trimmedHash.replace(/^\$2y\$/, "$2a$"),
+    trimmedHash.replace(/^\$2b\$/, "$2a$"),
+  ]);
+
+  for (const candidateHash of variants) {
+    try {
+      if (bcrypt.compareSync(pin, candidateHash)) return true;
+    } catch {
+      // Ignore malformed legacy rows and keep checking other candidates.
+    }
+  }
+  return false;
+};
+
+const pushCandidate = (
+  candidates: { user_id: string; pin_hash: string }[],
+  seen: Set<string>,
+  row: { user_id?: unknown; pin_hash?: unknown } | null | undefined,
+) => {
+  const userId = typeof row?.user_id === "string" ? row.user_id : "";
+  const pinHash = typeof row?.pin_hash === "string" ? row.pin_hash : "";
+  if (!userId || !pinHash) return;
+  const key = `${userId}:${pinHash}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  candidates.push({ user_id: userId, pin_hash: pinHash });
+};
+
+const reply = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "Unauthorized" }, 401);
     }
 
     const anon = createClient(
@@ -53,10 +94,7 @@ Deno.serve(async (req) => {
     );
     const { data: userData, error: userErr } = await anon.auth.getUser();
     if (userErr || !userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "Unauthorized" }, 401);
     }
     const callerId = userData.user.id;
 
@@ -69,16 +107,10 @@ Deno.serve(async (req) => {
       : ["admin", "manager"];
 
     if (!rawId || !/^\d{4,6}$/.test(pinStr)) {
-      return new Response(
-        JSON.stringify({ error: "Phone or email and 4-6 digit PIN required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return reply({ error: "Phone or email and 4-6 digit PIN required" }, 400);
     }
     if (!tenant_id || typeof tenant_id !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "tenant_id required" }, 400);
     }
 
     const admin = createClient(
@@ -94,10 +126,7 @@ Deno.serve(async (req) => {
       .eq("user_id", callerId)
       .maybeSingle();
     if (!callerMember) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ error: "Forbidden" }, 403);
     }
 
     // Resolve the authorizer via staff_pins (phone or email). We do NOT scope
@@ -106,6 +135,7 @@ Deno.serve(async (req) => {
     // tenant membership + required role on the resolved user_id below.
     const isEmail = rawId.includes("@");
     const candidates: { user_id: string; pin_hash: string }[] = [];
+    const seenCandidates = new Set<string>();
     let lookupDiag = "";
 
     if (isEmail) {
@@ -128,7 +158,7 @@ Deno.serve(async (req) => {
           .from("staff_pins")
           .select("user_id, pin_hash")
           .eq("user_id", foundUserId);
-        for (const r of data ?? []) candidates.push(r as any);
+        for (const r of data ?? []) pushCandidate(candidates, seenCandidates, r as any);
         if (!candidates.length) lookupDiag = "user_has_no_pin";
       }
     } else {
@@ -138,7 +168,7 @@ Deno.serve(async (req) => {
         .select("user_id, pin_hash, phone");
       for (const row of pins ?? []) {
         if (phoneVariants(String((row as any).phone ?? "")).some((k) => variants.has(k))) {
-          candidates.push({ user_id: (row as any).user_id, pin_hash: (row as any).pin_hash });
+          pushCandidate(candidates, seenCandidates, row as any);
         }
       }
       if (!candidates.length) lookupDiag = "no_phone_match";
@@ -148,18 +178,12 @@ Deno.serve(async (req) => {
       const msg = lookupDiag === "no_auth_user"
         ? "No account found with that email."
         : "No PIN found for that phone or email. Ask an admin to set one in Staff settings.";
-      return new Response(
-        JSON.stringify({ error: msg, diag: lookupDiag }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return reply({ ok: false, error: msg, diag: lookupDiag });
     }
 
-    const rec = candidates.find((c) => bcrypt.compareSync(pinStr, c.pin_hash)) ?? null;
+    const rec = candidates.find((c) => safeComparePin(pinStr, c.pin_hash)) ?? null;
     if (!rec) {
-      return new Response(JSON.stringify({ error: "Invalid PIN" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ ok: false, error: "Invalid PIN" });
     }
 
     // Confirm the authorizer belongs to the tenant AND holds a required role.
@@ -170,10 +194,7 @@ Deno.serve(async (req) => {
       .eq("user_id", rec.user_id)
       .maybeSingle();
     if (!authorizerMember) {
-      return new Response(JSON.stringify({ error: "Authorizer is not a member of this workspace." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return reply({ ok: false, error: "Authorizer is not a member of this workspace." });
     }
 
     const { data: roleRows } = await admin
@@ -183,10 +204,7 @@ Deno.serve(async (req) => {
     const roles = (roleRows ?? []).map((r: any) => String(r.role));
     const matchedRole = roles.find((r) => requiredRoles.includes(r));
     if (!matchedRole) {
-      return new Response(
-        JSON.stringify({ error: "This user is not authorized to approve discounts." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return reply({ ok: false, error: "This user is not authorized to approve discounts." });
     }
 
     const { data: profile } = await admin
@@ -201,21 +219,17 @@ Deno.serve(async (req) => {
       email = authUser?.user?.email ?? null;
     } catch { /* ignore */ }
 
-    return new Response(
-      JSON.stringify({
+    return reply(
+      {
         ok: true,
         user: {
           id: rec.user_id,
           name: (profile as any)?.name || email || "Manager",
           role: matchedRole,
         },
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      },
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return reply({ error: (err as Error).message }, 500);
   }
 });
