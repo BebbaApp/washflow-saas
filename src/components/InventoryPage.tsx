@@ -368,13 +368,22 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
             </button>
           )}
           {canExport && (
-            <button
-              onClick={exportCsv}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export CSV</span>
-            </button>
+            <>
+              <button
+                onClick={exportCsv}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </button>
+              <button
+                onClick={exportPdf}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Export PDF</span>
+              </button>
+            </>
           )}
         </div>
       </div>
