@@ -132,7 +132,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
-  const [counts, setCounts] = useState({ completed: 0, cancelled: 0 });
+  const [counts, setCounts] = useState({ completed: 0, cancelled: 0, deleted: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
