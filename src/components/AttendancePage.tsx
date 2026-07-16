@@ -330,6 +330,18 @@ export function AttendancePage() {
     downloadCsv(`attendance_summary_${from}_to_${to}.csv`, toCsv([header, ...rows]));
   };
 
+  const exportSummaryPdf = () => {
+    const headers = ["Period", "Staff", "Check-ins", "Late", "Late (min)", "Hours"];
+    const rows = summary.map((s) => [s.period, s.staffName, s.checkIns, s.lateCount, s.totalLateMin, s.hoursWorked.toFixed(2)]);
+    exportTablePdf({
+      title: `Attendance summary (${reportGroup === "day" ? "daily" : "weekly"})`,
+      subtitle: `Range: ${from} → ${to}`,
+      filename: `attendance_summary_${from}_to_${to}.pdf`,
+      headers,
+      rows,
+    });
+  };
+
   const submitOverride = async () => {
     if (!overrideForm.targetUserId) { return; }
     const r = await manualOverride({
