@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatReceiptDate } from "@/lib/thermalPrinter";
 
 export type PdfCell = string | number | null | undefined;
 
