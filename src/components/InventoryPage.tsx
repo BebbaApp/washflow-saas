@@ -79,6 +79,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   const [undoOpen, setUndoOpen] = useState(false);
   const [adjusting, setAdjusting] = useState<{ item: InventoryItem; mode: "add" | "remove" } | null>(null);
   const [thresholdEditing, setThresholdEditing] = useState<InventoryItem | null>(null);
+  const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<InventoryCategory>(INVENTORY_CATEGORIES[0] ?? "Soap");
