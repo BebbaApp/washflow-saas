@@ -141,8 +141,10 @@ export const NewOrderDialog = ({ open, onOpenChange, onSubmit }: NewOrderDialogP
               inputMode="tel"
               autoComplete="tel"
               value={customerPhone}
+              maxLength={12}
               onChange={(e) => {
-                setCustomerPhone(e.target.value);
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setCustomerPhone(digits);
                 if (phoneError) setPhoneError(null);
               }}
               onBlur={() => {
