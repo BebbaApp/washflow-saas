@@ -5,6 +5,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 const ATTENDANCE_KINDS = new Set(["check_in", "check_out"]);
