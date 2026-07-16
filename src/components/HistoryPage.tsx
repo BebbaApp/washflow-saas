@@ -553,6 +553,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     { id: "cancelled", label: `Cancelled (${counts.cancelled})` },
   ];
 
+  const deletedTabs: { id: DeletedShow; label: string }[] = [
+    { id: "all", label: `Show all` },
+    { id: "deleted", label: `Deleted (${counts.deleted})` },
+    { id: "non-deleted", label: `Hide deleted` },
+  ];
+
   const datePresets: { id: DatePreset; label: string }[] = [
     { id: "all", label: "All time" },
     { id: "7d", label: "7 days" },
