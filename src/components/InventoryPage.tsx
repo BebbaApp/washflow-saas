@@ -53,7 +53,7 @@ interface Props {
 type Tab = "items" | "history" | "usage";
 
 export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
-  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, setRecipe, undoLastTransaction, waterItemId } = useInventory();
+  const { items, transactions, recipes, addItem, updateItem, deleteItem, adjustStock, reorderItem, setRecipe, undoLastTransaction, waterItemId } = useInventory();
   const { suppliers } = useSuppliers();
   const [reordering, setReordering] = useState<InventoryItem | null>(null);
   const { categories: INVENTORY_CATEGORIES } = useInventoryCategories();
