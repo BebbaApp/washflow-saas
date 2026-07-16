@@ -253,9 +253,7 @@ export function AttendancePage() {
     downloadCsv(`attendance_${from}_to_${to}.csv`, toCsv([header, ...rows]));
   };
 
-  const handleExportRecordsPdf = async () => {
-    const paths = filtered.map((r) => r.selfie_url).filter(Boolean) as string[];
-    const signed = await signSelfieUrls(paths);
+  const handleExportRecordsPdf = () => {
     const headers = ["Date", "Time", "Staff", "Kind", "Status", "Score", "Notes"];
     const rows = filtered.map((r) => {
       const d = new Date(r.created_at);
@@ -276,8 +274,6 @@ export function AttendancePage() {
       headers,
       rows,
     });
-    // Touch `signed` so the URL signing call isn't optimised away — kept for parity with CSV.
-    void signed;
   };
 
   // === Summary report aggregation ===
