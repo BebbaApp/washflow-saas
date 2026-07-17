@@ -89,7 +89,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
   const [selectedWaiting, setSelectedWaiting] = useState<Set<string>>(new Set());
 
   const counts = useMemo(() => ({
-    active: orders.filter((o) => o.status !== "completed" && o.status !== "cancelled").length,
+    active: orders.filter((o) => o.status !== "completed" && o.status !== "cancelled" && o.status !== "deleted").length,
     waiting: orders.filter((o) => o.status === "waiting").length,
     "in-progress": orders.filter((o) => o.status === "in-progress").length,
     completed: orders.filter((o) => o.status === "completed").length,
@@ -97,7 +97,7 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
   }), [orders]);
 
   const baseList = useMemo(() => {
-    if (tab === "active") return orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
+    if (tab === "active") return orders.filter((o) => o.status !== "completed" && o.status !== "cancelled" && o.status !== "deleted");
     return orders.filter((o) => o.status === tab);
   }, [orders, tab]);
 

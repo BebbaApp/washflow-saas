@@ -72,7 +72,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
   const rangeRevenue = rangeCompleted.reduce((s, o) => s + o.servicePrice, 0);
   const inQueue = orders.filter((o) => o.status === "waiting").length;
   const activeNow = orders.filter((o) => o.status === "in-progress");
-  const activeJobs = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
+  const activeJobs = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled" && o.status !== "deleted");
 
   const { revenueSeries, chartTitle } = useMemo(() => {
     const completed = orders.filter((o) => o.status === "completed");
