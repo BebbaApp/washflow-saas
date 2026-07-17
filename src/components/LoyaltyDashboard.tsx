@@ -479,13 +479,13 @@ export const LoyaltyDashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((s) => (
-          <div key={s.label} className={`glass-card p-5 border ${s.border}`}>
-            <p className={`text-3xl font-extrabold leading-tight ${s.color}`}>{s.value}</p>
+          <div key={s.label} className={`glass-card p-3 sm:p-5 border ${s.border}`}>
+            <p className={`text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight ${s.color}`}>{s.value}</p>
             <div className="flex items-center gap-1.5 mt-1">
               {s.icon && <s.icon className="w-3.5 h-3.5 text-success" />}
-              <p className={`text-sm ${s.label === "Rewards Claimed" ? "text-success font-medium" : "text-muted-foreground"}`}>
+              <p className={`text-xs sm:text-sm ${s.label === "Rewards Claimed" ? "text-success font-medium" : "text-muted-foreground"}`}>
                 {s.label}
               </p>
             </div>
