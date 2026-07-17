@@ -22,6 +22,7 @@ interface EditOrderDialogProps {
 }
 
 export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrderDialogProps) => {
+  const { tenant } = useTenant();
   const [form, setForm] = useState({
     customer: "",
     customer_phone: "",
