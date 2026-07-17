@@ -55,6 +55,10 @@ export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrde
     setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
+    if (!tenant?.id) {
+      toast.error("No active workspace");
+      return;
+    }
     setSaving(true);
     try {
       const nowIso = new Date().toISOString();
@@ -73,13 +77,15 @@ export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrde
         notes: mergedNotes,
         updated_at: nowIso,
       };
-      const { error } = await supabase.from("orders").update(patch).eq("id", order.id);
-      if (error) throw error;
-      // Keep offline cache in sync
-      try {
-        const existing = await db.orders.get(order.id);
-        if (existing) await db.orders.put({ ...(existing as any), ...patch });
-      } catch { /* ignore */ }
+      const existing = (await db.orders.get(order.id)) as any;
+      const merged = { ...(existing ?? { id: order.id, tenant_id: tenant.id }), ...patch };
+      await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
+      await enqueueOutbox({
+        tenant_id: tenant.id,
+        table: "orders",
+        op: "update",
+        payload: { id: order.id, ...patch },
+      });
       toast.success(`Order ${order.orderNumber} updated`);
       onSaved?.();
       onOpenChange(false);
