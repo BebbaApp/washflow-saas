@@ -37,6 +37,7 @@ export function MobileBottomNav({
   onSelect,
   onNewOrder,
   showNewOrder = true,
+  onLogout,
 }: MobileBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
 
