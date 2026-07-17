@@ -499,31 +499,35 @@ export function AttendancePage() {
         {/* Report */}
         {canReport && (
           <TabsContent value="report" className="mt-4 space-y-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground block">From</label>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground block">To</label>
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+              <div className="grid grid-cols-2 gap-3 lg:flex lg:items-end">
+                <div>
+                  <label className="text-xs text-muted-foreground block">From</label>
+                  <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full lg:w-[160px]" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block">To</label>
+                  <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full lg:w-[160px]" />
+                </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block">Group by</label>
                 <Select value={reportGroup} onValueChange={(v) => setReportGroup(v as any)}>
-                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full lg:w-[140px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="day">Daily</SelectItem>
                     <SelectItem value="week">Weekly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" size="sm" onClick={exportSummary} className="ml-auto">
-                <Download className="w-4 h-4 mr-1" /> CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportSummaryPdf}>
-                <FileText className="w-4 h-4 mr-1" /> PDF
-              </Button>
+              <div className="flex flex-col gap-2 lg:flex-row lg:ml-auto">
+                <Button variant="outline" size="sm" onClick={exportSummary} className="w-full lg:w-auto">
+                  <Download className="w-4 h-4 mr-1" /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportSummaryPdf} className="w-full lg:w-auto">
+                  <FileText className="w-4 h-4 mr-1" /> PDF
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
