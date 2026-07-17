@@ -9,8 +9,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/offline/db";
+import { enqueueOutbox } from "@/offline/sync";
+import { useTenant } from "@/hooks/useTenant";
 import type { WashOrder } from "@/hooks/useOrders";
 
 interface EditOrderDialogProps {
