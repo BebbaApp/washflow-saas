@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Car, Download, Printer, Calendar as CalendarIcon, X, Eye, Trash2, Loader2 } from "lucide-react";
+import { Search, Car, Download, Printer, Calendar as CalendarIcon, X, Pencil, Trash2, Loader2 } from "lucide-react";
+import { EditOrderDialog } from "@/components/EditOrderDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
