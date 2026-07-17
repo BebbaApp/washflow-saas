@@ -502,6 +502,7 @@ const Index = () => {
             onSelect={setActiveTab}
             onNewOrder={() => setNewOrderOpen(true)}
             showNewOrder={can("queue.create")}
+            onLogout={logout}
           />
         );
       })()}
