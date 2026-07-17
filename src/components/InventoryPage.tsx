@@ -564,111 +564,234 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
               <div className="glass-card divide-y divide-border">
               {filtered.map((item) => {
                 const state = stockState(item);
+                const isLow = item.quantity <= effectiveMin(item);
                 return (
-                  <div key={item.id} className="flex items-center gap-4 p-4">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsItemId(item.id)}
-                      className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
-                      title="View transaction history"
-                    >
-                      <Package className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDetailsItemId(item.id)}
-                      className="min-w-0 flex-1 text-left group"
-                      title="View transaction history"
-                    >
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{item.name}</p>
-                        <span className={`status-badge ${state.className}`}>
-                          {item.quantity <= effectiveMin(item) && <AlertTriangle className="w-3 h-3 mr-1" />}
-                          {state.label}
-                        </span>
+                  <div key={item.id} className="p-4">
+                    {/* Mobile / tablet card layout */}
+                    <div className="lg:hidden space-y-4">
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setDetailsItemId(item.id)}
+                          className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
+                          title="View transaction history"
+                        >
+                          <Package className="w-5 h-5" />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-bold text-foreground text-lg truncate">{item.name}</h3>
+                            <span className={`status-badge ${state.className}`}>
+                              {isLow && <AlertTriangle className="w-3 h-3 mr-1" />}
+                              {state.label}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-0.5">{item.category}</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {(() => {
-                          const unitLabel = item.unit ? ` ${item.unit}` : "";
-                          const fmtQty = (n: number) => `${Number(n).toFixed(2)}${unitLabel}`;
-                          return (
-                            <>
-                              {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
-                              {item.unitCost > 0 && (
-                                <> · {formatPrice(item.unitCost)}/{item.unit || "unit"} · total {formatPrice(item.unitCost * item.quantity)}</>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </p>
 
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Stock</p>
+                          <p className="text-base font-semibold text-foreground">
+                            {Number(item.quantity).toFixed(2)}
+                            {item.unit && <span className="text-sm font-normal text-muted-foreground ml-1">{item.unit}</span>}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Low Alert Level</p>
+                          <p className="text-base font-semibold text-foreground">
+                            {Number(item.threshold).toFixed(2)}
+                            {item.unit && <span className="text-sm font-normal text-muted-foreground ml-1">{item.unit}</span>}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Unit Cost</p>
+                          <p className="text-base font-semibold text-foreground">
+                            {item.unitCost > 0 ? formatPrice(item.unitCost) : "—"}
+                            {item.unit && <span className="text-sm font-normal text-muted-foreground">/{item.unit}</span>}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Value</p>
+                          <p className="text-base font-bold text-primary">
+                            {item.unitCost > 0 ? formatPrice(item.unitCost * item.quantity) : "—"}
+                          </p>
+                        </div>
+                      </div>
 
-                    </button>
-                    <div className="flex items-center gap-1">
-                      {canAdjust && (
-                        <button
-                          onClick={() => setAdjusting({ item, mode: "add" })}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
-                          title="Add stock"
-                        >
-                          <PackagePlus className="w-4 h-4" />
-                        </button>
-                      )}
-                      {canAdjust && (
-                        <button
-                          onClick={() => setReordering(item)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                          title="Reorder"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      )}
-                      {canAdjust && (
-                        <button
-                          onClick={() => setAdjusting({ item, mode: "remove" })}
-                          disabled={item.quantity <= 0}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Use / remove stock"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                      )}
-                      {duplicateInfo.primaryOf.has(item.id) && duplicateInfo.primaryOf.get(item.id) !== item.id && (
-                        <button
-                          onClick={() => mergeOneItem(item.id)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
-                          title="Merge into primary duplicate"
-                        >
-                          <GitMerge className="w-4 h-4" />
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button
-                          onClick={() => startEdit(item)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button
-                          onClick={() => setThresholdEditing(item)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
-                          title="Edit thresholds"
-                        >
-                          <SlidersHorizontal className="w-4 h-4" />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          title="Remove"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center justify-between gap-1 bg-muted/50 rounded-lg px-3 py-2">
+                        {canAdjust && (
+                          <button
+                            onClick={() => setAdjusting({ item, mode: "add" })}
+                            className="p-2 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
+                            title="Add stock"
+                          >
+                            <PackagePlus className="w-5 h-5" />
+                          </button>
+                        )}
+                        {canAdjust && (
+                          <button
+                            onClick={() => setReordering(item)}
+                            className="p-2 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Reorder"
+                          >
+                            <RefreshCw className="w-5 h-5" />
+                          </button>
+                        )}
+                        {canAdjust && (
+                          <button
+                            onClick={() => setAdjusting({ item, mode: "remove" })}
+                            disabled={item.quantity <= 0}
+                            className="p-2 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Use / remove stock"
+                          >
+                            <Minus className="w-5 h-5" />
+                          </button>
+                        )}
+                        {duplicateInfo.primaryOf.has(item.id) && duplicateInfo.primaryOf.get(item.id) !== item.id && (
+                          <button
+                            onClick={() => mergeOneItem(item.id)}
+                            className="p-2 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
+                            title="Merge into primary duplicate"
+                          >
+                            <GitMerge className="w-5 h-5" />
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => startEdit(item)}
+                            className="p-2 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil className="w-5 h-5" />
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => setThresholdEditing(item)}
+                            className="p-2 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+                            title="Edit thresholds"
+                          >
+                            <SlidersHorizontal className="w-5 h-5" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-2 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Remove"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Desktop row layout */}
+                    <div className="hidden lg:flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setDetailsItemId(item.id)}
+                        className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
+                        title="View transaction history"
+                      >
+                        <Package className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailsItemId(item.id)}
+                        className="min-w-0 flex-1 text-left group"
+                        title="View transaction history"
+                      >
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{item.name}</p>
+                          <span className={`status-badge ${state.className}`}>
+                            {item.quantity <= effectiveMin(item) && <AlertTriangle className="w-3 h-3 mr-1" />}
+                            {state.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {(() => {
+                            const unitLabel = item.unit ? ` ${item.unit}` : "";
+                            const fmtQty = (n: number) => `${Number(n).toFixed(2)}${unitLabel}`;
+                            return (
+                              <>
+                                {item.category} · {fmtQty(item.quantity)} · alert at {fmtQty(item.threshold)}
+                                {item.unitCost > 0 && (
+                                  <> · {formatPrice(item.unitCost)}/{item.unit || "unit"} · total {formatPrice(item.unitCost * item.quantity)}</>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </p>
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {canAdjust && (
+                          <button
+                            onClick={() => setAdjusting({ item, mode: "add" })}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
+                            title="Add stock"
+                          >
+                            <PackagePlus className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canAdjust && (
+                          <button
+                            onClick={() => setReordering(item)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Reorder"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canAdjust && (
+                          <button
+                            onClick={() => setAdjusting({ item, mode: "remove" })}
+                            disabled={item.quantity <= 0}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Use / remove stock"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                        )}
+                        {duplicateInfo.primaryOf.has(item.id) && duplicateInfo.primaryOf.get(item.id) !== item.id && (
+                          <button
+                            onClick={() => mergeOneItem(item.id)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-warning hover:bg-warning/10 transition-colors"
+                            title="Merge into primary duplicate"
+                          >
+                            <GitMerge className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => startEdit(item)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => setThresholdEditing(item)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+                            title="Edit thresholds"
+                          >
+                            <SlidersHorizontal className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Remove"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
