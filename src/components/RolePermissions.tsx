@@ -168,7 +168,8 @@ export function RolePermissions() {
 
       {/* Permission matrix */}
       <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-secondary/40">
               <tr>
@@ -232,6 +233,64 @@ export function RolePermissions() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile card view */}
+        <div className="md:hidden">
+          {PERMISSION_GROUPS.map((group) => {
+            const isCollapsed = !!collapsed[group.key];
+            return (
+              <div key={group.key} className="border-b border-border last:border-0">
+                <div className="w-full flex items-center justify-between px-4 py-3 bg-secondary/20 gap-2">
+                  <button
+                    onClick={() => setCollapsed((c) => ({ ...c, [group.key]: !c[group.key] }))}
+                    className="flex items-center gap-2 text-foreground font-semibold text-left"
+                  >
+                    {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {group.label}
+                    <span className="text-xs text-muted-foreground font-normal">({group.items.length})</span>
+                  </button>
+                  <div className="grid grid-cols-4 gap-2">
+                    {ROLES.map((r) => {
+                      const allOn = group.items.every((it) => matrix[it.key]?.[r.id]);
+                      const someOn = group.items.some((it) => matrix[it.key]?.[r.id]);
+                      return (
+                        <div key={r.id} className="flex flex-col items-center gap-0.5 w-8">
+                          <span className={`w-2 h-2 rounded-full ${r.color}`} />
+                          <Checkbox
+                            checked={allOn ? true : someOn ? "indeterminate" : false}
+                            onCheckedChange={() => toggleGroup(group, r.id)}
+                            aria-label={`Toggle all ${group.label} for ${r.label}`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {!isCollapsed && (
+                  <div className="px-4 py-2">
+                    {group.items.map((it) => (
+                      <div key={it.key} className="flex items-center justify-between py-2 border-b border-border/40 last:border-0">
+                        <span className="text-sm text-foreground pr-3 flex-1 text-left">{it.label}</span>
+                        <div className="grid grid-cols-4 gap-2">
+                          {ROLES.map((r) => (
+                            <label key={r.id} className="flex flex-col items-center gap-0.5 w-8">
+                              <span className={`w-2 h-2 rounded-full ${r.color}`} />
+                              <Checkbox
+                                checked={!!matrix[it.key]?.[r.id]}
+                                onCheckedChange={() => toggle(it.key, r.id)}
+                                aria-label={`${it.label} for ${r.label}`}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
