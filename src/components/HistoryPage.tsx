@@ -1031,10 +1031,15 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         order={editOrder}
         open={editOpen}
         onOpenChange={(o) => { setEditOpen(o); if (!o) setEditOrder(null); }}
-        onSaved={async () => {
+        onSaved={async (updatedOrder) => {
+          setRows((current) => current.map((row) => (row.id === updatedOrder.id ? updatedOrder : row)));
+          setSelectedOrder((current) => (current?.id === updatedOrder.id ? updatedOrder : current));
           const offset = (page - 1) * pageSize;
           const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
-          setRows(pageRows);
+          setRows((current) => {
+            const fetched = new Map(pageRows.map((row) => [row.id, row]));
+            return current.map((row) => fetched.get(row.id) ?? (row.id === updatedOrder.id ? updatedOrder : row));
+          });
         }}
       />
     </div>
