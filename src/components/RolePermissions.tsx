@@ -149,17 +149,21 @@ export function RolePermissions() {
       </div>
 
       {/* Role legend */}
-      <div className="glass-card p-3 flex items-center gap-4 flex-wrap text-sm">
-        <span className="text-muted-foreground">Role Colors:</span>
-        {ROLES.map((r) => (
-          <div key={r.id} className="flex items-center gap-2">
-            <span className={`w-4 h-4 rounded-sm ${r.color}`} />
-            <span className="text-foreground font-medium">{r.label}</span>
+      <div className="glass-card p-3 text-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+          <span className="text-muted-foreground">Role Colors:</span>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-4">
+            {ROLES.map((r) => (
+              <div key={r.id} className="flex items-center gap-2">
+                <span className={`w-4 h-4 rounded-sm ${r.color}`} />
+                <span className="text-foreground font-medium">{r.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {totalPerms} permissions across {PERMISSION_GROUPS.length} categories
-        </span>
+          <span className="text-xs text-muted-foreground sm:ml-auto">
+            {totalPerms} permissions across {PERMISSION_GROUPS.length} categories
+          </span>
+        </div>
       </div>
 
       {/* Permission matrix */}
