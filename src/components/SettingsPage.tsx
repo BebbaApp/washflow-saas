@@ -455,11 +455,11 @@ function WorkersSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {loading ? "Loading…" : `${users.length} user${users.length !== 1 ? "s" : ""}`}
         </p>
-        <button onClick={() => setDialogOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
+        <button onClick={() => setDialogOpen(true)} className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity w-full sm:w-auto">
           <Plus className="w-4 h-4" /> Add Worker
         </button>
       </div>
