@@ -113,6 +113,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const canDelete = isAdmin || isSuperAdmin;
   const [selectedOrder, setSelectedOrder] = useState<WashOrder | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOrder, setEditOrder] = useState<WashOrder | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const persisted = useRef<PersistedFilters>(loadPersistedFilters()).current;
