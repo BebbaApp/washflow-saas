@@ -1052,9 +1052,9 @@ function StatCard({ value, label, tone }: { value: number; label: string; tone: 
     destructive: "text-destructive",
   };
   return (
-    <div className="glass-card p-6 text-center">
-      <p className={`text-4xl font-bold ${colorMap[tone]}`}>{value}</p>
-      <p className="text-sm text-muted-foreground mt-1">{label}</p>
+    <div className="glass-card p-3 sm:p-6 text-center">
+      <p className={`text-2xl sm:text-4xl font-bold ${colorMap[tone]}`}>{value}</p>
+      <p className="text-xs sm:text-sm text-muted-foreground mt-1">{label}</p>
     </div>
   );
 }
