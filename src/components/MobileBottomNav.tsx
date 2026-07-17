@@ -114,7 +114,7 @@ export function MobileBottomNav({
                     <SheetHeader>
                       <SheetTitle className="text-foreground">More menu</SheetTitle>
                     </SheetHeader>
-                    <div className="grid grid-cols-4 gap-3 mt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                    <div className="grid grid-cols-4 gap-3 mt-4">
                       {overflow.map((item) => {
                         const isActive = activeId === item.id;
                         return (
@@ -138,6 +138,19 @@ export function MobileBottomNav({
                         );
                       })}
                     </div>
+                    {onLogout && (
+                      <button
+                        onClick={() => {
+                          setMoreOpen(false);
+                          onLogout();
+                        }}
+                        className="mt-3 w-full flex items-center justify-center gap-2 p-3 rounded-xl text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+                        aria-label="Sign out"
+                      >
+                        <LogOut className="w-5 h-5" />
+                        <span className="text-sm font-medium">Sign out</span>
+                      </button>
+                    )}
                   </SheetContent>
                 </Sheet>
               )}
