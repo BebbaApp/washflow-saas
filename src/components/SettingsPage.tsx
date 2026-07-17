@@ -130,12 +130,12 @@ export function SettingsPage() {
       )}
 
       {/* Section Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:overflow-x-auto sm:pb-1">
         {groupTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setSection(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto sm:whitespace-nowrap ${
               section === tab.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
             }`}
           >
