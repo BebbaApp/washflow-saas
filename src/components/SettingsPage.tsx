@@ -114,12 +114,12 @@ export function SettingsPage() {
     <div className="space-y-6">
       {/* Group Tabs */}
       {groups.length > 1 && (
-        <div className="inline-flex p-1 rounded-xl bg-secondary">
+        <div className="grid grid-cols-3 w-full p-1 rounded-xl bg-secondary sm:inline-flex sm:w-auto">
           {groups.map((g) => (
             <button
               key={g.id}
               onClick={() => setGroup(g.id)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors w-full sm:w-auto ${
                 group === g.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
