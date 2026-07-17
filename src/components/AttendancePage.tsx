@@ -83,6 +83,13 @@ function downloadCsv(filename: string, csv: string) {
 function ymd(d: Date) { return d.toISOString().slice(0, 10); }
 function startOfWeek(d: Date) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0,0,0,0); return x; }
 
+/** Format an ISO date as "17 July 2026, 17:24" — consistent with receipts. */
+function fmtDateTime(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return `${formatReceiptDate(d)}, ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+}
+
 export function AttendancePage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const { tenant } = useTenant();
