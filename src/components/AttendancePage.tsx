@@ -397,11 +397,11 @@ export function AttendancePage() {
       </p>
 
       <Tabs value={activeSub} onValueChange={handleSubChange}>
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="log">{canAssist ? "All Records" : "My History"}</TabsTrigger>
-          {!authLoading && canReport && <TabsTrigger value="report"><BarChart3 className="w-3.5 h-3.5 mr-1" />Report</TabsTrigger>}
-          {!authLoading && canEnroll && <TabsTrigger value="enroll">Enroll Faces</TabsTrigger>}
-          {!authLoading && canAudit && <TabsTrigger value="audit"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
+        <TabsList className="grid grid-cols-2 h-auto w-full gap-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-nowrap sm:gap-0">
+          <TabsTrigger value="log" className="w-full text-xs sm:text-sm">{canAssist ? "All Records" : "My History"}</TabsTrigger>
+          {!authLoading && canReport && <TabsTrigger value="report" className="w-full text-xs sm:text-sm"><BarChart3 className="w-3.5 h-3.5 mr-1" />Report</TabsTrigger>}
+          {!authLoading && canEnroll && <TabsTrigger value="enroll" className="w-full text-xs sm:text-sm">Enroll Faces</TabsTrigger>}
+          {!authLoading && canAudit && <TabsTrigger value="audit" className="w-full text-xs sm:text-sm"><FileClock className="w-3.5 h-3.5 mr-1" />Audit Log</TabsTrigger>}
         </TabsList>
 
 
