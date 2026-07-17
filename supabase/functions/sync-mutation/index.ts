@@ -281,7 +281,7 @@ async function canUpdateOrder(
   userEmail: string | null,
   patch: Record<string, unknown>,
   orderId: string,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; patch: Record<string, unknown>; requiresUserContext: boolean } | { ok: false; status: number; error: string }> {
   const { data: existing, error: existingError } = await admin
     .from("orders")
     .select("customer,customer_id,customer_phone,plate,vehicle,service,service_price,notes,order_number,created_by,created_at,status")
@@ -401,10 +401,19 @@ async function updateOrderWithAuthContext(
       const rows = await tx`
         update public.orders
         set
+          customer = case when ${Object.prototype.hasOwnProperty.call(patch, "customer")} then ${patch.customer ?? null}::text else customer end,
+          customer_id = case when ${Object.prototype.hasOwnProperty.call(patch, "customer_id")} then ${patch.customer_id ?? null}::uuid else customer_id end,
+          customer_phone = case when ${Object.prototype.hasOwnProperty.call(patch, "customer_phone")} then ${patch.customer_phone ?? null}::text else customer_phone end,
+          plate = case when ${Object.prototype.hasOwnProperty.call(patch, "plate")} then ${patch.plate ?? null}::text else plate end,
+          vehicle = case when ${Object.prototype.hasOwnProperty.call(patch, "vehicle")} then ${patch.vehicle ?? null}::text else vehicle end,
+          service = case when ${Object.prototype.hasOwnProperty.call(patch, "service")} then ${patch.service ?? null}::text else service end,
+          service_price = case when ${Object.prototype.hasOwnProperty.call(patch, "service_price")} then ${patch.service_price ?? null}::numeric else service_price end,
+          discount = case when ${Object.prototype.hasOwnProperty.call(patch, "discount")} then ${patch.discount ?? null}::numeric else discount end,
           status = coalesce(${patch.status ?? null}::text, status),
           notes = case when ${Object.prototype.hasOwnProperty.call(patch, "notes")} then ${patch.notes ?? null}::text else notes end,
           completed_at = case when ${Object.prototype.hasOwnProperty.call(patch, "completed_at")} then ${patch.completed_at ?? null}::timestamptz else completed_at end,
           wait_minutes = case when ${Object.prototype.hasOwnProperty.call(patch, "wait_minutes")} then ${patch.wait_minutes ?? null}::integer else wait_minutes end,
+          pending_discount = case when ${Object.prototype.hasOwnProperty.call(patch, "pending_discount")} then ${patch.pending_discount ?? null}::jsonb else pending_discount end,
           updated_at = coalesce(${patch.updated_at ?? null}::timestamptz, now())
         where tenant_id = ${tenantId}::uuid
           and id = ${orderId}::uuid
