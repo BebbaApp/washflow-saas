@@ -92,8 +92,6 @@ export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrde
         notes: patch.notes,
       };
 
-      await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
-
       if (navigator.onLine) {
         const { data, error } = await supabase.functions.invoke("sync-mutation", {
           body: {
@@ -106,12 +104,10 @@ export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrde
         const serverError = (data as any)?.error;
         if (error || serverError) throw new Error(serverError || error?.message || "Failed to update order");
         const serverRow = (data as any)?.row;
-        if (serverRow) {
-          await db.orders.put({ ...serverRow, _dirty: 0 });
-        } else {
-          await db.orders.put({ ...merged, _dirty: 0 });
-        }
+        if (!serverRow) throw new Error("Order was not found on the server");
+        await db.orders.put({ ...serverRow, _dirty: 0 });
       } else {
+        await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
         await enqueueOutbox({
           tenant_id: tenant.id,
           table: "orders",
