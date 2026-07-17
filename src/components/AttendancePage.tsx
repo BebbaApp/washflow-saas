@@ -406,28 +406,30 @@ export function AttendancePage() {
 
 
         <TabsContent value="log" className="mt-4 space-y-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="relative max-w-xs flex-1 min-w-[200px]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+            <div className="relative w-full lg:max-w-xs lg:flex-1 lg:min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by name or kind…" className="pl-9" />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block">From</label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
+            <div className="grid grid-cols-2 gap-3 lg:flex lg:items-end">
+              <div>
+                <label className="text-xs text-muted-foreground block">From</label>
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full lg:w-[160px]" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block">To</label>
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full lg:w-[160px]" />
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block">To</label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
-            </div>
-            <div className="flex gap-2 ml-auto">
-              <Button variant="outline" size="sm" onClick={handleExportRecords}>
+            <div className="flex flex-col gap-2 lg:flex-row lg:ml-auto">
+              <Button variant="outline" size="sm" onClick={handleExportRecords} className="w-full lg:w-auto">
                 <Download className="w-4 h-4 mr-1" /> Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExportRecordsPdf}>
+              <Button variant="outline" size="sm" onClick={handleExportRecordsPdf} className="w-full lg:w-auto">
                 <FileText className="w-4 h-4 mr-1" /> Export PDF
               </Button>
               {canOverride && (
-                <Button size="sm" onClick={() => setOverrideOpen(true)}>
+                <Button size="sm" onClick={() => setOverrideOpen(true)} className="w-full lg:w-auto">
                   <ShieldAlert className="w-4 h-4 mr-1" /> Manual Override
                 </Button>
               )}
@@ -497,31 +499,35 @@ export function AttendancePage() {
         {/* Report */}
         {canReport && (
           <TabsContent value="report" className="mt-4 space-y-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground block">From</label>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-[160px]" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground block">To</label>
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-[160px]" />
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+              <div className="grid grid-cols-2 gap-3 lg:flex lg:items-end">
+                <div>
+                  <label className="text-xs text-muted-foreground block">From</label>
+                  <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full lg:w-[160px]" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block">To</label>
+                  <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full lg:w-[160px]" />
+                </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block">Group by</label>
                 <Select value={reportGroup} onValueChange={(v) => setReportGroup(v as any)}>
-                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full lg:w-[140px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="day">Daily</SelectItem>
                     <SelectItem value="week">Weekly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" size="sm" onClick={exportSummary} className="ml-auto">
-                <Download className="w-4 h-4 mr-1" /> CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportSummaryPdf}>
-                <FileText className="w-4 h-4 mr-1" /> PDF
-              </Button>
+              <div className="flex flex-col gap-2 lg:flex-row lg:ml-auto">
+                <Button variant="outline" size="sm" onClick={exportSummary} className="w-full lg:w-auto">
+                  <Download className="w-4 h-4 mr-1" /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportSummaryPdf} className="w-full lg:w-auto">
+                  <FileText className="w-4 h-4 mr-1" /> PDF
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
