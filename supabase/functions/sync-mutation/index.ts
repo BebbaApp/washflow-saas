@@ -259,7 +259,7 @@ async function canReadTenant(
   admin: SupabaseAdmin,
   tenantId: string,
   userId: string,
-): Promise<{ ok: true; patch: Record<string, unknown>; requiresUserContext: boolean } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const [{ data: tenant }, { data: member }, { data: platformAdmin }, { data: superAdmin }] = await Promise.all([
     admin.from("tenants").select("id").eq("id", tenantId).maybeSingle(),
     admin.from("tenant_members").select("tenant_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle(),
