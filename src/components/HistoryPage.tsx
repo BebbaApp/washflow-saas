@@ -1026,6 +1026,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         open={detailsOpen}
         onOpenChange={(o) => { setDetailsOpen(o); if (!o) setSelectedOrder(null); }}
       />
+
+      <EditOrderDialog
+        order={editOrder}
+        open={editOpen}
+        onOpenChange={(o) => { setEditOpen(o); if (!o) setEditOrder(null); }}
+        onSaved={async () => {
+          const offset = (page - 1) * pageSize;
+          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+          setRows(pageRows);
+        }}
+      />
     </div>
   );
 };
