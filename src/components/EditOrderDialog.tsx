@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/offline/db";
 import { enqueueOutbox } from "@/offline/sync";
 import { useTenant } from "@/hooks/useTenant";
@@ -18,7 +19,7 @@ interface EditOrderDialogProps {
   order: WashOrder | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved?: () => void;
+  onSaved?: (order: WashOrder) => void | Promise<void>;
 }
 
 export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrderDialogProps) => {
@@ -79,15 +80,47 @@ export const EditOrderDialog = ({ order, open, onOpenChange, onSaved }: EditOrde
       };
       const existing = (await db.orders.get(order.id)) as any;
       const merged = { ...(existing ?? { id: order.id, tenant_id: tenant.id }), ...patch };
+      const optimisticOrder: WashOrder = {
+        ...order,
+        customer: patch.customer,
+        customerPhone: patch.customer_phone ?? undefined,
+        vehicle: patch.vehicle,
+        plate: patch.plate,
+        service: patch.service,
+        servicePrice: patch.service_price,
+        discount: patch.discount,
+        notes: patch.notes,
+      };
+
       await db.orders.put({ ...merged, _dirty: 1, _op: "update" });
-      await enqueueOutbox({
-        tenant_id: tenant.id,
-        table: "orders",
-        op: "update",
-        payload: { id: order.id, ...patch },
-      });
+
+      if (navigator.onLine) {
+        const { data, error } = await supabase.functions.invoke("sync-mutation", {
+          body: {
+            tenant_id: tenant.id,
+            table: "orders",
+            op: "update",
+            payload: { id: order.id, ...patch },
+          },
+        });
+        const serverError = (data as any)?.error;
+        if (error || serverError) throw new Error(serverError || error?.message || "Failed to update order");
+        const serverRow = (data as any)?.row;
+        if (serverRow) {
+          await db.orders.put({ ...serverRow, _dirty: 0 });
+        } else {
+          await db.orders.put({ ...merged, _dirty: 0 });
+        }
+      } else {
+        await enqueueOutbox({
+          tenant_id: tenant.id,
+          table: "orders",
+          op: "update",
+          payload: { id: order.id, ...patch },
+        });
+      }
       toast.success(`Order ${order.orderNumber} updated`);
-      onSaved?.();
+      await onSaved?.(optimisticOrder);
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Failed to update order", { description: err?.message || String(err) });
