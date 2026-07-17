@@ -193,14 +193,14 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
   return (
     <div className="space-y-6">
       {/* Tabs */}
-      <div className="inline-flex items-center p-1 rounded-full bg-secondary border border-border flex-wrap">
+      <div className="flex flex-wrap justify-center gap-2 p-2 rounded-xl bg-secondary border border-border sm:gap-1 sm:p-1 sm:rounded-full sm:inline-flex sm:items-center">
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
             <button
               key={t.key}
               onClick={() => { setTab(t.key); setPage(1); }}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              className={`px-2 py-2 sm:px-4 sm:py-1.5 rounded-lg sm:rounded-full text-xs sm:text-sm font-medium text-center transition-all flex-1 basis-[calc(33.333%-0.333rem)] sm:basis-auto sm:flex-none min-w-0 ${
                 active
                   ? "bg-card text-foreground shadow-sm border border-border"
                   : "text-muted-foreground hover:text-foreground"
