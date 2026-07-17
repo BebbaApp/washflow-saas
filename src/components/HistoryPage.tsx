@@ -786,7 +786,103 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       )}
 
       <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile / tablet card list */}
+        <div className="lg:hidden divide-y divide-border/60">
+          {loading ? (
+            <div className="px-4 py-12 text-center text-muted-foreground text-sm">Loading…</div>
+          ) : visibleRows.length === 0 ? (
+            <div className="px-4 py-12 text-center text-muted-foreground text-sm">
+              No matching history. Adjust your filters or date range.
+            </div>
+          ) : (
+            visibleRows.map((o) => {
+              const cancelReason = o.status === "cancelled" ? extractCancelReason(o.notes) : null;
+              const hasDiscount = (o.discount ?? 0) > 0;
+              return (
+                <div key={o.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-foreground truncate">{o.customer}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {fmtDate(o.completedAt || o.createdAt)}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold shrink-0 ${statusStyles[o.status] || "bg-secondary text-secondary-foreground"}`}>
+                      {statusLabel[o.status] || o.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Phone</p>
+                      {o.customerPhone ? (
+                        <a
+                          href={`tel:${telHref(o.customerPhone)}`}
+                          className="text-foreground truncate block hover:text-primary"
+                        >
+                          {formatPhone(o.customerPhone)}
+                        </a>
+                      ) : (
+                        <p className="text-muted-foreground">—</p>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Plate</p>
+                      <p className="font-mono text-foreground truncate">{o.plate}</p>
+                    </div>
+                    <div className="min-w-0 col-span-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Service</p>
+                      <p className="text-foreground truncate">{o.service}</p>
+                    </div>
+                  </div>
+
+                  {cancelReason && (
+                    <p className="text-xs text-destructive/90 bg-destructive/10 border border-destructive/20 rounded-md px-2 py-1.5">
+                      Reason: {cancelReason}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                    <div>
+                      {hasDiscount ? (
+                        <div className="leading-tight">
+                          <p className="text-[10px] text-muted-foreground line-through">
+                            {formatPrice(o.servicePrice + (o.discount ?? 0))}
+                          </p>
+                          <p className="text-base font-bold text-foreground">{formatPrice(o.servicePrice)}</p>
+                        </div>
+                      ) : (
+                        <p className="text-base font-bold text-foreground">{formatPrice(o.servicePrice)}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View
+                      </button>
+                      {canDelete && o.status !== "deleted" && (
+                        <button
+                          onClick={() => handleDeleteOrder(o)}
+                          disabled={deletingId === o.id}
+                          className="inline-flex items-center justify-center rounded-lg p-2 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                          aria-label="Delete work order"
+                        >
+                          {deletingId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-muted-foreground border-b border-border">
