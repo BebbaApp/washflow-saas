@@ -12,7 +12,8 @@ interface Props {
 export const ReceiptPreview = ({ model, className = "" }: Props) => {
   return (
     <div
-      className={`mx-auto bg-white text-black rounded-md shadow-lg p-4 font-mono text-[12px] leading-[1.35] w-fit max-w-full overflow-x-auto ${className}`}
+      className={`mx-auto bg-white text-black rounded-md shadow-lg p-3 sm:p-4 font-mono text-[10px] sm:text-[12px] leading-[1.35] w-fit max-w-full overflow-x-auto ${className}`}
+
       // Width is driven by the 48-char monospace pre below so the rule lines never get clipped.
     >
       <pre className="m-0 whitespace-pre" style={{ width: `${LINE_WIDTH}ch` }}>
