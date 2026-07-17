@@ -1038,7 +1038,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
           setRows((current) => {
             const fetched = new Map(pageRows.map((row) => [row.id, row]));
-            return current.map((row) => fetched.get(row.id) ?? (row.id === updatedOrder.id ? updatedOrder : row));
+            return current.map((row) => (row.id === updatedOrder.id ? updatedOrder : fetched.get(row.id) ?? row));
           });
         }}
       />
