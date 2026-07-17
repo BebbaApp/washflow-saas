@@ -802,7 +802,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
               const cancelReason = o.status === "cancelled" ? extractCancelReason(o.notes) : null;
               const hasDiscount = (o.discount ?? 0) > 0;
               return (
-                <div key={o.id} className="p-4 space-y-3">
+                <div
+                  key={o.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedOrder(o);
+                      setDetailsOpen(true);
+                    }
+                  }}
+                  className="p-4 space-y-3 cursor-pointer hover:bg-secondary/40 transition-colors focus:outline-none focus:bg-secondary/40"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-foreground truncate">{o.customer}</p>
@@ -821,6 +834,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       {o.customerPhone ? (
                         <a
                           href={`tel:${telHref(o.customerPhone)}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="text-foreground truncate block hover:text-primary"
                         >
                           {formatPhone(o.customerPhone)}
@@ -858,14 +872,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                         <p className="text-base font-bold text-foreground">{formatPrice(o.servicePrice)}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        View
-                      </button>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {isAdmin && o.status !== "deleted" && (
+                        <button
+                          onClick={() => { setEditOrder(o); setEditOpen(true); }}
+                          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity"
+                          aria-label="Edit work order"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                      )}
                       {canDelete && o.status !== "deleted" && (
                         <button
                           onClick={() => handleDeleteOrder(o)}
