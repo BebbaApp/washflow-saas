@@ -116,7 +116,7 @@ export function RolePermissions() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" /> Role Permissions
@@ -125,7 +125,7 @@ export function RolePermissions() {
             Define which permissions each role level has. Click checkboxes to enable/disable permissions.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {(loading || saving) && (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -135,13 +135,13 @@ export function RolePermissions() {
 
           <button
             onClick={collapseAll}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90 transition-opacity w-full sm:w-auto"
           >
             <ChevronDown className="w-4 h-4" /> Collapse All
           </button>
           <button
             onClick={reset}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90 transition-opacity w-full sm:w-auto"
           >
             <RotateCcw className="w-4 h-4" /> Reset to Defaults
           </button>
