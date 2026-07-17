@@ -1,4 +1,4 @@
-import { Plus, MoreHorizontal, type LucideIcon } from "lucide-react";
+import { Plus, MoreHorizontal, LogOut, type LucideIcon } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -21,6 +21,7 @@ interface MobileBottomNavProps {
   onSelect: (id: string) => void;
   onNewOrder?: () => void;
   showNewOrder?: boolean;
+  onLogout?: () => void;
 }
 
 /**
