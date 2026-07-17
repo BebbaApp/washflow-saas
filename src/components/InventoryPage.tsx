@@ -430,7 +430,7 @@ export const InventoryPage = ({ addOpen, onAddOpenChange }: Props) => {
   return (
     <div className="space-y-6">
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <StatCard value={stats.total} label="Total Items" tone="foreground" />
         <StatCard value={stats.inStock} label="In Stock" tone="success" />
         <StatCard value={stats.lowOut} label="Low / Out" tone="destructive" />
