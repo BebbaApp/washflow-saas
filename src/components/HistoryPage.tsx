@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Car, Download, Printer, Calendar as CalendarIcon, X, Eye, Trash2, Loader2 } from "lucide-react";
+import { Search, Car, Download, Printer, Calendar as CalendarIcon, X, Pencil, Trash2, Loader2 } from "lucide-react";
+import { EditOrderDialog } from "@/components/EditOrderDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -112,6 +113,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const canDelete = isAdmin || isSuperAdmin;
   const [selectedOrder, setSelectedOrder] = useState<WashOrder | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOrder, setEditOrder] = useState<WashOrder | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const persisted = useRef<PersistedFilters>(loadPersistedFilters()).current;
@@ -799,7 +802,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
               const cancelReason = o.status === "cancelled" ? extractCancelReason(o.notes) : null;
               const hasDiscount = (o.discount ?? 0) > 0;
               return (
-                <div key={o.id} className="p-4 space-y-3">
+                <div
+                  key={o.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedOrder(o);
+                      setDetailsOpen(true);
+                    }
+                  }}
+                  className="p-4 space-y-3 cursor-pointer hover:bg-secondary/40 transition-colors focus:outline-none focus:bg-secondary/40"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-foreground truncate">{o.customer}</p>
@@ -818,6 +834,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       {o.customerPhone ? (
                         <a
                           href={`tel:${telHref(o.customerPhone)}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="text-foreground truncate block hover:text-primary"
                         >
                           {formatPhone(o.customerPhone)}
@@ -855,14 +872,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                         <p className="text-base font-bold text-foreground">{formatPrice(o.servicePrice)}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        View
-                      </button>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {isAdmin && o.status !== "deleted" && (
+                        <button
+                          onClick={() => { setEditOrder(o); setEditOpen(true); }}
+                          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity"
+                          aria-label="Edit work order"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                      )}
                       {canDelete && o.status !== "deleted" && (
                         <button
                           onClick={() => handleDeleteOrder(o)}
@@ -917,7 +937,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                     <tr
                       key={o.id}
                       title={rowTitle}
-                      className="border-b border-border/60 last:border-0 hover:bg-secondary/40 transition-colors"
+                      onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
+                      className="border-b border-border/60 last:border-0 hover:bg-secondary/40 transition-colors cursor-pointer"
                       style={{ paddingTop: "0.3rem", paddingBottom: "0.3rem" }}
                     >
                       <td className="px-5 [&]:py-[0.3rem] font-semibold text-foreground">{o.customer}</td>
@@ -925,6 +946,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                         {o.customerPhone ? (
                           <a
                             href={`tel:${telHref(o.customerPhone)}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="hover:text-foreground block truncate whitespace-nowrap"
                             title={formatPhone(o.customerPhone)}
                           >
@@ -952,15 +974,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                       <td className="px-5 [&]:py-[0.3rem] text-muted-foreground whitespace-nowrap">
                         {fmtDate(o.completedAt || o.createdAt)}
                       </td>
-                      <td className="px-5 [&]:py-[0.3rem] whitespace-nowrap text-right">
+                      <td className="px-5 [&]:py-[0.3rem] whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex items-center gap-1">
-                          <button
-                            onClick={() => { setSelectedOrder(o); setDetailsOpen(true); }}
-                            title="View details"
-                            className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
+                          {isAdmin && o.status !== "deleted" && (
+                            <button
+                              onClick={() => { setEditOrder(o); setEditOpen(true); }}
+                              title="Edit work order"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
                           {canDelete && o.status !== "deleted" && (
                             <button
                               onClick={() => handleDeleteOrder(o)}
@@ -1001,6 +1025,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         order={selectedOrder}
         open={detailsOpen}
         onOpenChange={(o) => { setDetailsOpen(o); if (!o) setSelectedOrder(null); }}
+      />
+
+      <EditOrderDialog
+        order={editOrder}
+        open={editOpen}
+        onOpenChange={(o) => { setEditOpen(o); if (!o) setEditOrder(null); }}
+        onSaved={async () => {
+          const offset = (page - 1) * pageSize;
+          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+          setRows(pageRows);
+        }}
       />
     </div>
   );
