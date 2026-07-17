@@ -547,14 +547,14 @@ function StatCard({
     warning: "bg-warning/10 text-warning",
   };
   return (
-    <div className="glass-card p-5">
+    <div className="glass-card p-3 sm:p-5">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${toneMap[tone]}`}>
-          <Icon className="w-4 h-4" />
+        <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${toneMap[tone]}`}>
+          <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </div>
       </div>
-      <p className="text-3xl font-bold text-foreground mt-2 tracking-tight">{value}</p>
+      <p className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mt-2 tracking-tight">{value}</p>
       <p className="text-xs text-muted-foreground mt-1">{sub}</p>
     </div>
   );
