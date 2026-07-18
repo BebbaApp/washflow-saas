@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { useAttendance } from "@/hooks/useAttendance";
+import { useLiveTable } from "@/offline/useLiveTable";
 import { toast } from "sonner";
 
 const BUSY_THRESHOLD = 20;
@@ -89,7 +90,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
   });
-  const [dayVolumes, setDayVolumes] = useState<Record<string, number>>({});
+  // dayVolumes derived below from local Dexie orders mirror
   const [category, setCategory] = useState("Salaries");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -150,25 +151,25 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       .map((r: any) => ({ user_id: r.user_id, kind: r.kind, created_at: r.created_at }));
   }, [liveAttendance, staffId, from, to]);
 
-  // load tenant-wide order volumes per day for the month (drives busy/quiet classification)
-  useEffect(() => {
-    if (!open || !tenant?.id) { setDayVolumes({}); return; }
-    (async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("created_at, status")
-        .eq("tenant_id", tenant.id)
-        .neq("status", "cancelled")
-        .gte("created_at", from.toISOString())
-        .lte("created_at", to.toISOString());
-      const map: Record<string, number> = {};
-      ((data as any[]) || []).forEach((r) => {
-        const k = new Date(r.created_at).toDateString();
-        map[k] = (map[k] || 0) + 1;
-      });
-      setDayVolumes(map);
-    })();
-  }, [open, tenant?.id, from, to]);
+  // Tenant-wide order volumes per day for the month (drives busy/quiet
+  // classification). Read from the local Dexie mirror so this works offline
+  // and matches the counts the rest of the app displays.
+  const orderRows = useLiveTable<any>(tenant?.id, "orders");
+  const dayVolumes = useMemo<Record<string, number>>(() => {
+    if (!orderRows) return {};
+    const fromMs = from.getTime();
+    const toMs = to.getTime();
+    const map: Record<string, number> = {};
+    for (const r of orderRows) {
+      const status = String(r?.status ?? "");
+      if (status === "cancelled" || status === "deleted") continue;
+      const t = new Date(r.created_at).getTime();
+      if (isNaN(t) || t < fromMs || t > toMs) continue;
+      const k = new Date(r.created_at).toDateString();
+      map[k] = (map[k] || 0) + 1;
+    }
+    return map;
+  }, [orderRows, from, to]);
 
   const comp = comps.find((c) => c.user_id === staffId);
   const selected = staff.find((s) => s.id === staffId);
