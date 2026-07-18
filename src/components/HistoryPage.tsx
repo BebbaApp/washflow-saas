@@ -53,7 +53,7 @@ const LS_FILTERS_KEY = "aquawash:history:filters:v1";
 const LS_SCROLL_KEY = "aquawash:history:scroll:v1";
 const DAILY_FETCH_PAGE_SIZE = 1000;
 
-type DailyRow = { iso: string; amount: number };
+type DailyRow = { iso: string; amount: number; status: string };
 
 interface PersistedFilters {
   query: string;
