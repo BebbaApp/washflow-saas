@@ -796,7 +796,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-muted-foreground shrink-0">{adjDate}</span>
-                                <span className="text-muted-foreground truncate min-w-0">{r.reason || "—"}</span>
+                                <span className="text-muted-foreground truncate min-w-0" title={r.reason || undefined}>{r.reason || "—"}</span>
                               </div>
                               <span className="font-semibold text-foreground shrink-0">−{adjAmount}</span>
                             </div>
