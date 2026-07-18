@@ -289,7 +289,35 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   }, [comp, selectedDays, quietDays, selectedWeeksWorked]);
 
   const workBonusAmount = Number(workBonus) || 0;
-  const total = baseAmount + workBonusAmount;
+
+  // ── Pay adjustments (advances + penalties) ────────────────────────────────
+  const adjRows = useLiveTable<any>(tenant?.id, "staff_pay_adjustments");
+  const weekRanges = useMemo(() => {
+    return Array.from(selectedWeeks).map((k) => {
+      const start = new Date(k); start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
+      return { start, end };
+    });
+  }, [selectedWeeks]);
+  const applicableAdjustments = useMemo(() => {
+    if (!staffId || weekRanges.length === 0) return [] as any[];
+    return (adjRows ?? []).filter((r: any) => {
+      if (r.worker_id !== staffId) return false;
+      if ((r.status ?? "pending") !== "pending") return false;
+      const d = new Date(r.date + "T00:00:00");
+      return weekRanges.some((w) => d >= w.start && d <= w.end);
+    });
+  }, [adjRows, staffId, weekRanges]);
+  const adjustmentTotals = useMemo(() => {
+    let advances = 0; let penalties = 0;
+    applicableAdjustments.forEach((r) => {
+      const n = Number(r.amount) || 0;
+      if (r.kind === "advance") advances += n; else penalties += n;
+    });
+    return { advances, penalties, total: advances + penalties };
+  }, [applicableAdjustments]);
+
+  const total = Math.max(0, baseAmount + workBonusAmount - adjustmentTotals.total);
 
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
