@@ -61,6 +61,7 @@ export const MIRRORED_TABLES = [
   "role_permissions",
   "user_roles",
   "tenant_members",
+  "staff_pay_adjustments",
 ] as const;
 export type MirroredTable = (typeof MIRRORED_TABLES)[number];
 
@@ -88,6 +89,7 @@ class OfflineDB extends Dexie {
   user_roles!: Table<BaseRow>;
   tenant_members!: Table<BaseRow>;
   tenants!: Table<BaseRow>;
+  staff_pay_adjustments!: Table<BaseRow>;
 
   outbox!: Table<OutboxItem, number>;
   sync_meta!: Table<SyncMeta, string>;
@@ -102,6 +104,7 @@ class OfflineDB extends Dexie {
     for (const t of MIRRORED_TABLES) schemas[t] = rowSchema;
     this.version(1).stores(schemas);
     this.version(2).stores({ staff_active_status: rowSchema });
+    this.version(3).stores({ staff_pay_adjustments: rowSchema });
   }
 }
 
