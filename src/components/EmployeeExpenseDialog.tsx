@@ -239,24 +239,25 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
   // Calendar weeks for rendering with a checkbox per row.
+  // Key each row by the ISO date of its first non-null cell — always unique
+  // within a month, so no key collisions like getWeekMonday could produce.
   const calendarWeeks = useMemo(() => {
-    const weeks: { monday: Date; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
+    const weeks: { key: string; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
     let currentWeek: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] = [];
     for (let i = 0; i < from.getDay(); i++) currentWeek.push(null);
+    const flush = () => {
+      const firstDay = currentWeek.find((c) => c !== null)?.date;
+      const key = firstDay ? firstDay.toISOString() : `empty-${weeks.length}`;
+      weeks.push({ key, cells: currentWeek });
+      currentWeek = [];
+    };
     for (const c of dayCells) {
       currentWeek.push(c);
-      if (currentWeek.length === 7) {
-        const firstDay = currentWeek.find((c) => c !== null)?.date;
-        const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
-        weeks.push({ monday, cells: currentWeek });
-        currentWeek = [];
-      }
+      if (currentWeek.length === 7) flush();
     }
     if (currentWeek.length > 0) {
       while (currentWeek.length < 7) currentWeek.push(null);
-      const firstDay = currentWeek.find((c) => c !== null)?.date;
-      const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
-      weeks.push({ monday, cells: currentWeek });
+      flush();
     }
     return weeks;
   }, [dayCells, from]);
@@ -264,7 +265,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const selectedAbsentDays = useMemo(() => {
     let count = 0;
     calendarWeeks.forEach((week) => {
-      if (!selectedWeeks.has(week.monday.toDateString())) return;
+      if (!selectedWeeks.has(week.key)) return;
       week.cells.forEach((cell) => {
         if (cell?.status === "absent") count++;
       });
