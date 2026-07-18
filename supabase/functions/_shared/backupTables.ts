@@ -66,7 +66,6 @@ export const RESTORE_INSERT_ORDER = [
   "role_permissions",
   "customers",
   "suppliers",
-  "product_types",
   "inventory_categories",
   "inventory_items",
   "services",
