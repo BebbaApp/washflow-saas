@@ -438,11 +438,6 @@ export function AttendancePage() {
               <Button variant="outline" size="sm" onClick={handleExportRecordsPdf} className="w-full lg:w-auto">
                 <FileText className="w-4 h-4 mr-1" /> Export PDF
               </Button>
-              {canAdjust && (
-                <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} className="w-full lg:w-auto">
-                  <Wallet className="w-4 h-4 mr-1" /> Adjustments
-                </Button>
-              )}
               {canOverride && (
                 <Button size="sm" onClick={() => setOverrideOpen(true)} className="w-full lg:w-auto">
                   <ShieldAlert className="w-4 h-4 mr-1" /> Manual Override
