@@ -387,8 +387,8 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
                 {comp.pay_type === "weekly" && (
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weeks worked</p>
-                    <p className="text-sm font-semibold text-foreground">{weeksWorked}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weeks selected</p>
+                    <p className="text-sm font-semibold text-foreground">{selectedWeeksWorked}</p>
                   </div>
                 )}
               </div>
@@ -409,32 +409,58 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       aria-label="Next month"
                     ><ChevronRight className="w-4 h-4" /></button>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {days}</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {totalWorkedDays}</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500" />Absent {absentDays}</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-primary" />Selected {selectedDays}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                    <div key={i} className="text-[10px] text-center text-muted-foreground py-1">{d}</div>
-                  ))}
-                  {Array.from({ length: from.getDay() }).map((_, i) => (
-                    <div key={`pad-${i}`} />
-                  ))}
-                  {dayCells.map((c) => {
-                    const cls = c.status === "worked"
-                      ? "bg-emerald-500 text-white"
-                      : c.status === "absent"
-                      ? "bg-red-500/80 text-white"
-                      : "bg-muted text-muted-foreground";
-                    return (
-                  <div
-                    key={c.date.toISOString()}
-                    className={`h-[45px] w-full rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
-                    title={`${c.date.toDateString()} — ${c.status}`}
-                  >
-                    {c.date.getDate()}
+                <div className="space-y-1">
+                  <div className="grid grid-cols-[auto_repeat(7,1fr)] gap-1 items-center">
+                    <div /> {/* checkbox column header */}
+                    {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                      <div key={i} className="text-[10px] text-center text-muted-foreground py-1">{d}</div>
+                    ))}
                   </div>
+                  {calendarWeeks.map((week) => {
+                    const weekKey = week.monday.toDateString();
+                    const isSelected = selectedWeeks.has(weekKey);
+                    const hasWorked = week.cells.some((c) => c?.status === "worked");
+                    return (
+                      <div key={weekKey} className="grid grid-cols-[auto_repeat(7,1fr)] gap-1 items-center">
+                        <div className="flex items-center justify-center px-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!hasWorked}
+                            onChange={(e) => {
+                              const next = new Set(selectedWeeks);
+                              if (e.target.checked) next.add(weekKey);
+                              else next.delete(weekKey);
+                              setSelectedWeeks(next);
+                            }}
+                            className="w-4 h-4 accent-primary cursor-pointer disabled:opacity-40"
+                            title={hasWorked ? "Include this week in the breakdown" : "No worked days in this week"}
+                          />
+                        </div>
+                        {week.cells.map((c, i) => {
+                          if (!c) return <div key={i} />;
+                          const cls = c.status === "worked"
+                            ? "bg-emerald-500 text-white"
+                            : c.status === "absent"
+                            ? "bg-red-500/80 text-white"
+                            : "bg-muted text-muted-foreground";
+                          return (
+                            <div
+                              key={c.date.toISOString()}
+                              className={`h-[45px] w-full rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
+                              title={`${c.date.toDateString()} — ${c.status}`}
+                            >
+                              {c.date.getDate()}
+                            </div>
+                          );
+                        })}
+                      </div>
                     );
                   })}
                 </div>
