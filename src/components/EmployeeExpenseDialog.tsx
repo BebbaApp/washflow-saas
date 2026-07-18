@@ -278,11 +278,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
     if (comp.pay_type === "salary") return comp.base_rate;
-    if (comp.pay_type === "weekly") return comp.base_rate * weeksWorked;
+    if (comp.pay_type === "weekly") return comp.base_rate * selectedWeeksWorked;
     // wage
-    const paidAtBase = days - quietDays; // normal + busy days
+    const paidAtBase = selectedDays - quietDays; // normal + busy days
     return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
-  }, [comp, days, quietDays, weeksWorked]);
+  }, [comp, selectedDays, quietDays, selectedWeeksWorked]);
 
   const workBonusAmount = Number(workBonus) || 0;
   const total = baseAmount + workBonusAmount;
@@ -295,13 +295,13 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
-    if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
-    else if (comp.pay_type === "weekly") parts.push(`${weeksWorked} week(s)`);
+    if (comp.pay_type === "wage") parts.push(`${selectedDays} day(s)`);
+    else if (comp.pay_type === "weekly") parts.push(`${selectedWeeksWorked} week(s)`);
     if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
     const desc = `Remuneration — ${displayName} (${monthLabel})`;
-    const summary = `${parts.join(", ")} · ${days} worked / ${absentDays} absent`;
+    const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
     await addExpense({
       description: desc,
       amount: Number(total.toFixed(2)),
