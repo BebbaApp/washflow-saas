@@ -188,17 +188,21 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const [workBonus, setWorkBonus] = useState<string>("");
   const [selectedWeeks, setSelectedWeeks] = useState<Set<string>>(new Set());
 
-  // Default to selecting every week that contains a worked day.
+  // No default selection — user explicitly picks which weeks to calculate.
+  // Reset when the employee or month changes.
   useEffect(() => {
-    const keys = new Set<string>();
-    workedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
-    setSelectedWeeks(keys);
-  }, [workedDays]);
+    setSelectedWeeks(new Set());
+  }, [staffId, monthAnchor]);
 
   const selectedWorkedDays = useMemo(() => {
     const selected = new Set<string>();
     workedDays.forEach((k) => {
-      if (selectedWeeks.has(getWeekMonday(new Date(k)).toDateString())) selected.add(k);
+      const d = new Date(k); d.setHours(0, 0, 0, 0);
+      selectedWeeks.forEach((weekKey) => {
+        const start = new Date(weekKey); start.setHours(0, 0, 0, 0);
+        const end = new Date(start); end.setDate(end.getDate() + 6);
+        if (d >= start && d <= end) selected.add(k);
+      });
     });
     return selected;
   }, [workedDays, selectedWeeks]);
@@ -215,11 +219,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return { busyDays: busy, quietDays: quiet, normalDays: normal };
   }, [selectedWorkedDays, dayVolumes]);
 
-  const selectedWeeksWorked = useMemo(() => {
-    const keys = new Set<string>();
-    selectedWorkedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
-    return keys.size;
-  }, [selectedWorkedDays]);
+  const selectedWeeksWorked = selectedWeeks.size;
 
   // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
