@@ -122,11 +122,38 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
       }, Date.now());
       effectiveStart = Math.max(earliest, Date.now() - 90 * dayMs);
     }
+    const label = RANGES.find((r) => r.id === range)?.label ?? "";
+
+    // For today, show hourly buckets so the chart spans the whole day
+    if (range === "today") {
+      const buckets: { day: number; label: string; revenue: number; jobs: number }[] = [];
+      const startOfDay = new Date(effectiveStart);
+      for (let h = 7; h <= 18; h++) {
+        const start = new Date(startOfDay);
+        start.setHours(h, 0, 0, 0);
+        const bucketEnd = new Date(start);
+        bucketEnd.setHours(h + 1, 0, 0, 0);
+        buckets.push({
+          day: start.getTime(),
+          label: `${(h % 12) || 12}${h >= 12 ? "pm" : "am"}`,
+          revenue: 0,
+          jobs: 0,
+        });
+        orders.forEach((o) => {
+          const t = new Date(o.completedAt ?? o.createdAt).getTime();
+          if (t >= start.getTime() && t < bucketEnd.getTime()) {
+            buckets[buckets.length - 1].jobs += 1;
+            if (o.status === "completed") buckets[buckets.length - 1].revenue += o.servicePrice;
+          }
+        });
+      }
+      return { dailySeries: buckets, seriesLabel: label };
+    }
+
     const startDate = new Date(effectiveStart);
     startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(end);
     endDate.setHours(0, 0, 0, 0);
-    const span = endDate.getTime() - startDate.getTime();
     const days: { day: number; label: string; revenue: number; jobs: number }[] = [];
     const cursor = new Date(startDate);
     let safety = 0;
@@ -148,7 +175,6 @@ export const ReportsDashboard = ({ orders }: ReportsDashboardProps) => {
       days[idx].jobs += 1;
       if (o.status === "completed") days[idx].revenue += o.servicePrice;
     });
-    const label = RANGES.find((r) => r.id === range)?.label ?? "";
     return { dailySeries: days, seriesLabel: range === "all" ? "Last 90 days" : label };
   }, [orders, range, customStart, customEnd]);
 
