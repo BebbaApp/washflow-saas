@@ -1321,6 +1321,57 @@ export type Database = {
           },
         ]
       }
+      staff_pay_adjustments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          kind: string
+          reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settled_expense_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          kind: string
+          reason?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settled_expense_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settled_expense_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: []
+      }
       staff_pins: {
         Row: {
           created_at: string
