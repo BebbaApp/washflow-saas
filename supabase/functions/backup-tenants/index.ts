@@ -182,6 +182,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    // When invoked for a single tenant, surface the failure as an HTTP error
+    // so callers (e.g. the Platform Console) can display it instead of showing
+    // a false-positive success toast.
+    if (body.tenant_id && results[0] && !results[0].ok) {
+      return json({ error: results[0].error, results }, 500);
+    }
     return json({ ran: results.length, results }, 200);
   } catch (e) {
     console.error("backup-tenants error", e);
