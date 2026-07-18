@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Users, Calculator, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Users, Calculator, ChevronLeft, ChevronRight, MinusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useLiveTable } from "@/offline/useLiveTable";
+import { offlineUpdate } from "@/offline/offlineWrite";
 import { toast } from "sonner";
 
 const BUSY_THRESHOLD = 20;
@@ -87,6 +89,7 @@ function getWeekMonday(d: Date) {
 }
 
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
+  const { user } = useAuth();
   const { tenant } = useTenant();
   const { formatPrice, currency } = useCurrency();
   const { addExpense } = useExpenses();
@@ -286,7 +289,35 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   }, [comp, selectedDays, quietDays, selectedWeeksWorked]);
 
   const workBonusAmount = Number(workBonus) || 0;
-  const total = baseAmount + workBonusAmount;
+
+  // ── Pay adjustments (advances + penalties) ────────────────────────────────
+  const adjRows = useLiveTable<any>(tenant?.id, "staff_pay_adjustments");
+  const weekRanges = useMemo(() => {
+    return Array.from(selectedWeeks).map((k) => {
+      const start = new Date(k); start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
+      return { start, end };
+    });
+  }, [selectedWeeks]);
+  const applicableAdjustments = useMemo(() => {
+    if (!staffId || weekRanges.length === 0) return [] as any[];
+    return (adjRows ?? []).filter((r: any) => {
+      if (r.worker_id !== staffId) return false;
+      if ((r.status ?? "pending") !== "pending") return false;
+      const d = new Date(r.date + "T00:00:00");
+      return weekRanges.some((w) => d >= w.start && d <= w.end);
+    });
+  }, [adjRows, staffId, weekRanges]);
+  const adjustmentTotals = useMemo(() => {
+    let advances = 0; let penalties = 0;
+    applicableAdjustments.forEach((r) => {
+      const n = Number(r.amount) || 0;
+      if (r.kind === "advance") advances += n; else penalties += n;
+    });
+    return { advances, penalties, total: advances + penalties };
+  }, [applicableAdjustments]);
+
+  const total = Math.max(0, baseAmount + workBonusAmount - adjustmentTotals.total);
 
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
@@ -294,6 +325,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (!selected) { toast.error("Select an employee"); return; }
     if (!comp) { toast.error("No pay settings — set them in Settings → Workers"); return; }
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
+    if (!tenant?.id) return;
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
     if (comp.pay_type === "wage") parts.push(`${selectedDays} day(s)`);
@@ -301,9 +333,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
+    if (adjustmentTotals.advances > 0) parts.push(`less advances ${formatPrice(adjustmentTotals.advances)}`);
+    if (adjustmentTotals.penalties > 0) parts.push(`less penalties ${formatPrice(adjustmentTotals.penalties)}`);
     const desc = `Remuneration — ${displayName} (${monthLabel})`;
     const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
-    await addExpense({
+    const created = await addExpense({
       description: desc,
       amount: Number(total.toFixed(2)),
       category,
@@ -311,6 +345,20 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       notes: notes ? `${summary}\n${notes}` : summary,
       date: new Date().toISOString(),
     });
+    // Settle the applied adjustments so they don't deduct again next payout.
+    if (applicableAdjustments.length > 0) {
+      const now = new Date().toISOString();
+      for (const adj of applicableAdjustments) {
+        try {
+          await offlineUpdate("staff_pay_adjustments", tenant.id, adj.id, {
+            status: "settled",
+            settled_at: now,
+            settled_by: user?.id ?? null,
+            settled_expense_id: created?.id ?? null,
+          });
+        } catch { /* ignore individual failures */ }
+      }
+    }
     toast.success("Employee expense recorded");
     setSaving(false);
     onClose();
@@ -568,13 +616,45 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </label>
 
+              {applicableAdjustments.length > 0 && (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary flex items-center justify-between text-xs font-semibold text-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <MinusCircle className="w-3.5 h-3.5" /> Pay adjustments to deduct
+                    </span>
+                    <span className="text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.total)}</span>
+                  </div>
+                  <div className="max-h-40 overflow-auto divide-y divide-border">
+                    {applicableAdjustments.map((r: any) => (
+                      <div key={r.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          r.kind === "advance"
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            : "bg-red-500/15 text-red-700 dark:text-red-300"
+                        }`}>{r.kind}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(r.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
+                        </span>
+                        <span className="text-muted-foreground truncate flex-1">{r.reason || "—"}</span>
+                        <span className="font-semibold text-foreground">−{formatPrice(Number(r.amount) || 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-muted/40">
+                    These entries will be marked settled once this expense is recorded.
+                  </p>
+                </div>
+              )}
+
               <div className="rounded-xl bg-muted/50 border border-border p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-muted-foreground" />
                   <div className="text-sm">
                     <p className="font-medium text-foreground">Computed amount</p>
                     <p className="text-xs text-muted-foreground">
-                      Base {formatPrice(baseAmount)}{workBonusAmount > 0 ? ` + ${formatPrice(workBonusAmount)} work bonus` : ""}
+                      Base {formatPrice(baseAmount)}
+                      {workBonusAmount > 0 ? ` + ${formatPrice(workBonusAmount)} bonus` : ""}
+                      {adjustmentTotals.total > 0 ? ` − ${formatPrice(adjustmentTotals.total)} adjustments` : ""}
                     </p>
                   </div>
                 </div>

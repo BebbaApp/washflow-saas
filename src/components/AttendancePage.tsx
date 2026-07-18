@@ -16,9 +16,10 @@ import { Button } from "@/components/ui/button";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   LogIn, LogOut, UserCheck, Camera, Clock, Search, ShieldCheck,
-  Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX, FileText,
+  Download, ShieldAlert, BarChart3, FileClock, Volume2, VolumeX, FileText, Wallet,
 } from "lucide-react";
 import { exportTablePdf } from "@/lib/pdfExport";
+import { StaffAdjustmentsDialog } from "@/components/StaffAdjustmentsDialog";
 
 interface StaffOption { user_id: string; name: string; role: string; }
 
@@ -89,6 +90,7 @@ export function AttendancePage() {
   const canEnroll = isAdmin || can("attendance.enroll");
   const canAudit = isAdmin || can("attendance.audit");
   const canOverride = isAdmin;
+  const canAdjust = user?.role === "admin" || user?.role === "manager";
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser,
     auditPage, setAuditPage, auditTotal, auditPageSize } =
@@ -130,6 +132,7 @@ export function AttendancePage() {
 
   // Override dialog
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
   const [overrideForm, setOverrideForm] = useState<{ targetUserId: string; kind: "check_in" | "check_out"; reason: string; whenLocal: string }>(
     { targetUserId: "", kind: "check_in", reason: "", whenLocal: "" }
   );
@@ -428,6 +431,11 @@ export function AttendancePage() {
               <Button variant="outline" size="sm" onClick={handleExportRecordsPdf} className="w-full lg:w-auto">
                 <FileText className="w-4 h-4 mr-1" /> Export PDF
               </Button>
+              {canAdjust && (
+                <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} className="w-full lg:w-auto">
+                  <Wallet className="w-4 h-4 mr-1" /> Adjustments
+                </Button>
+              )}
               {canOverride && (
                 <Button size="sm" onClick={() => setOverrideOpen(true)} className="w-full lg:w-auto">
                   <ShieldAlert className="w-4 h-4 mr-1" /> Manual Override
@@ -866,6 +874,8 @@ export function AttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StaffAdjustmentsDialog open={adjustOpen} onClose={() => setAdjustOpen(false)} />
     </div>
   );
 }
