@@ -77,6 +77,15 @@ function pairAttendance(rows: AttRow[]) {
   return { hours: totalMs / 3600_000, workedDays, hoursByDay };
 }
 
+function getWeekMonday(d: Date) {
+  const day = d.getDay();
+  const diffToMon = (day + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - diffToMon);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const { tenant } = useTenant();
   const { formatPrice, currency } = useCurrency();
@@ -175,8 +184,42 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const selected = staff.find((s) => s.id === staffId);
   const displayName = selected ? (selected.name || selected.email.split("@")[0] || "Employee") : "";
   const { hours, workedDays, hoursByDay } = useMemo(() => pairAttendance(attendance), [attendance]);
-  const days = workedDays.size;
+  const totalWorkedDays = workedDays.size;
   const [workBonus, setWorkBonus] = useState<string>("");
+  const [selectedWeeks, setSelectedWeeks] = useState<Set<string>>(new Set());
+
+  // Default to selecting every week that contains a worked day.
+  useEffect(() => {
+    const keys = new Set<string>();
+    workedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
+    setSelectedWeeks(keys);
+  }, [workedDays]);
+
+  const selectedWorkedDays = useMemo(() => {
+    const selected = new Set<string>();
+    workedDays.forEach((k) => {
+      if (selectedWeeks.has(getWeekMonday(new Date(k)).toDateString())) selected.add(k);
+    });
+    return selected;
+  }, [workedDays, selectedWeeks]);
+
+  const selectedDays = selectedWorkedDays.size;
+  const { busyDays, quietDays, normalDays } = useMemo(() => {
+    let busy = 0, quiet = 0, normal = 0;
+    selectedWorkedDays.forEach((key) => {
+      const v = dayVolumes[key] || 0;
+      if (v >= BUSY_THRESHOLD) busy++;
+      else if (v < QUIET_THRESHOLD) quiet++;
+      else normal++;
+    });
+    return { busyDays: busy, quietDays: quiet, normalDays: normal };
+  }, [selectedWorkedDays, dayVolumes]);
+
+  const selectedWeeksWorked = useMemo(() => {
+    const keys = new Set<string>();
+    selectedWorkedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
+    return keys.size;
+  }, [selectedWorkedDays]);
 
   // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -195,33 +238,39 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
-  // Count busy/quiet days based on worked days only.
-  const { busyDays, quietDays, normalDays } = useMemo(() => {
-    let busy = 0, quiet = 0, normal = 0;
-    workedDays.forEach((key) => {
-      const v = dayVolumes[key] || 0;
-      if (v >= BUSY_THRESHOLD) busy++;
-      else if (v < QUIET_THRESHOLD) quiet++;
-      else normal++;
-    });
-    return { busyDays: busy, quietDays: quiet, normalDays: normal };
-  }, [workedDays, dayVolumes]);
+  // Calendar weeks for rendering with a checkbox per row.
+  const calendarWeeks = useMemo(() => {
+    const weeks: { monday: Date; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
+    let currentWeek: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] = [];
+    for (let i = 0; i < from.getDay(); i++) currentWeek.push(null);
+    for (const c of dayCells) {
+      currentWeek.push(c);
+      if (currentWeek.length === 7) {
+        const firstDay = currentWeek.find((c) => c !== null)?.date;
+        const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
+        weeks.push({ monday, cells: currentWeek });
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      const firstDay = currentWeek.find((c) => c !== null)?.date;
+      const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
+      weeks.push({ monday, cells: currentWeek });
+    }
+    return weeks;
+  }, [dayCells, from]);
 
-  // Count distinct Mon–Sun weeks in the month that contain at least one
-  // worked day. Used to bill flat weekly wages.
-  const weeksWorked = useMemo(() => {
-    const keys = new Set<string>();
-    workedDays.forEach((k) => {
-      const d = new Date(k);
-      const day = d.getDay(); // 0=Sun..6=Sat
-      const diffToMon = (day + 6) % 7;
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - diffToMon);
-      monday.setHours(0, 0, 0, 0);
-      keys.add(monday.toDateString());
+  const selectedAbsentDays = useMemo(() => {
+    let count = 0;
+    calendarWeeks.forEach((week) => {
+      if (!selectedWeeks.has(week.monday.toDateString())) return;
+      week.cells.forEach((cell) => {
+        if (cell?.status === "absent") count++;
+      });
     });
-    return keys.size;
-  }, [workedDays]);
+    return count;
+  }, [calendarWeeks, selectedWeeks]);
 
   // Base amount: for wage, quiet days are paid at quiet_day_rate (flat)
   // instead of the base rate. Salary and weekly are flat amounts; busy-day
@@ -229,11 +278,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const baseAmount = useMemo(() => {
     if (!comp) return 0;
     if (comp.pay_type === "salary") return comp.base_rate;
-    if (comp.pay_type === "weekly") return comp.base_rate * weeksWorked;
+    if (comp.pay_type === "weekly") return comp.base_rate * selectedWeeksWorked;
     // wage
-    const paidAtBase = days - quietDays; // normal + busy days
+    const paidAtBase = selectedDays - quietDays; // normal + busy days
     return comp.base_rate * paidAtBase + comp.quiet_day_rate * quietDays;
-  }, [comp, days, quietDays, weeksWorked]);
+  }, [comp, selectedDays, quietDays, selectedWeeksWorked]);
 
   const workBonusAmount = Number(workBonus) || 0;
   const total = baseAmount + workBonusAmount;
@@ -246,13 +295,13 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
-    if (comp.pay_type === "wage") parts.push(`${days} day(s)`);
-    else if (comp.pay_type === "weekly") parts.push(`${weeksWorked} week(s)`);
+    if (comp.pay_type === "wage") parts.push(`${selectedDays} day(s)`);
+    else if (comp.pay_type === "weekly") parts.push(`${selectedWeeksWorked} week(s)`);
     if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
     const desc = `Remuneration — ${displayName} (${monthLabel})`;
-    const summary = `${parts.join(", ")} · ${days} worked / ${absentDays} absent`;
+    const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
     await addExpense({
       description: desc,
       amount: Number(total.toFixed(2)),
@@ -338,15 +387,15 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
                 {comp.pay_type === "weekly" && (
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weeks worked</p>
-                    <p className="text-sm font-semibold text-foreground">{weeksWorked}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weeks selected</p>
+                    <p className="text-sm font-semibold text-foreground">{selectedWeeksWorked}</p>
                   </div>
                 )}
               </div>
 
               {/* Month attendance chart */}
               <div className="rounded-xl border border-border p-3">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setMonthAnchor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
@@ -360,43 +409,69 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       aria-label="Next month"
                     ><ChevronRight className="w-4 h-4" /></button>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {days}</span>
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {totalWorkedDays}</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500" />Absent {absentDays}</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-primary" />Selected {selectedDays}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                    <div key={i} className="text-[10px] text-center text-muted-foreground py-1">{d}</div>
-                  ))}
-                  {Array.from({ length: from.getDay() }).map((_, i) => (
-                    <div key={`pad-${i}`} />
-                  ))}
-                  {dayCells.map((c) => {
-                    const cls = c.status === "worked"
-                      ? "bg-emerald-500 text-white"
-                      : c.status === "absent"
-                      ? "bg-red-500/80 text-white"
-                      : "bg-muted text-muted-foreground";
-                    return (
-                  <div
-                    key={c.date.toISOString()}
-                    className={`h-[45px] w-full rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
-                    title={`${c.date.toDateString()} — ${c.status}`}
-                  >
-                    {c.date.getDate()}
+                <div className="space-y-1">
+                  <div className="grid grid-cols-[auto_repeat(7,1fr)] gap-1 items-center">
+                    <div /> {/* checkbox column header */}
+                    {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                      <div key={i} className="text-[10px] text-center text-muted-foreground py-1">{d}</div>
+                    ))}
                   </div>
+                  {calendarWeeks.map((week) => {
+                    const weekKey = week.monday.toDateString();
+                    const isSelected = selectedWeeks.has(weekKey);
+                    const hasWorked = week.cells.some((c) => c?.status === "worked");
+                    return (
+                      <div key={weekKey} className="grid grid-cols-[auto_repeat(7,1fr)] gap-1 items-center">
+                        <div className="flex items-center justify-center px-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!hasWorked}
+                            onChange={(e) => {
+                              const next = new Set(selectedWeeks);
+                              if (e.target.checked) next.add(weekKey);
+                              else next.delete(weekKey);
+                              setSelectedWeeks(next);
+                            }}
+                            className="w-4 h-4 accent-primary cursor-pointer disabled:opacity-40"
+                            title={hasWorked ? "Include this week in the breakdown" : "No worked days in this week"}
+                          />
+                        </div>
+                        {week.cells.map((c, i) => {
+                          if (!c) return <div key={i} />;
+                          const cls = c.status === "worked"
+                            ? "bg-emerald-500 text-white"
+                            : c.status === "absent"
+                            ? "bg-red-500/80 text-white"
+                            : "bg-muted text-muted-foreground";
+                          return (
+                            <div
+                              key={c.date.toISOString()}
+                              className={`h-[45px] w-full rounded-md flex items-center justify-center text-[13px] font-medium ${cls}`}
+                              title={`${c.date.toDateString()} — ${c.status}`}
+                            >
+                              {c.date.getDate()}
+                            </div>
+                          );
+                        })}
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
               {/* Per-day breakdown */}
-              {days > 0 && (
+              {selectedDays > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">
                   <div className="px-3 py-2 bg-secondary flex items-center justify-between text-xs font-semibold text-foreground">
                     <span>Per-day breakdown</span>
-                    <span className="text-muted-foreground font-normal">{days} worked day{days === 1 ? "" : "s"}</span>
+                    <span className="text-muted-foreground font-normal">{selectedDays} worked day{selectedDays === 1 ? "" : "s"}</span>
                   </div>
                   <div className="max-h-64 overflow-auto divide-y divide-border">
                     <div className="grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
@@ -405,7 +480,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       <div className="col-span-2 text-center">Type</div>
                       <div className="col-span-3 text-right">Rate applied</div>
                     </div>
-                    {Array.from(workedDays)
+                    {Array.from(selectedWorkedDays)
                       .map((k) => new Date(k))
                       .sort((a, b) => a.getTime() - b.getTime())
                       .map((d) => {
