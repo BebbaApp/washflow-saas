@@ -53,7 +53,7 @@ const LS_FILTERS_KEY = "aquawash:history:filters:v1";
 const LS_SCROLL_KEY = "aquawash:history:scroll:v1";
 const DAILY_FETCH_PAGE_SIZE = 1000;
 
-type DailyRow = { iso: string; amount: number };
+type DailyRow = { iso: string; amount: number; status: string };
 
 interface PersistedFilters {
   query: string;
@@ -364,6 +364,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         // appear incomplete or zero.
         iso: r.created_at,
         amount: Number(r.service_price) || 0,
+        status: r.status || "completed",
       }));
 
     if (isSuperAdmin && tenant?.id) {
@@ -517,21 +518,26 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   };
   const dailyTotals = useMemo(() => {
-    const map = new Map<string, { jobs: number; amount: number; sortKey: string }>();
+    const map = new Map<string, { totalJobs: number; totalAmount: number; netJobs: number; netAmount: number; sortKey: string }>();
     // Prefer the full-range daily rows; fall back only before the first daily fetch resolves.
-    const source: { iso: string; amount: number }[] =
+    const source: { iso: string; amount: number; status: string }[] =
       dailyRows !== null
         ? dailyRows
         : visibleRows.map((o) => ({
             iso: o.createdAt as string,
             amount: o.servicePrice || 0,
+            status: o.status || "completed",
           }));
     for (const r of source) {
       const key = dayKey(r.iso);
       const sortKey = r.iso ? localDateKey(new Date(r.iso)) : "0000";
-      const cur = map.get(key) || { jobs: 0, amount: 0, sortKey };
-      cur.jobs += 1;
-      cur.amount += r.amount;
+      const cur = map.get(key) || { totalJobs: 0, totalAmount: 0, netJobs: 0, netAmount: 0, sortKey };
+      cur.totalJobs += 1;
+      cur.totalAmount += r.amount;
+      if (r.status !== "cancelled" && r.status !== "deleted") {
+        cur.netJobs += 1;
+        cur.netAmount += r.amount;
+      }
       map.set(key, cur);
     }
     // Fill in zero-value days across the active preset range so the strip shows every day
@@ -546,7 +552,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         const iso = cursor.toISOString();
         const key = dayKey(iso);
         if (!map.has(key)) {
-          map.set(key, { jobs: 0, amount: 0, sortKey: localDateKey(cursor) });
+          map.set(key, { totalJobs: 0, totalAmount: 0, netJobs: 0, netAmount: 0, sortKey: localDateKey(cursor) });
         }
         cursor.setDate(cursor.getDate() + 1);
         safety++;
@@ -945,8 +951,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
             {dailyTotals.map((d) => (
               <div key={d.label} className="rounded-lg border border-border bg-secondary/30 p-3">
                 <p className="text-xs text-muted-foreground">{d.label}</p>
-                <p className="text-base font-bold text-foreground mt-1">{formatPrice(d.amount)}</p>
-                <p className="text-[11px] text-muted-foreground">{d.jobs} job{d.jobs !== 1 ? "s" : ""}</p>
+                <p className="text-base font-bold text-destructive mt-1">{d.netJobs} job{d.netJobs !== 1 ? "s" : ""}</p>
+                <p className="text-[11px] text-success font-medium">{formatPrice(d.netAmount)}</p>
               </div>
             ))}
           </div>
