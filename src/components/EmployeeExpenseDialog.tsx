@@ -395,7 +395,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
               {/* Month attendance chart */}
               <div className="rounded-xl border border-border p-3">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setMonthAnchor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
@@ -409,7 +409,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       aria-label="Next month"
                     ><ChevronRight className="w-4 h-4" /></button>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500" />Worked {totalWorkedDays}</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500" />Absent {absentDays}</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-primary" />Selected {selectedDays}</span>
