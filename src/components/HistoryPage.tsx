@@ -846,7 +846,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       {dailyTotals.length > 0 && (
         <div className="glass-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">
-            Daily totals <span className="normal-case text-[10px] text-muted-foreground/70">(loaded rows)</span>
+            Daily totals <span className="normal-case text-[10px] text-muted-foreground/70">(filtered range)</span>
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {dailyTotals.map((d) => (
