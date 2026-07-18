@@ -374,7 +374,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setLoading(true);
     (async () => {
       const offset = (page - 1) * pageSize;
-      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals(), fetchDaily()]);
       if (cancelled) return;
       setRows(pageRows);
       setLoading(false);
