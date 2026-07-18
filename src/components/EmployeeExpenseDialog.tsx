@@ -325,6 +325,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (!selected) { toast.error("Select an employee"); return; }
     if (!comp) { toast.error("No pay settings — set them in Settings → Workers"); return; }
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
+    if (!tenant?.id) return;
     setSaving(true);
     const parts: string[] = [PAY_LABEL[comp.pay_type]];
     if (comp.pay_type === "wage") parts.push(`${selectedDays} day(s)`);
@@ -332,9 +333,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (quietDays > 0) parts.push(`${quietDays} quiet day(s) @ ${formatPrice(comp.quiet_day_rate)}`);
     if (busyDays > 0) parts.push(`${busyDays} busy day(s)`);
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
+    if (adjustmentTotals.advances > 0) parts.push(`less advances ${formatPrice(adjustmentTotals.advances)}`);
+    if (adjustmentTotals.penalties > 0) parts.push(`less penalties ${formatPrice(adjustmentTotals.penalties)}`);
     const desc = `Remuneration — ${displayName} (${monthLabel})`;
     const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
-    await addExpense({
+    const created = await addExpense({
       description: desc,
       amount: Number(total.toFixed(2)),
       category,
@@ -342,6 +345,20 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       notes: notes ? `${summary}\n${notes}` : summary,
       date: new Date().toISOString(),
     });
+    // Settle the applied adjustments so they don't deduct again next payout.
+    if (applicableAdjustments.length > 0) {
+      const now = new Date().toISOString();
+      for (const adj of applicableAdjustments) {
+        try {
+          await offlineUpdate("staff_pay_adjustments", tenant.id, adj.id, {
+            status: "settled",
+            settled_at: now,
+            settled_by: user?.id ?? null,
+            settled_expense_id: created?.id ?? null,
+          });
+        } catch { /* ignore individual failures */ }
+      }
+    }
     toast.success("Employee expense recorded");
     setSaving(false);
     onClose();
