@@ -16,11 +16,14 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const parseDateBoundary = (value: string, endOfDay = false) => {
+const parseDateBoundary = (value: string, endOfDay = false): string | null => {
+  if (!value) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`).toISOString();
+    const d = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
   }
-  return new Date(value).toISOString();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
 const ActionSchema = z.discriminatedUnion("action", [
@@ -417,10 +420,8 @@ Deno.serve(async (req) => {
       }
 
       case "platform_overview": {
-        const fromDate = body.from ? new Date(`${body.from}T00:00:00.000Z`) : new Date(Date.now() - 30 * 86_400_000);
-        const toDate = body.to ? new Date(`${body.to}T23:59:59.999Z`) : new Date();
-        const from = fromDate.toISOString();
-        const to = toDate.toISOString();
+        const from = parseDateBoundary(body.from ?? "") ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
+        const to = parseDateBoundary(body.to ?? "", true) ?? new Date().toISOString();
 
         let ordersQ = admin.from("orders")
           .select("id, tenant_id, service, service_price, status, created_at, completed_at")
@@ -525,8 +526,14 @@ Deno.serve(async (req) => {
           if (body.cancelled_reason === "with") q = q.ilike("notes", "%[CANCELLED%");
           else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
         }
-        if (body.from) q = q.gte("created_at", parseDateBoundary(body.from));
-        if (body.to) q = q.lte("created_at", parseDateBoundary(body.to, true));
+        if (body.from) {
+          const fromIso = parseDateBoundary(body.from);
+          if (fromIso) q = q.gte("created_at", fromIso);
+        }
+        if (body.to) {
+          const toIso = parseDateBoundary(body.to, true);
+          if (toIso) q = q.lte("created_at", toIso);
+        }
         const term = (body.query ?? "").trim().replace(/[%,()]/g, " ").trim();
         if (term) {
           const like = `%${term}%`;
