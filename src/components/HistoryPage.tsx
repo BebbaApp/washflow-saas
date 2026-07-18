@@ -132,6 +132,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   });
 
   const [rows, setRows] = useState<WashOrder[]>([]);
+  const [dailyRows, setDailyRows] = useState<{ iso: string; amount: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
