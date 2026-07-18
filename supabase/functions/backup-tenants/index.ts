@@ -25,7 +25,7 @@ async function sha256Hex(text: string) {
 async function snapshotTenant(admin: any, tenantId: string, kind: "nightly"|"manual"|"pre_restore", actor?: string) {
   const snapshot: Record<string, any[]> = {};
   const rowCounts: Record<string, number> = {};
-  for (const table of BACKUP_TABLES) {
+  for (const { name: table, orderBy } of BACKUP_TABLES) {
     // Page through in 1000-row chunks to bypass PostgREST's default 1000 cap.
     let from = 0;
     const rows: any[] = [];
@@ -34,7 +34,7 @@ async function snapshotTenant(admin: any, tenantId: string, kind: "nightly"|"man
         .from(table)
         .select("*")
         .eq("tenant_id", tenantId)
-        .order("id", { ascending: true })
+        .order(orderBy, { ascending: true })
         .range(from, from + 999);
       if (error) throw new Error(`snapshot ${table}: ${error.message}`);
       const batch = data ?? [];
@@ -45,6 +45,7 @@ async function snapshotTenant(admin: any, tenantId: string, kind: "nightly"|"man
     snapshot[table] = rows;
     rowCounts[table] = rows.length;
   }
+
   const json = JSON.stringify(snapshot);
   const size = new Blob([json]).size;
   const checksum = await sha256Hex(json);
@@ -181,6 +182,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    // When invoked for a single tenant, surface the failure as an HTTP error
+    // so callers (e.g. the Platform Console) can display it instead of showing
+    // a false-positive success toast.
+    if (body.tenant_id && results[0] && !results[0].ok) {
+      return json({ error: results[0].error, results }, 500);
+    }
     return json({ ran: results.length, results }, 200);
   } catch (e) {
     console.error("backup-tenants error", e);

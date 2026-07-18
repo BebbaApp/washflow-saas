@@ -64,10 +64,10 @@ Deno.serve(async (req) => {
       }
       source = `backup:${backup_id}`;
     } else {
-      for (const table of BACKUP_TABLES) {
+      for (const { name: table, orderBy } of BACKUP_TABLES) {
         let from = 0; const rows: any[] = [];
         while (true) {
-          const { data } = await admin.from(table).select("*").eq("tenant_id", tenant_id).order("id").range(from, from + 999);
+          const { data } = await admin.from(table).select("*").eq("tenant_id", tenant_id).order(orderBy).range(from, from + 999);
           const batch = data ?? []; rows.push(...batch);
           if (batch.length < 1000) break;
           from += 1000;
