@@ -171,6 +171,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
+  const dailyFetchRunRef = useRef(0);
 
   // Debounce search input
   useEffect(() => {
@@ -351,6 +352,10 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   // Fetch minimal (date + amount) rows across the full filtered range for daily totals,
   // independent of pagination so all days are represented.
   const fetchDaily = useCallback(async () => {
+    const runId = ++dailyFetchRunRef.current;
+    const applyDailyRows = (rows: DailyRow[]) => {
+      if (dailyFetchRunRef.current === runId) setDailyRows(rows);
+    };
     const mapDailyRows = (records: any[]): DailyRow[] =>
       records.map((r: any) => ({
         // History rows are filtered by captured/created date, so daily total cards
@@ -383,7 +388,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         });
         if (error || (data as any)?.error) {
           console.error("[HistoryPage] super-admin fetchDaily error", error || (data as any)?.error);
-          setDailyRows([]);
+          applyDailyRows([]);
           return;
         }
         const batch = ((data as any)?.orders ?? []) as any[];
@@ -393,7 +398,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         if (batch.length < 100) break;
       }
 
-      setDailyRows(mapDailyRows(collected));
+      applyDailyRows(mapDailyRows(collected));
       return;
     }
 
@@ -433,7 +438,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         .range(offset, offset + DAILY_FETCH_PAGE_SIZE - 1);
       if (error) {
         console.error("[HistoryPage] fetchDaily error", error);
-        setDailyRows([]);
+        applyDailyRows([]);
         return;
       }
 
@@ -443,7 +448,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       if (batch.length < DAILY_FETCH_PAGE_SIZE) break;
     }
 
-    setDailyRows(mapDailyRows(collected));
+    applyDailyRows(mapDailyRows(collected));
   }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id]);
 
   // Reset to first page when filters/search/pageSize change
