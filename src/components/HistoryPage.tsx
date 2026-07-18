@@ -390,7 +390,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [fetchPage, fetchTotals, page, pageSize]);
+  }, [fetchPage, fetchTotals, fetchDaily, page, pageSize]);
 
   // Realtime: refetch current page when relevant orders change
   useEffect(() => {
