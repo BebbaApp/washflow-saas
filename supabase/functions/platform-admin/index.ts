@@ -16,11 +16,14 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const parseDateBoundary = (value: string, endOfDay = false) => {
+const parseDateBoundary = (value: string, endOfDay = false): string | null => {
+  if (!value) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`).toISOString();
+    const d = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
   }
-  return new Date(value).toISOString();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
 const ActionSchema = z.discriminatedUnion("action", [
