@@ -69,10 +69,10 @@ Deno.serve(async (req) => {
     // (Kept lightweight — just re-select and insert one row.)
     const preSnapshot: Record<string, any[]> = {};
     const preCounts: Record<string, number> = {};
-    for (const table of BACKUP_TABLES) {
+    for (const { name: table, orderBy } of BACKUP_TABLES) {
       let from = 0; const rows: any[] = [];
       while (true) {
-        const { data } = await admin.from(table).select("*").eq("tenant_id", tenant.id).order("id").range(from, from + 999);
+        const { data } = await admin.from(table).select("*").eq("tenant_id", tenant.id).order(orderBy).range(from, from + 999);
         const batch = data ?? []; rows.push(...batch);
         if (batch.length < 1000) break;
         from += 1000;
