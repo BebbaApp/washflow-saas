@@ -71,71 +71,38 @@ export function useRewardEligibility(orders: WashOrder[]) {
     refresh();
   }, []);
 
-  // Group all completed orders by customer (phone fingerprint, then name)
-  // and compute current point balance for each group.
+  // Group completed orders by exact (phone + name + plate) fingerprint.
+  // A customer must return the SAME vehicle with the same phone & name
+  // to accumulate points toward a free wash for that vehicle.
   const groups = useMemo(() => {
     const completed = orders.filter((o) => o.status === "completed");
-    const parent: Record<number, number> = {};
-    const find = (x: number): number => (parent[x] === x ? x : (parent[x] = find(parent[x])));
-    const union = (a: number, b: number) => {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra !== rb) parent[ra] = rb;
-    };
-    completed.forEach((_, i) => (parent[i] = i));
-    const phoneIdx = new Map<string, number>();
-    const nameIdx = new Map<string, number>();
-    completed.forEach((o, i) => {
-      const p = phoneKey(o.customerPhone);
-      const n = nameKey(o.customer);
-      if (p) {
-        if (phoneIdx.has(p)) union(i, phoneIdx.get(p)!); else phoneIdx.set(p, i);
-      }
-      if (n) {
-        if (nameIdx.has(n)) union(i, nameIdx.get(n)!); else nameIdx.set(n, i);
-      }
-    });
-    const map = new Map<number, WashOrder[]>();
-    completed.forEach((o, i) => {
-      const r = find(i);
-      if (!map.has(r)) map.set(r, []);
-      map.get(r)!.push(o);
-    });
-    return Array.from(map.values());
+    const map = new Map<string, WashOrder[]>();
+    for (const o of completed) {
+      const k = groupKey(o);
+      if (!k) continue;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(o);
+    }
+    return map;
   }, [orders]);
 
-  // For each active order, find the matching completed-customer group and
-  // check whether the balance is enough for a free wash.
+  // For each active order, find the matching completed-customer+vehicle group
+  // and check whether the balance is enough for a free wash.
   const eligibleOrderIds = useMemo(() => {
     const eligible = new Set<string>();
     const active = orders.filter((o) => o.status === "waiting" || o.status === "in-progress");
     if (active.length === 0) return eligible;
 
-    // Build quick lookup maps from groups
-    const groupByPhone = new Map<string, WashOrder[]>();
-    const groupByName = new Map<string, WashOrder[]>();
-    for (const g of groups) {
-      for (const o of g) {
-        const p = phoneKey(o.customerPhone);
-        if (p && !groupByPhone.has(p)) groupByPhone.set(p, g);
-        const n = nameKey(o.customer);
-        if (n && !groupByName.has(n)) groupByName.set(n, g);
-      }
-    }
-
     for (const o of active) {
-      const p = phoneKey(o.customerPhone);
-      const n = nameKey(o.customer);
-      const group = (p && groupByPhone.get(p)) || (n && groupByName.get(n)) || null;
-      if (!group) continue;
+      const k = groupKey(o);
+      if (!k) continue;
+      const group = groups.get(k);
+      if (!group || group.length === 0) continue;
 
-      // Resolve customer_id (for redemption history) via the same lookup
-      let customerId: string | undefined;
-      for (const og of group) {
-        const id = customerLookup.byPhone[phoneKey(og.customerPhone)];
-        if (id) { customerId = id; break; }
-      }
-      if (!customerId) customerId = customerLookup.byName[nameKey(group[0].customer)];
+      // Resolve customer_id (for redemption history) via phone/name lookup
+      const customerId =
+        customerLookup.byPhone[phoneKey(o.customerPhone)] ||
+        customerLookup.byName[nameKey(o.customer)];
 
       const earned = group.length * POINTS_PER_WASH;
       const redeemed = customerId ? (redemptionsByCustomerId[customerId] || 0) : 0;
