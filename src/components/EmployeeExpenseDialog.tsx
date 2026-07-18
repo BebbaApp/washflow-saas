@@ -371,6 +371,10 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const handleSubmit = async () => {
     if (!selected) { toast.error("Select an employee"); return; }
     if (!comp) { toast.error("No pay settings — set them in Settings → Workers"); return; }
+    if (wouldGoNegative) {
+      toast.error(`Adjustments (${formatPrice(adjustmentTotals.total)}) exceed pay (${formatPrice(grossBeforeAdjustments)}). Edit or cancel some adjustments first.`);
+      return;
+    }
     if (total <= 0) { toast.error("Computed amount is zero"); return; }
     if (!tenant?.id) return;
     setSaving(true);
