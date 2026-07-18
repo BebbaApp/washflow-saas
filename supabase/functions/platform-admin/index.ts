@@ -420,10 +420,8 @@ Deno.serve(async (req) => {
       }
 
       case "platform_overview": {
-        const fromDate = body.from ? new Date(`${body.from}T00:00:00.000Z`) : new Date(Date.now() - 30 * 86_400_000);
-        const toDate = body.to ? new Date(`${body.to}T23:59:59.999Z`) : new Date();
-        const from = fromDate.toISOString();
-        const to = toDate.toISOString();
+        const from = parseDateBoundary(body.from ?? "") ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
+        const to = parseDateBoundary(body.to ?? "", true) ?? new Date().toISOString();
 
         let ordersQ = admin.from("orders")
           .select("id, tenant_id, service, service_price, status, created_at, completed_at")
