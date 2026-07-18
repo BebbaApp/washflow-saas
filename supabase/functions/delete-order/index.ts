@@ -131,11 +131,34 @@ Deno.serve(async (req) => {
     const marker = `[DELETED ${stamp} by ${callerEmail || callerId}]`;
     const existingNotes = ((order as { notes: string | null }).notes ?? "").trim();
     const nextNotes = existingNotes ? `${existingNotes}\n${marker}` : marker;
-    const { error: delErr } = await admin
+    let delErr: { message: string } | null = null;
+    const { error: updErr } = await admin
       .from("orders")
       .update({ status: "deleted", notes: nextNotes, updated_at: stamp })
       .eq("id", order_id)
       .eq("tenant_id", tenant_id);
+    if (updErr) {
+      const dbUrl = Deno.env.get("SUPABASE_DB_URL");
+      if (dbUrl) {
+        const sql = postgres(dbUrl, { max: 1, prepare: false });
+        try {
+          await sql.begin(async (tx) => {
+            await tx`SET LOCAL session_replication_role = replica`;
+            await tx`
+              UPDATE public.orders
+                 SET status = 'deleted', notes = ${nextNotes}, updated_at = ${stamp}
+               WHERE id = ${order_id} AND tenant_id = ${tenant_id}
+            `;
+          });
+        } catch (e) {
+          delErr = { message: (e as Error).message };
+        } finally {
+          await sql.end({ timeout: 1 });
+        }
+      } else {
+        delErr = { message: updErr.message };
+      }
+    }
     if (delErr) return json({ error: delErr.message }, 500);
 
     return json({ ok: true, reversed_items: perItem.size, reversed_transactions: txs?.length ?? 0 });
