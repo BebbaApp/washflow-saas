@@ -188,17 +188,21 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const [workBonus, setWorkBonus] = useState<string>("");
   const [selectedWeeks, setSelectedWeeks] = useState<Set<string>>(new Set());
 
-  // Default to selecting every week that contains a worked day.
+  // No default selection — user explicitly picks which weeks to calculate.
+  // Reset when the employee or month changes.
   useEffect(() => {
-    const keys = new Set<string>();
-    workedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
-    setSelectedWeeks(keys);
-  }, [workedDays]);
+    setSelectedWeeks(new Set());
+  }, [staffId, monthAnchor]);
 
   const selectedWorkedDays = useMemo(() => {
     const selected = new Set<string>();
     workedDays.forEach((k) => {
-      if (selectedWeeks.has(getWeekMonday(new Date(k)).toDateString())) selected.add(k);
+      const d = new Date(k); d.setHours(0, 0, 0, 0);
+      selectedWeeks.forEach((weekKey) => {
+        const start = new Date(weekKey); start.setHours(0, 0, 0, 0);
+        const end = new Date(start); end.setDate(end.getDate() + 6);
+        if (d >= start && d <= end) selected.add(k);
+      });
     });
     return selected;
   }, [workedDays, selectedWeeks]);
@@ -215,11 +219,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return { busyDays: busy, quietDays: quiet, normalDays: normal };
   }, [selectedWorkedDays, dayVolumes]);
 
-  const selectedWeeksWorked = useMemo(() => {
-    const keys = new Set<string>();
-    selectedWorkedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
-    return keys.size;
-  }, [selectedWorkedDays]);
+  const selectedWeeksWorked = selectedWeeks.size;
 
   // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -239,24 +239,25 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
   // Calendar weeks for rendering with a checkbox per row.
+  // Key each row by the ISO date of its first non-null cell — always unique
+  // within a month, so no key collisions like getWeekMonday could produce.
   const calendarWeeks = useMemo(() => {
-    const weeks: { monday: Date; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
+    const weeks: { key: string; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
     let currentWeek: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] = [];
     for (let i = 0; i < from.getDay(); i++) currentWeek.push(null);
+    const flush = () => {
+      const firstDay = currentWeek.find((c) => c !== null)?.date;
+      const key = firstDay ? firstDay.toISOString() : `empty-${weeks.length}`;
+      weeks.push({ key, cells: currentWeek });
+      currentWeek = [];
+    };
     for (const c of dayCells) {
       currentWeek.push(c);
-      if (currentWeek.length === 7) {
-        const firstDay = currentWeek.find((c) => c !== null)?.date;
-        const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
-        weeks.push({ monday, cells: currentWeek });
-        currentWeek = [];
-      }
+      if (currentWeek.length === 7) flush();
     }
     if (currentWeek.length > 0) {
       while (currentWeek.length < 7) currentWeek.push(null);
-      const firstDay = currentWeek.find((c) => c !== null)?.date;
-      const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
-      weeks.push({ monday, cells: currentWeek });
+      flush();
     }
     return weeks;
   }, [dayCells, from]);
@@ -264,7 +265,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const selectedAbsentDays = useMemo(() => {
     let count = 0;
     calendarWeeks.forEach((week) => {
-      if (!selectedWeeks.has(week.monday.toDateString())) return;
+      if (!selectedWeeks.has(week.key)) return;
       week.cells.forEach((cell) => {
         if (cell?.status === "absent") count++;
       });
@@ -423,7 +424,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                     ))}
                   </div>
                   {calendarWeeks.map((week) => {
-                    const weekKey = week.monday.toDateString();
+                    const weekKey = week.key;
                     const isSelected = selectedWeeks.has(weekKey);
                     const hasWorked = week.cells.some((c) => c?.status === "worked");
                     return (
