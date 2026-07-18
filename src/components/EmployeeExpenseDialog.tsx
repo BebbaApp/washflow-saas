@@ -90,7 +90,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
   });
-  const [dayVolumes, setDayVolumes] = useState<Record<string, number>>({});
+  // dayVolumes derived below from local Dexie orders mirror
   const [category, setCategory] = useState("Salaries");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
