@@ -616,13 +616,45 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </label>
 
+              {applicableAdjustments.length > 0 && (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary flex items-center justify-between text-xs font-semibold text-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <MinusCircle className="w-3.5 h-3.5" /> Pay adjustments to deduct
+                    </span>
+                    <span className="text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.total)}</span>
+                  </div>
+                  <div className="max-h-40 overflow-auto divide-y divide-border">
+                    {applicableAdjustments.map((r: any) => (
+                      <div key={r.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          r.kind === "advance"
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            : "bg-red-500/15 text-red-700 dark:text-red-300"
+                        }`}>{r.kind}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(r.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
+                        </span>
+                        <span className="text-muted-foreground truncate flex-1">{r.reason || "—"}</span>
+                        <span className="font-semibold text-foreground">−{formatPrice(Number(r.amount) || 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-muted/40">
+                    These entries will be marked settled once this expense is recorded.
+                  </p>
+                </div>
+              )}
+
               <div className="rounded-xl bg-muted/50 border border-border p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-muted-foreground" />
                   <div className="text-sm">
                     <p className="font-medium text-foreground">Computed amount</p>
                     <p className="text-xs text-muted-foreground">
-                      Base {formatPrice(baseAmount)}{workBonusAmount > 0 ? ` + ${formatPrice(workBonusAmount)} work bonus` : ""}
+                      Base {formatPrice(baseAmount)}
+                      {workBonusAmount > 0 ? ` + ${formatPrice(workBonusAmount)} bonus` : ""}
+                      {adjustmentTotals.total > 0 ? ` − ${formatPrice(adjustmentTotals.total)} adjustments` : ""}
                     </p>
                   </div>
                 </div>
