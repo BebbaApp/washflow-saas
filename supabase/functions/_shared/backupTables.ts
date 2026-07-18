@@ -81,6 +81,7 @@ export const RESTORE_INSERT_ORDER = [
   "staff_face_enrollments",
   "staff_compensation",
   "staff_active_status",
+  "staff_pay_adjustments",
   "attendance_records",
 ] as const;
 
