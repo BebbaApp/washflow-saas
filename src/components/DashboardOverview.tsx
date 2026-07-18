@@ -365,7 +365,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
                   </div>
                   {eligibleOrderIds.has(o.id) ? (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/15 text-success text-[10px] font-bold border border-success/40 w-fit">
-                      <Gift className="w-3 h-3" /> QUALIFY FOR FREE WASH
+                      <Gift className="w-3 h-3" /> 1 FREE WASH
                     </div>
                   ) : progressByOrderId.get(o.id) ? (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold border border-border w-fit">
