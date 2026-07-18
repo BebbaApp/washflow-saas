@@ -77,6 +77,15 @@ function pairAttendance(rows: AttRow[]) {
   return { hours: totalMs / 3600_000, workedDays, hoursByDay };
 }
 
+function getWeekMonday(d: Date) {
+  const day = d.getDay();
+  const diffToMon = (day + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - diffToMon);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const { tenant } = useTenant();
   const { formatPrice, currency } = useCurrency();
