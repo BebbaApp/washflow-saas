@@ -90,7 +90,7 @@ export function AttendancePage() {
   const canEnroll = isAdmin || can("attendance.enroll");
   const canAudit = isAdmin || can("attendance.audit");
   const canOverride = isAdmin;
-  const canAdjust = user?.role === "admin" || user?.role === "manager";
+  const canAdjust = isAdmin || user?.role === "manager";
   const canAssist = user?.role === "admin" || user?.role === "supervisor" || user?.role === "manager";
   const { records, enrollments, auditLog, profilesMap, recordAttendance, recordAttendanceFor, enrollFace, manualOverride, lastForUser,
     auditPage, setAuditPage, auditTotal, auditPageSize } =
@@ -395,9 +395,16 @@ export function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-muted-foreground">
-        Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
-      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
+        </p>
+        {canAdjust && (
+          <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} className="w-full sm:w-auto">
+            <Wallet className="w-4 h-4 mr-1" /> Pay Adjustments
+          </Button>
+        )}
+      </div>
 
       <Tabs value={activeSub} onValueChange={handleSubChange}>
         <TabsList className="grid grid-cols-2 h-auto w-full gap-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-nowrap sm:gap-0">
@@ -431,11 +438,6 @@ export function AttendancePage() {
               <Button variant="outline" size="sm" onClick={handleExportRecordsPdf} className="w-full lg:w-auto">
                 <FileText className="w-4 h-4 mr-1" /> Export PDF
               </Button>
-              {canAdjust && (
-                <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} className="w-full lg:w-auto">
-                  <Wallet className="w-4 h-4 mr-1" /> Adjustments
-                </Button>
-              )}
               {canOverride && (
                 <Button size="sm" onClick={() => setOverrideOpen(true)} className="w-full lg:w-auto">
                   <ShieldAlert className="w-4 h-4 mr-1" /> Manual Override

@@ -355,14 +355,18 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       toast.error(e?.message || "Failed to update");
     }
   };
-  const cancelAdjustment = async (r: any) => {
-    if (!tenant?.id) return;
-    if (!confirm(`Cancel this ${r.kind} of ${formatPrice(Number(r.amount) || 0)}? It will no longer deduct from the payout.`)) return;
+  const [confirmCancel, setConfirmCancel] = useState<any | null>(null);
+  const cancelAdjustment = (r: any) => setConfirmCancel(r);
+  const confirmCancelAdjustment = async () => {
+    const r = confirmCancel;
+    if (!r || !tenant?.id) { setConfirmCancel(null); return; }
     try {
       await offlineDelete("staff_pay_adjustments", tenant.id, r.id);
       toast.success("Adjustment cancelled");
     } catch (e: any) {
       toast.error(e?.message || "Failed to cancel");
+    } finally {
+      setConfirmCancel(null);
     }
   };
 
@@ -815,6 +819,50 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {confirmCancel && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setConfirmCancel(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl w-full max-w-sm p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-red-500/15 text-red-500 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">Cancel this adjustment?</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {confirmCancel.kind === "advance" ? "Advance" : "Penalty"} of{" "}
+                  <span className="font-semibold text-foreground">{formatPrice(Number(confirmCancel.amount) || 0)}</span>
+                  {" "}on {new Date(confirmCancel.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}
+                  {confirmCancel.reason ? ` — "${confirmCancel.reason}"` : ""}.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  It will be removed and will no longer deduct from the payout. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmCancel(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-foreground hover:bg-muted"
+              >
+                Keep it
+              </button>
+              <button
+                onClick={confirmCancelAdjustment}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600"
+              >
+                Yes, cancel adjustment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
