@@ -824,7 +824,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                           </div>
 
                           {/* Desktop grid layout */}
-                          <div className="hidden sm:grid grid-cols-12 gap-1 items-center">
+                          <div className="hidden lg:grid grid-cols-12 gap-1 items-center">
                             <div className="col-span-2">{kindBadge}</div>
                             <div className="col-span-2 text-muted-foreground">{adjDate}</div>
                             <div className="col-span-4 group relative">
