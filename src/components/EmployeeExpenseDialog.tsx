@@ -355,14 +355,18 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       toast.error(e?.message || "Failed to update");
     }
   };
-  const cancelAdjustment = async (r: any) => {
-    if (!tenant?.id) return;
-    if (!confirm(`Cancel this ${r.kind} of ${formatPrice(Number(r.amount) || 0)}? It will no longer deduct from the payout.`)) return;
+  const [confirmCancel, setConfirmCancel] = useState<any | null>(null);
+  const cancelAdjustment = (r: any) => setConfirmCancel(r);
+  const confirmCancelAdjustment = async () => {
+    const r = confirmCancel;
+    if (!r || !tenant?.id) { setConfirmCancel(null); return; }
     try {
       await offlineDelete("staff_pay_adjustments", tenant.id, r.id);
       toast.success("Adjustment cancelled");
     } catch (e: any) {
       toast.error(e?.message || "Failed to cancel");
+    } finally {
+      setConfirmCancel(null);
     }
   };
 
