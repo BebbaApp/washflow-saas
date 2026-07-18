@@ -528,8 +528,14 @@ Deno.serve(async (req) => {
           if (body.cancelled_reason === "with") q = q.ilike("notes", "%[CANCELLED%");
           else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
         }
-        if (body.from) q = q.gte("created_at", parseDateBoundary(body.from));
-        if (body.to) q = q.lte("created_at", parseDateBoundary(body.to, true));
+        if (body.from) {
+          const fromIso = parseDateBoundary(body.from);
+          if (fromIso) q = q.gte("created_at", fromIso);
+        }
+        if (body.to) {
+          const toIso = parseDateBoundary(body.to, true);
+          if (toIso) q = q.lte("created_at", toIso);
+        }
         const term = (body.query ?? "").trim().replace(/[%,()]/g, " ").trim();
         if (term) {
           const like = `%${term}%`;
