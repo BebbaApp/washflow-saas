@@ -467,11 +467,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
               </div>
 
               {/* Per-day breakdown */}
-              {days > 0 && (
+              {selectedDays > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">
                   <div className="px-3 py-2 bg-secondary flex items-center justify-between text-xs font-semibold text-foreground">
                     <span>Per-day breakdown</span>
-                    <span className="text-muted-foreground font-normal">{days} worked day{days === 1 ? "" : "s"}</span>
+                    <span className="text-muted-foreground font-normal">{selectedDays} worked day{selectedDays === 1 ? "" : "s"}</span>
                   </div>
                   <div className="max-h-64 overflow-auto divide-y divide-border">
                     <div className="grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
@@ -480,7 +480,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       <div className="col-span-2 text-center">Type</div>
                       <div className="col-span-3 text-right">Rate applied</div>
                     </div>
-                    {Array.from(workedDays)
+                    {Array.from(selectedWorkedDays)
                       .map((k) => new Date(k))
                       .sort((a, b) => a.getTime() - b.getTime())
                       .map((d) => {
