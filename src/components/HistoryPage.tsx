@@ -51,6 +51,9 @@ const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const LS_FILTERS_KEY = "aquawash:history:filters:v1";
 const LS_SCROLL_KEY = "aquawash:history:scroll:v1";
+const DAILY_FETCH_PAGE_SIZE = 1000;
+
+type DailyRow = { iso: string; amount: number };
 
 interface PersistedFilters {
   query: string;
@@ -88,21 +91,49 @@ function mapRow(row: any): WashOrder {
   };
 }
 
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function localDateKey(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function presetRange(preset: DatePreset, customFrom?: string, customTo?: string): { from?: Date; to?: Date } {
   const now = new Date();
-  if (preset === "7d") return { from: new Date(now.getTime() - 7 * 86400000) };
-  if (preset === "30d") return { from: new Date(now.getTime() - 30 * 86400000) };
-  if (preset === "90d") return { from: new Date(now.getTime() - 90 * 86400000) };
+  if (preset === "7d") return { from: startOfDay(addDays(now, -6)), to: endOfDay(now) };
+  if (preset === "30d") return { from: startOfDay(addDays(now, -29)), to: endOfDay(now) };
+  if (preset === "90d") return { from: startOfDay(addDays(now, -89)), to: endOfDay(now) };
   if (preset === "custom") {
-    const from = customFrom ? new Date(customFrom) : undefined;
-    const to = customTo ? new Date(customTo) : undefined;
-    if (to) {
-      // include the whole "to" day
-      to.setHours(23, 59, 59, 999);
-    }
+    const from = customFrom ? startOfDay(new Date(customFrom)) : undefined;
+    const to = customTo ? endOfDay(new Date(customTo)) : undefined;
     return { from, to };
   }
   return {};
+}
+
+function platformDateRangePayload(from?: Date, to?: Date) {
+  return {
+    from: from ? from.toISOString() : undefined,
+    to: to ? to.toISOString() : undefined,
+  };
 }
 
 export const HistoryPage = (_props: HistoryPageProps) => {
@@ -132,7 +163,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   });
 
   const [rows, setRows] = useState<WashOrder[]>([]);
-  const [dailyRows, setDailyRows] = useState<{ iso: string; amount: number }[]>([]);
+  const [dailyRows, setDailyRows] = useState<DailyRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
@@ -140,6 +171,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const restoredScrollRef = useRef(false);
+  const dailyFetchRunRef = useRef(0);
 
   // Debounce search input
   useEffect(() => {
@@ -224,6 +256,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const fetchPage = useCallback(async (offset: number) => {
     if (isSuperAdmin && tenant?.id) {
       const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const dateRange = platformDateRangePayload(from, to);
       const { data, error } = await supabase.functions.invoke("platform-admin", {
         body: {
           action: "history_orders",
@@ -231,8 +264,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           status: filter,
           cancelled_reason: cancelledSub,
           query: debouncedQuery.trim() || undefined,
-          from: from?.toISOString().slice(0, 10),
-          to: to?.toISOString().slice(0, 10),
+          ...dateRange,
           offset,
           limit: pageSize,
         },
@@ -257,12 +289,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const fetchTotals = useCallback(async () => {
     if (isSuperAdmin && tenant?.id) {
       const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const dateRange = platformDateRangePayload(from, to);
       const common = {
         action: "history_orders",
         tenant_id: tenant.id,
         query: debouncedQuery.trim() || undefined,
-        from: from?.toISOString().slice(0, 10),
-        to: to?.toISOString().slice(0, 10),
+        ...dateRange,
         offset: 0,
         limit: 1,
       };
@@ -320,52 +352,109 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   // Fetch minimal (date + amount) rows across the full filtered range for daily totals,
   // independent of pagination so all days are represented.
   const fetchDaily = useCallback(async () => {
-    if (isSuperAdmin && tenant?.id) {
-      // For super admin, aggregate whatever the page fetch already returned; keeps this lightweight.
-      setDailyRows([]);
-      return;
-    }
-    let q = supabase.from("orders").select("created_at,completed_at,service_price,status,notes");
-    if (filter === "all") {
-      q = q.in("status", ["completed", "cancelled"]);
-    } else {
-      q = q.eq("status", filter);
-    }
-    const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
-    if (from) q = q.gte("created_at", from.toISOString());
-    if (to) q = q.lte("created_at", to.toISOString());
-    const term = debouncedQuery.trim();
-    if (term) {
-      const safe = term.replace(/[%,()]/g, " ").trim();
-      if (safe) {
-        const like = `%${safe}%`;
-        q = q.or(
-          `customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`
-        );
-      }
-    }
-    if (filter === "cancelled" && cancelledSub !== "all") {
-      if (cancelledSub === "with") q = q.ilike("notes", "%[CANCELLED%");
-      else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
-    }
-    q = q.range(0, 4999); // cap for safety
-    const { data, error } = await q;
-    if (error) {
-      console.error("[HistoryPage] fetchDaily error", error);
-      setDailyRows([]);
-      return;
-    }
-    setDailyRows(
-      (data || []).map((r: any) => ({
-        iso: r.completed_at || r.created_at,
+    const runId = ++dailyFetchRunRef.current;
+    const applyDailyRows = (rows: DailyRow[]) => {
+      if (dailyFetchRunRef.current === runId) setDailyRows(rows);
+    };
+    const mapDailyRows = (records: any[]): DailyRow[] =>
+      records.map((r: any) => ({
+        // History rows are filtered by captured/created date, so daily total cards
+        // must bucket by the same date. Using completed_at caused edited/backfilled
+        // completions to move jobs into a different day and made Jul 13/15 totals
+        // appear incomplete or zero.
+        iso: r.created_at,
         amount: Number(r.service_price) || 0,
-      }))
-    );
+      }));
+
+    if (isSuperAdmin && tenant?.id) {
+      const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const dateRange = platformDateRangePayload(from, to);
+      const collected: any[] = [];
+      let offset = 0;
+      let total = Number.POSITIVE_INFINITY;
+
+      while (offset < total && offset < 10000) {
+        const { data, error } = await supabase.functions.invoke("platform-admin", {
+          body: {
+            action: "history_orders",
+            tenant_id: tenant.id,
+            status: filter,
+            cancelled_reason: cancelledSub,
+            query: debouncedQuery.trim() || undefined,
+            ...dateRange,
+            offset,
+            limit: 100,
+          },
+        });
+        if (error || (data as any)?.error) {
+          console.error("[HistoryPage] super-admin fetchDaily error", error || (data as any)?.error);
+          applyDailyRows([]);
+          return;
+        }
+        const batch = ((data as any)?.orders ?? []) as any[];
+        collected.push(...batch);
+        total = Number((data as any)?.count ?? Number.POSITIVE_INFINITY);
+        offset += 100;
+        if (batch.length < 100) break;
+      }
+
+      applyDailyRows(mapDailyRows(collected));
+      return;
+    }
+
+    const collected: any[] = [];
+    let offset = 0;
+    while (offset < 10000) {
+      let q = supabase
+        .from("orders")
+        .select("created_at,service_price,status,notes");
+
+      if (filter === "all") {
+        q = q.in("status", ["completed", "cancelled"]);
+      } else {
+        q = q.eq("status", filter);
+      }
+
+      const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      if (from) q = q.gte("created_at", from.toISOString());
+      if (to) q = q.lte("created_at", to.toISOString());
+      const term = debouncedQuery.trim();
+      if (term) {
+        const safe = term.replace(/[%,()]/g, " ").trim();
+        if (safe) {
+          const like = `%${safe}%`;
+          q = q.or(
+            `customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`
+          );
+        }
+      }
+      if (filter === "cancelled" && cancelledSub !== "all") {
+        if (cancelledSub === "with") q = q.ilike("notes", "%[CANCELLED%");
+        else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
+      }
+
+      const { data, error } = await q
+        .order("created_at", { ascending: false })
+        .range(offset, offset + DAILY_FETCH_PAGE_SIZE - 1);
+      if (error) {
+        console.error("[HistoryPage] fetchDaily error", error);
+        applyDailyRows([]);
+        return;
+      }
+
+      const batch = data || [];
+      collected.push(...batch);
+      offset += DAILY_FETCH_PAGE_SIZE;
+      if (batch.length < DAILY_FETCH_PAGE_SIZE) break;
+    }
+
+    applyDailyRows(mapDailyRows(collected));
   }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id]);
 
   // Reset to first page when filters/search/pageSize change
   useEffect(() => {
     setPage(1);
+    setDailyRows(null);
   }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
 
   // Fetch current page + totals
@@ -417,7 +506,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
 
 
-  // Daily totals (computed from loaded rows only)
+  // Daily totals are computed from the full filtered date range, not from the
+  // current page, so pagination and row ordering cannot change these cards.
   const dayKey = (iso?: string | null) => {
     if (!iso) return "Unknown";
     const d = new Date(iso);
@@ -425,17 +515,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
   const dailyTotals = useMemo(() => {
     const map = new Map<string, { jobs: number; amount: number; sortKey: string }>();
-    // Prefer the full-range daily rows; fall back to loaded page rows (super-admin path).
+    // Prefer the full-range daily rows; fall back only before the first daily fetch resolves.
     const source: { iso: string; amount: number }[] =
-      dailyRows.length > 0
+      dailyRows !== null
         ? dailyRows
         : visibleRows.map((o) => ({
-            iso: (o.completedAt || o.createdAt) as string,
+            iso: o.createdAt as string,
             amount: o.servicePrice || 0,
           }));
     for (const r of source) {
       const key = dayKey(r.iso);
-      const sortKey = r.iso ? new Date(r.iso).toISOString().slice(0, 10) : "0000";
+      const sortKey = r.iso ? localDateKey(new Date(r.iso)) : "0000";
       const cur = map.get(key) || { jobs: 0, amount: 0, sortKey };
       cur.jobs += 1;
       cur.amount += r.amount;
@@ -453,7 +543,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         const iso = cursor.toISOString();
         const key = dayKey(iso);
         if (!map.has(key)) {
-          map.set(key, { jobs: 0, amount: 0, sortKey: iso.slice(0, 10) });
+          map.set(key, { jobs: 0, amount: 0, sortKey: localDateKey(cursor) });
         }
         cursor.setDate(cursor.getDate() + 1);
         safety++;
@@ -684,7 +774,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         description: `Reversed ${(data as any)?.reversed_transactions ?? 0} inventory transaction(s).`,
       });
       const offset = (page - 1) * pageSize;
-      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals(), fetchDaily()]);
       setRows(pageRows);
     } catch (err: any) {
       toast.error("Delete failed", { description: err?.message || String(err) });
@@ -842,7 +932,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         </div>
       )}
 
-      {/* Daily totals (loaded rows only) */}
+      {/* Daily totals */}
       {dailyTotals.length > 0 && (
         <div className="glass-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">
