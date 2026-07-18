@@ -131,8 +131,8 @@ function presetRange(preset: DatePreset, customFrom?: string, customTo?: string)
 
 function platformDateRangePayload(from?: Date, to?: Date) {
   return {
-    from: from ? localDateKey(from) : undefined,
-    to: to ? localDateKey(to) : undefined,
+    from: from ? from.toISOString() : undefined,
+    to: to ? to.toISOString() : undefined,
   };
 }
 
@@ -927,7 +927,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         </div>
       )}
 
-      {/* Daily totals (loaded rows only) */}
+      {/* Daily totals */}
       {dailyTotals.length > 0 && (
         <div className="glass-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">
