@@ -364,6 +364,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         // appear incomplete or zero.
         iso: r.created_at,
         amount: Number(r.service_price) || 0,
+        status: r.status || "completed",
       }));
 
     if (isSuperAdmin && tenant?.id) {
