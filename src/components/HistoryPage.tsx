@@ -402,9 +402,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     while (offset < 10000) {
       let q = supabase
         .from("orders")
-        .select("created_at,service_price,status,notes")
-        .order("created_at", { ascending: false })
-        .range(offset, offset + DAILY_FETCH_PAGE_SIZE - 1);
+        .select("created_at,service_price,status,notes");
 
       if (filter === "all") {
         q = q.in("status", ["completed", "cancelled"]);
@@ -430,7 +428,9 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
       }
 
-      const { data, error } = await q;
+      const { data, error } = await q
+        .order("created_at", { ascending: false })
+        .range(offset, offset + DAILY_FETCH_PAGE_SIZE - 1);
       if (error) {
         console.error("[HistoryPage] fetchDaily error", error);
         setDailyRows([]);
