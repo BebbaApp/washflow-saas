@@ -449,6 +449,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   // Reset to first page when filters/search/pageSize change
   useEffect(() => {
     setPage(1);
+    setDailyRows(null);
   }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, pageSize]);
 
   // Fetch current page + totals
