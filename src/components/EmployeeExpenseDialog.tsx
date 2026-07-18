@@ -317,7 +317,54 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return { advances, penalties, total: advances + penalties };
   }, [applicableAdjustments]);
 
-  const total = Math.max(0, baseAmount + workBonusAmount - adjustmentTotals.total);
+  const grossBeforeAdjustments = baseAmount + workBonusAmount;
+  const rawNet = grossBeforeAdjustments - adjustmentTotals.total;
+  const wouldGoNegative = rawNet < 0;
+  const total = Math.max(0, rawNet);
+
+  const canManageAdj = user?.role === "admin" || user?.role === "manager";
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editKind, setEditKind] = useState<"advance" | "penalty">("advance");
+  const [editAmount, setEditAmount] = useState("");
+  const [editReason, setEditReason] = useState("");
+  const [editDate, setEditDate] = useState("");
+
+  const beginEdit = (r: any) => {
+    setEditingId(r.id);
+    setEditKind(r.kind);
+    setEditAmount(String(r.amount ?? ""));
+    setEditReason(r.reason ?? "");
+    setEditDate(r.date);
+  };
+  const cancelEdit = () => setEditingId(null);
+  const saveEdit = async (r: any) => {
+    if (!tenant?.id) return;
+    const amt = Number(editAmount);
+    if (!(amt > 0)) { toast.error("Amount must be greater than 0"); return; }
+    if (!editDate) { toast.error("Date required"); return; }
+    try {
+      await offlineUpdate("staff_pay_adjustments", tenant.id, r.id, {
+        kind: editKind,
+        amount: Number(amt.toFixed(2)),
+        reason: editReason.trim() || null,
+        date: editDate,
+      });
+      toast.success("Adjustment updated");
+      setEditingId(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update");
+    }
+  };
+  const cancelAdjustment = async (r: any) => {
+    if (!tenant?.id) return;
+    if (!confirm(`Cancel this ${r.kind} of ${formatPrice(Number(r.amount) || 0)}? It will no longer deduct from the payout.`)) return;
+    try {
+      await offlineDelete("staff_pay_adjustments", tenant.id, r.id);
+      toast.success("Adjustment cancelled");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to cancel");
+    }
+  };
 
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
