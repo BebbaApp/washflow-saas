@@ -387,10 +387,28 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       cur.amount += o.servicePrice || 0;
       map.set(key, cur);
     }
+    // Fill in zero-value days across the active preset range so the strip shows every day
+    const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+    if (from) {
+      const start = new Date(from); start.setHours(0, 0, 0, 0);
+      const end = to ? new Date(to) : new Date();
+      end.setHours(0, 0, 0, 0);
+      const cursor = new Date(start);
+      let safety = 0;
+      while (cursor.getTime() <= end.getTime() && safety < 400) {
+        const iso = cursor.toISOString();
+        const key = dayKey(iso);
+        if (!map.has(key)) {
+          map.set(key, { jobs: 0, amount: 0, sortKey: iso.slice(0, 10) });
+        }
+        cursor.setDate(cursor.getDate() + 1);
+        safety++;
+      }
+    }
     return Array.from(map.entries())
       .map(([label, v]) => ({ label, ...v }))
       .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-  }, [visibleRows]);
+  }, [visibleRows, datePreset, customRange]);
 
   const fmtDate = (iso?: string | null) => {
     if (!iso) return "—";
