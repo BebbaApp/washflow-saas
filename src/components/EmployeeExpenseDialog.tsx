@@ -391,6 +391,64 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               </div>
 
+              {/* Per-day breakdown */}
+              {days > 0 && (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary flex items-center justify-between text-xs font-semibold text-foreground">
+                    <span>Per-day breakdown</span>
+                    <span className="text-muted-foreground font-normal">{days} worked day{days === 1 ? "" : "s"}</span>
+                  </div>
+                  <div className="max-h-64 overflow-auto divide-y divide-border">
+                    <div className="grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
+                      <div className="col-span-5">Date</div>
+                      <div className="col-span-2 text-right">Vehicles</div>
+                      <div className="col-span-2 text-center">Type</div>
+                      <div className="col-span-3 text-right">Rate applied</div>
+                    </div>
+                    {Array.from(workedDays)
+                      .map((k) => new Date(k))
+                      .sort((a, b) => a.getTime() - b.getTime())
+                      .map((d) => {
+                        const key = d.toDateString();
+                        const vehicles = dayVolumes[key] || 0;
+                        const isBusy = vehicles >= BUSY_THRESHOLD;
+                        const isQuiet = vehicles < QUIET_THRESHOLD;
+                        const label = isBusy ? "Busy" : isQuiet ? "Quiet" : "Normal";
+                        const badgeCls = isBusy
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          : isQuiet
+                          ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
+                        let rateApplied = "—";
+                        if (comp.pay_type === "wage") {
+                          rateApplied = isQuiet
+                            ? `${formatPrice(comp.quiet_day_rate)} (quiet)`
+                            : `${formatPrice(comp.base_rate)} (base)`;
+                        } else if (comp.pay_type === "salary") {
+                          rateApplied = "flat monthly";
+                        } else {
+                          rateApplied = "flat weekly";
+                        }
+                        return (
+                          <div key={key} className="grid grid-cols-12 px-3 py-2 text-xs items-center">
+                            <div className="col-span-5 text-foreground">
+                              {d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" })}
+                              {hoursByDay.get(key) ? (
+                                <span className="ml-1.5 text-muted-foreground">· {hoursByDay.get(key)!.toFixed(1)}h</span>
+                              ) : null}
+                            </div>
+                            <div className="col-span-2 text-right font-medium text-foreground">{vehicles}</div>
+                            <div className="col-span-2 text-center">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${badgeCls}`}>{label}</span>
+                            </div>
+                            <div className="col-span-3 text-right text-foreground">{rateApplied}</div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
               {(comp.pay_type === "wage" && comp.quiet_day_rate !== 0) && (
                 <div className="rounded-xl border border-border p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">
