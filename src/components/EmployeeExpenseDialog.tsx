@@ -807,7 +807,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={saving || !comp || total <= 0}
+              disabled={saving || !comp || total <= 0 || wouldGoNegative || editingId !== null}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50"
             >
               Record Expense ({currency.symbol}{total.toFixed(2)})
