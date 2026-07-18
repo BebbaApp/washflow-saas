@@ -500,7 +500,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
 
 
-  // Daily totals (computed from loaded rows only)
+  // Daily totals are computed from the full filtered date range, not from the
+  // current page, so pagination and row ordering cannot change these cards.
   const dayKey = (iso?: string | null) => {
     if (!iso) return "Unknown";
     const d = new Date(iso);
@@ -508,17 +509,17 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
   const dailyTotals = useMemo(() => {
     const map = new Map<string, { jobs: number; amount: number; sortKey: string }>();
-    // Prefer the full-range daily rows; fall back to loaded page rows (super-admin path).
+    // Prefer the full-range daily rows; fall back only before the first daily fetch resolves.
     const source: { iso: string; amount: number }[] =
-      dailyRows.length > 0
+      dailyRows !== null
         ? dailyRows
         : visibleRows.map((o) => ({
-            iso: (o.completedAt || o.createdAt) as string,
+            iso: o.createdAt as string,
             amount: o.servicePrice || 0,
           }));
     for (const r of source) {
       const key = dayKey(r.iso);
-      const sortKey = r.iso ? new Date(r.iso).toISOString().slice(0, 10) : "0000";
+      const sortKey = r.iso ? localDateKey(new Date(r.iso)) : "0000";
       const cur = map.get(key) || { jobs: 0, amount: 0, sortKey };
       cur.jobs += 1;
       cur.amount += r.amount;
@@ -536,7 +537,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         const iso = cursor.toISOString();
         const key = dayKey(iso);
         if (!map.has(key)) {
-          map.set(key, { jobs: 0, amount: 0, sortKey: iso.slice(0, 10) });
+          map.set(key, { jobs: 0, amount: 0, sortKey: localDateKey(cursor) });
         }
         cursor.setDate(cursor.getDate() + 1);
         safety++;
@@ -767,7 +768,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         description: `Reversed ${(data as any)?.reversed_transactions ?? 0} inventory transaction(s).`,
       });
       const offset = (page - 1) * pageSize;
-      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals(), fetchDaily()]);
       setRows(pageRows);
     } catch (err: any) {
       toast.error("Delete failed", { description: err?.message || String(err) });
