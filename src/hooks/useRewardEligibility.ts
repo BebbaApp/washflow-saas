@@ -35,8 +35,8 @@ interface CustomerLookup {
  * can show a "FREE WASH" badge on Active cards.
  */
 export function useRewardEligibility(orders: WashOrder[]) {
-  const [redemptionsByCustomerId, setRedemptionsByCustomerId] = useState<Record<string, number>>({});
   const [redeemedOrderIds, setRedeemedOrderIds] = useState<Set<string>>(new Set());
+  const [redeemedTxns, setRedeemedTxns] = useState<Array<{ order_id: string | null; points: number }>>([]);
   const [customerLookup, setCustomerLookup] = useState<CustomerLookup>({ byPhone: {}, byName: {} });
   const autoRedeemedRef = useRef<Set<string>>(new Set()); // in-flight guard
 
@@ -45,15 +45,15 @@ export function useRewardEligibility(orders: WashOrder[]) {
       supabase.from("loyalty_transactions").select("customer_id, order_id, points, type"),
       supabase.from("customers").select("id, name, phone"),
     ]);
-    const acc: Record<string, number> = {};
     const orderIds = new Set<string>();
+    const redeemed: Array<{ order_id: string | null; points: number }> = [];
     for (const r of txns || []) {
       if (r.type === "redeemed") {
-        acc[r.customer_id] = (acc[r.customer_id] || 0) + Math.abs(r.points);
+        redeemed.push({ order_id: r.order_id, points: Math.abs(r.points) });
         if (r.order_id) orderIds.add(r.order_id);
       }
     }
-    setRedemptionsByCustomerId(acc);
+    setRedeemedTxns(redeemed);
     setRedeemedOrderIds(orderIds);
 
     const byPhone: Record<string, string> = {};
