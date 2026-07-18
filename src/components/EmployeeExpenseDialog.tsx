@@ -737,7 +737,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                             </div>
 
                             {/* Desktop edit form */}
-                            <div className="hidden sm:grid grid-cols-12 gap-1 items-center">
+                            <div className="hidden lg:grid grid-cols-12 gap-1 items-center">
                               <select
                                 value={editKind}
                                 onChange={(e) => setEditKind(e.target.value as any)}
