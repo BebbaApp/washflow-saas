@@ -1,68 +1,67 @@
 ## Goal
-Only admins and managers can authorize a discount on a wash order. A cashier/washer/driver/supervisor entering a discount must either (a) get inline PIN authorization from a manager/admin on the same screen, or (b) submit the order at full price with a "discount requested" flag showing their name. Admins/managers can also approve the pending discount later from the order card before completion. If the order completes without approval, it is recorded at full amount.
 
-## Changes
+Let Admin/Manager log **advances** (money paid to a worker early) and **penalties** (charges/fines) against a staff member from the Attendance/Staff page, then have those amounts auto-deduct from the calculated pay in the Employee Expense dialog for whichever weeks are ticked. Once the payout expense is submitted, the deducted adjustments are marked settled and disappear from future payouts.
 
-### 1. New permission
-`src/lib/permissions.ts`
-- Add `queue.approveDiscount` ("Authorize Discount") to the "Wash Queue" group.
-- Default: admin + manager = true; supervisor/cashier/washer/driver = false.
+## Data model
 
-### 2. Data model
-Migration `phase47_orders_pending_discount.sql`
-- `ALTER TABLE public.orders ADD COLUMN pending_discount jsonb NULL` — stores `{ amount, requested_by_id, requested_by_name, requested_at }`. Existing grants cover the new column.
+New table `staff_pay_adjustments`:
 
-`src/hooks/useOrders.ts`
-- Extend `WashOrder` with `pendingDiscount?: { amount; requestedById; requestedByName; requestedAt }`.
-- `mapRow` reads `row.pending_discount`.
-- `addOrder` accepts `pendingDiscount?`; when set, stores full base `service_price` with `discount = 0` and `pending_discount = {...}`.
-- New `approveDiscount(orderId)`: moves `pending_discount.amount` into `discount`, subtracts from `service_price`, clears `pending_discount`.
-- New `rejectDiscount(orderId)`: clears `pending_discount`.
-- `updateStatus`: when completing, if `pending_discount` still set, clear it (record stays at full amount).
+- `id uuid pk`
+- `tenant_id uuid` (default `current_tenant_id()`)
+- `worker_id uuid` — the staff member (user_id)
+- `kind text` — `'advance' | 'penalty'`
+- `amount numeric(12,2)` — always positive; deduction direction is implied by `kind` (both reduce net pay)
+- `date date` — the date it applies to (drives which week it belongs to)
+- `reason text`
+- `status text` — `'pending' | 'settled'` (default `pending`)
+- `settled_at timestamptz null`, `settled_by uuid null`, `settled_expense_id uuid null` (link back to the expense that consumed it)
+- `created_by uuid`, `created_at`, `updated_at`
 
-### 3. Inline PIN gate (same screen)
-New edge function `supabase/functions/verify-authorizer-pin/index.ts`
-- Reuses the same hashing/lookup logic as `pin-login` but does NOT mint a session.
-- Input: `{ identifier, pin, requiredRoles: ["admin","manager"] }`.
-- Output: `{ ok: true, user: { id, name, role } }` on success, 401 otherwise.
-- Uses service role to read `staff_pins` + `user_roles` + `profiles` and confirm the PIN owner has one of the required roles in the caller's tenant.
+RLS + grants:
+- `SELECT/INSERT/UPDATE/DELETE` for `authenticated` scoped to `tenant_id = current_tenant_id()`.
+- Write policy additionally gated to Admin/Manager via `has_role`.
+- `GRANT`s to `authenticated` and `service_role`; add to `MIRRORED_TABLES` in `src/offline/db.ts` so it syncs offline like other tables and add to the realtime publication.
 
-New component `src/components/DiscountAuthorizeDialog.tsx`
-- Small modal launched from the "Override" button in `NewOrderDialog`.
-- Fields: identifier (phone or email) + 4–6 digit PIN.
-- Calls `verify-authorizer-pin` with `requiredRoles: ["admin","manager"]`.
-- On success, returns the authorizing user (id/name/role) to the parent — no session change, current cashier stays logged in.
+## Capture UI (Attendance page)
 
-### 4. New Order dialog
-`src/components/NewOrderDialog.tsx`
-- Import `usePermissions`, `useAuth`, and the new `DiscountAuthorizeDialog`.
-- Compute `canAuthorize = can("queue.approveDiscount")`.
-- Next to the Discount input, render an "Override" button:
-  - Hidden if `canAuthorize` (their discount already applies immediately).
-  - Otherwise visible; disabled until `discount > 0`.
-  - Clicking opens `DiscountAuthorizeDialog`. On success, store `authorizedBy = { id, name, role }` in local state and show a green "Authorized by {name}" chip; discount will now apply immediately on submit.
-- Submit behaviour:
-  - `canAuthorize` or `authorizedBy` set → submit with discount applied (current behaviour), pass `authorizedBy` through so we can record it in notes/audit (optional; minimal version just applies).
-  - Discount > 0 and no authorization → submit with `pendingDiscount: { amount, requestedById: user.id, requestedByName: user.name, requestedAt: now }`, servicePrice = full base, discount = 0.
+On each staff row on `AttendancePage.tsx`, add an "Adjustments" action (Admin/Manager only) that opens a small dialog:
 
-### 5. Wash queue card + details
-`src/components/WashQueue.tsx`
-- On rows/cards with `order.pendingDiscount`, show a warning chip: "Discount requested by {name} — {amount}".
+- List of existing pending adjustments for that worker (kind, date, amount, reason, delete).
+- Form to add a new one: kind (Advance / Penalty), amount, date (default today), reason.
+- Writes go through the existing `offlineInsert`/`offlineUpdate`/`offlineDelete` helpers so the change is offline-safe.
 
-`src/components/OrderDetailsModal.tsx`
-- When `pendingDiscount` is set and status is not `completed`/`cancelled`:
-  - Banner in the price block: "Discount requested by {name}: −{amount}. Final would be {computedFinal}."
-  - If current viewer `can("queue.approveDiscount")` → "Approve discount" and "Reject" buttons wired to `approveDiscount` / `rejectDiscount`.
-  - Otherwise, offer an "Authorize with manager PIN" button that opens the same `DiscountAuthorizeDialog`; on success, immediately calls `approveDiscount(orderId)`. This lets a cashier get inline approval on the card too.
+## Consume in Employee Expense dialog
 
-### 6. Wiring
-`src/pages/Index.tsx` — pass new `approveDiscount`/`rejectDiscount` from `useOrders` down through `WashQueue` to `OrderDetailsModal`. Widen `NewOrderDialog` `onSubmit` to include `pendingDiscount?`.
+In `EmployeeExpenseDialog.tsx`:
+
+1. Load pending adjustments for the selected worker via `useLiveTable('staff_pay_adjustments')`.
+2. Filter to adjustments whose `date` falls inside the currently ticked calendar weeks (same week-key logic already used for `selectedWorkedDays`).
+3. Show a new "Adjustments" section under the per-day breakdown listing each included advance/penalty with date, reason, and signed amount.
+4. Compute:
+   - `advancesTotal` = sum of `advance` amounts in scope
+   - `penaltiesTotal` = sum of `penalty` amounts in scope
+   - `netAmount = baseAmount + workBonus - advancesTotal - penaltiesTotal`
+5. Show a summary block: Base, Bonus, − Advances, − Penalties, **Net Payable**.
+6. On submit:
+   - Record the expense using `netAmount` (unchanged flow otherwise) and include the breakdown in the expense `notes` so it's auditable.
+   - Mark each included adjustment `status='settled'`, `settled_at=now()`, `settled_by=auth.uid()`, `settled_expense_id=<new expense id>` via `offlineUpdate`.
+   - Settled rows are excluded from future dialog opens (query filters `status='pending'`).
+
+Weeks that aren't ticked leave their adjustments untouched — they remain pending and will appear next time those weeks are selected, matching the current week-checkbox behaviour.
+
+## Permissions
+
+- Attendance-page "Adjustments" button visible only when `has_role('admin')` or `has_role('manager')` (client check) — backed by RLS write policy on the table.
+- Deletion of an already-settled adjustment is blocked in UI; admins can still edit via the same dialog only while `status='pending'`.
+
+## Files
+
+- New migration `supabase/sql/phase48_staff_pay_adjustments.sql` — table, grants, RLS, realtime publication.
+- `src/offline/db.ts` — add `staff_pay_adjustments` to `MIRRORED_TABLES` and Dexie schema (version bump).
+- New `src/components/StaffAdjustmentsDialog.tsx` — capture UI.
+- `src/components/AttendancePage.tsx` — wire the new dialog button per staff row (Admin/Manager only).
+- `src/components/EmployeeExpenseDialog.tsx` — load, filter by selected weeks, display, deduct from total, settle on submit.
 
 ## Out of scope
-- Auditing every authorization event to a dedicated table (we rely on the notes/pending_discount trail). Can be added later.
-- Server-side RLS enforcement of the "only admin/manager can set discount" rule — the PIN verification is server-side, but the final `orders` update runs as the cashier. If you want DB-enforced authorization, add a trigger that rejects `discount > 0` writes from non-privileged roles unless a signed authorizer token is attached; flagged but not included.
 
-## Technical notes
-- The PIN verification endpoint never mints a session, so the cashier remains signed in throughout the flow.
-- `pending_discount` is nullable JSON so offline writes and existing rows stay valid; approve/reject use the same offline outbox path as `updateStatus`.
-- `DiscountAuthorizeDialog` is reused in both the New Order dialog and the Order Details modal, keeping one PIN UX.
+- No reporting page for historical adjustments in this pass (settled rows are still queryable but not surfaced beyond the expense's notes). Can add later if you want a dedicated history view.
