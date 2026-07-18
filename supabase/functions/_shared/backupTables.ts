@@ -36,6 +36,7 @@ export const BACKUP_TABLES: Array<{ name: string; orderBy: string }> = [
 // Delete child rows first to avoid FK violations.
 export const RESTORE_DELETE_ORDER = [
   "attendance_records",
+  "staff_pay_adjustments",
   "staff_active_status",
   "staff_compensation",
   "staff_face_enrollments",
