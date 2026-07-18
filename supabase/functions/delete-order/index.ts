@@ -5,6 +5,7 @@ const corsHeaders = {
 };
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 import { z } from "npm:zod@3";
 
 const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
