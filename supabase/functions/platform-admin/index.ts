@@ -16,6 +16,13 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const parseDateBoundary = (value: string, endOfDay = false) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`).toISOString();
+  }
+  return new Date(value).toISOString();
+};
+
 const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list_tenants") }),
   z.object({ action: z.literal("list_users"), tenant_id: z.string().uuid().optional() }),
@@ -518,8 +525,8 @@ Deno.serve(async (req) => {
           if (body.cancelled_reason === "with") q = q.ilike("notes", "%[CANCELLED%");
           else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
         }
-        if (body.from) q = q.gte("created_at", new Date(`${body.from}T00:00:00.000Z`).toISOString());
-        if (body.to) q = q.lte("created_at", new Date(`${body.to}T23:59:59.999Z`).toISOString());
+        if (body.from) q = q.gte("created_at", parseDateBoundary(body.from));
+        if (body.to) q = q.lte("created_at", parseDateBoundary(body.to, true));
         const term = (body.query ?? "").trim().replace(/[%,()]/g, " ").trim();
         if (term) {
           const like = `%${term}%`;
