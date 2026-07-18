@@ -34,7 +34,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
   const showRevenue = can("dashboard.revenue");
   const showInventoryTab = can("dashboard.inventory");
   const showActivity = can("dashboard.activity");
-  const { eligibleOrderIds } = useRewardEligibility(orders);
+  const { eligibleOrderIds, progressByOrderId } = useRewardEligibility(orders);
   const [tab, setTab] = useState<TabKey>("overview");
   const [range, setRange] = useState<RangeKey>("today");
   const [customStart, setCustomStart] = useState("");
@@ -363,11 +363,15 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
                       {isWaiting ? "Waiting" : "In Progress"}
                     </span>
                   </div>
-                  {eligibleOrderIds.has(o.id) && (
+                  {eligibleOrderIds.has(o.id) ? (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/15 text-success text-[10px] font-bold border border-success/40 w-fit">
-                      <Gift className="w-3 h-3" /> FREE WASH REWARD
+                      <Gift className="w-3 h-3" /> QUALIFY FOR FREE WASH
                     </div>
-                  )}
+                  ) : progressByOrderId.get(o.id) ? (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold border border-border w-fit">
+                      <Gift className="w-3 h-3" /> {progressByOrderId.get(o.id)!.current}/{progressByOrderId.get(o.id)!.target} to free wash
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground capitalize">
                       {o.service} <span className="text-primary ml-1">{formatPrice(o.servicePrice)}</span>
