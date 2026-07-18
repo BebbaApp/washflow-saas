@@ -184,8 +184,42 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   const selected = staff.find((s) => s.id === staffId);
   const displayName = selected ? (selected.name || selected.email.split("@")[0] || "Employee") : "";
   const { hours, workedDays, hoursByDay } = useMemo(() => pairAttendance(attendance), [attendance]);
-  const days = workedDays.size;
+  const totalWorkedDays = workedDays.size;
   const [workBonus, setWorkBonus] = useState<string>("");
+  const [selectedWeeks, setSelectedWeeks] = useState<Set<string>>(new Set());
+
+  // Default to selecting every week that contains a worked day.
+  useEffect(() => {
+    const keys = new Set<string>();
+    workedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
+    setSelectedWeeks(keys);
+  }, [workedDays]);
+
+  const selectedWorkedDays = useMemo(() => {
+    const selected = new Set<string>();
+    workedDays.forEach((k) => {
+      if (selectedWeeks.has(getWeekMonday(new Date(k)).toDateString())) selected.add(k);
+    });
+    return selected;
+  }, [workedDays, selectedWeeks]);
+
+  const selectedDays = selectedWorkedDays.size;
+  const { busyDays, quietDays, normalDays } = useMemo(() => {
+    let busy = 0, quiet = 0, normal = 0;
+    selectedWorkedDays.forEach((key) => {
+      const v = dayVolumes[key] || 0;
+      if (v >= BUSY_THRESHOLD) busy++;
+      else if (v < QUIET_THRESHOLD) quiet++;
+      else normal++;
+    });
+    return { busyDays: busy, quietDays: quiet, normalDays: normal };
+  }, [selectedWorkedDays, dayVolumes]);
+
+  const selectedWeeksWorked = useMemo(() => {
+    const keys = new Set<string>();
+    selectedWorkedDays.forEach((k) => keys.add(getWeekMonday(new Date(k)).toDateString()));
+    return keys.size;
+  }, [selectedWorkedDays]);
 
   // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -204,33 +238,39 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
-  // Count busy/quiet days based on worked days only.
-  const { busyDays, quietDays, normalDays } = useMemo(() => {
-    let busy = 0, quiet = 0, normal = 0;
-    workedDays.forEach((key) => {
-      const v = dayVolumes[key] || 0;
-      if (v >= BUSY_THRESHOLD) busy++;
-      else if (v < QUIET_THRESHOLD) quiet++;
-      else normal++;
-    });
-    return { busyDays: busy, quietDays: quiet, normalDays: normal };
-  }, [workedDays, dayVolumes]);
+  // Calendar weeks for rendering with a checkbox per row.
+  const calendarWeeks = useMemo(() => {
+    const weeks: { monday: Date; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
+    let currentWeek: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] = [];
+    for (let i = 0; i < from.getDay(); i++) currentWeek.push(null);
+    for (const c of dayCells) {
+      currentWeek.push(c);
+      if (currentWeek.length === 7) {
+        const firstDay = currentWeek.find((c) => c !== null)?.date;
+        const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
+        weeks.push({ monday, cells: currentWeek });
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      const firstDay = currentWeek.find((c) => c !== null)?.date;
+      const monday = firstDay ? getWeekMonday(firstDay) : new Date(from);
+      weeks.push({ monday, cells: currentWeek });
+    }
+    return weeks;
+  }, [dayCells, from]);
 
-  // Count distinct Mon–Sun weeks in the month that contain at least one
-  // worked day. Used to bill flat weekly wages.
-  const weeksWorked = useMemo(() => {
-    const keys = new Set<string>();
-    workedDays.forEach((k) => {
-      const d = new Date(k);
-      const day = d.getDay(); // 0=Sun..6=Sat
-      const diffToMon = (day + 6) % 7;
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - diffToMon);
-      monday.setHours(0, 0, 0, 0);
-      keys.add(monday.toDateString());
+  const selectedAbsentDays = useMemo(() => {
+    let count = 0;
+    calendarWeeks.forEach((week) => {
+      if (!selectedWeeks.has(week.monday.toDateString())) return;
+      week.cells.forEach((cell) => {
+        if (cell?.status === "absent") count++;
+      });
     });
-    return keys.size;
-  }, [workedDays]);
+    return count;
+  }, [calendarWeeks, selectedWeeks]);
 
   // Base amount: for wage, quiet days are paid at quiet_day_rate (flat)
   // instead of the base rate. Salary and weekly are flat amounts; busy-day
