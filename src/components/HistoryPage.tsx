@@ -351,47 +351,99 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   // Fetch minimal (date + amount) rows across the full filtered range for daily totals,
   // independent of pagination so all days are represented.
   const fetchDaily = useCallback(async () => {
-    if (isSuperAdmin && tenant?.id) {
-      // For super admin, aggregate whatever the page fetch already returned; keeps this lightweight.
-      setDailyRows([]);
-      return;
-    }
-    let q = supabase.from("orders").select("created_at,completed_at,service_price,status,notes");
-    if (filter === "all") {
-      q = q.in("status", ["completed", "cancelled"]);
-    } else {
-      q = q.eq("status", filter);
-    }
-    const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
-    if (from) q = q.gte("created_at", from.toISOString());
-    if (to) q = q.lte("created_at", to.toISOString());
-    const term = debouncedQuery.trim();
-    if (term) {
-      const safe = term.replace(/[%,()]/g, " ").trim();
-      if (safe) {
-        const like = `%${safe}%`;
-        q = q.or(
-          `customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`
-        );
-      }
-    }
-    if (filter === "cancelled" && cancelledSub !== "all") {
-      if (cancelledSub === "with") q = q.ilike("notes", "%[CANCELLED%");
-      else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
-    }
-    q = q.range(0, 4999); // cap for safety
-    const { data, error } = await q;
-    if (error) {
-      console.error("[HistoryPage] fetchDaily error", error);
-      setDailyRows([]);
-      return;
-    }
-    setDailyRows(
-      (data || []).map((r: any) => ({
-        iso: r.completed_at || r.created_at,
+    const mapDailyRows = (records: any[]): DailyRow[] =>
+      records.map((r: any) => ({
+        // History rows are filtered by captured/created date, so daily total cards
+        // must bucket by the same date. Using completed_at caused edited/backfilled
+        // completions to move jobs into a different day and made Jul 13/15 totals
+        // appear incomplete or zero.
+        iso: r.created_at,
         amount: Number(r.service_price) || 0,
-      }))
-    );
+      }));
+
+    if (isSuperAdmin && tenant?.id) {
+      const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const dateRange = platformDateRangePayload(from, to);
+      const collected: any[] = [];
+      let offset = 0;
+      let total = Number.POSITIVE_INFINITY;
+
+      while (offset < total && offset < 10000) {
+        const { data, error } = await supabase.functions.invoke("platform-admin", {
+          body: {
+            action: "history_orders",
+            tenant_id: tenant.id,
+            status: filter,
+            cancelled_reason: cancelledSub,
+            query: debouncedQuery.trim() || undefined,
+            ...dateRange,
+            offset,
+            limit: 100,
+          },
+        });
+        if (error || (data as any)?.error) {
+          console.error("[HistoryPage] super-admin fetchDaily error", error || (data as any)?.error);
+          setDailyRows([]);
+          return;
+        }
+        const batch = ((data as any)?.orders ?? []) as any[];
+        collected.push(...batch);
+        total = Number((data as any)?.count ?? collected.length);
+        if (batch.length === 0) break;
+        offset += batch.length;
+      }
+
+      setDailyRows(mapDailyRows(collected));
+      return;
+    }
+
+    const collected: any[] = [];
+    let offset = 0;
+    while (offset < 10000) {
+      let q = supabase
+        .from("orders")
+        .select("created_at,service_price,status,notes")
+        .order("created_at", { ascending: false })
+        .range(offset, offset + DAILY_FETCH_PAGE_SIZE - 1);
+
+      if (filter === "all") {
+        q = q.in("status", ["completed", "cancelled"]);
+      } else {
+        q = q.eq("status", filter);
+      }
+
+      const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      if (from) q = q.gte("created_at", from.toISOString());
+      if (to) q = q.lte("created_at", to.toISOString());
+      const term = debouncedQuery.trim();
+      if (term) {
+        const safe = term.replace(/[%,()]/g, " ").trim();
+        if (safe) {
+          const like = `%${safe}%`;
+          q = q.or(
+            `customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`
+          );
+        }
+      }
+      if (filter === "cancelled" && cancelledSub !== "all") {
+        if (cancelledSub === "with") q = q.ilike("notes", "%[CANCELLED%");
+        else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
+      }
+
+      const { data, error } = await q;
+      if (error) {
+        console.error("[HistoryPage] fetchDaily error", error);
+        setDailyRows([]);
+        return;
+      }
+
+      const batch = data || [];
+      collected.push(...batch);
+      if (batch.length < DAILY_FETCH_PAGE_SIZE) break;
+      offset += DAILY_FETCH_PAGE_SIZE;
+    }
+
+    setDailyRows(mapDailyRows(collected));
   }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id]);
 
   // Reset to first page when filters/search/pageSize change
