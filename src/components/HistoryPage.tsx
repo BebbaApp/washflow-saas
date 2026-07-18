@@ -399,13 +399,13 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
         (async () => {
           const offset = (page - 1) * pageSize;
-          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals(), fetchDaily()]);
           setRows(pageRows);
         })();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchPage, fetchTotals, page, pageSize]);
+  }, [fetchPage, fetchTotals, fetchDaily, page, pageSize]);
 
   // Server-side filtering covers cancelled-with/without-reason now.
   const visibleRows = rows;
