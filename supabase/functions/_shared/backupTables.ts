@@ -52,7 +52,6 @@ export const RESTORE_DELETE_ORDER = [
   "services",
   "inventory_items",
   "inventory_categories",
-  "product_types",
   "suppliers",
   "customers",
   "receipt_settings",
