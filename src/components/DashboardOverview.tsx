@@ -70,7 +70,7 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
 
   const rangeOrders = orders.filter((o) => {
     const t = new Date(o.createdAt).getTime();
-    return t >= rangeStart && t <= rangeEnd;
+    return t >= rangeStart && t <= rangeEnd && o.status !== "cancelled" && o.status !== "deleted";
   });
   const rangeCompleted = rangeOrders.filter((o) => o.status === "completed");
   const rangeRevenue = rangeCompleted.reduce((s, o) => s + o.servicePrice, 0);
