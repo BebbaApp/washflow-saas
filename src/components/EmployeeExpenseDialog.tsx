@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Users, Calculator, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Users, Calculator, ChevronLeft, ChevronRight, MinusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useLiveTable } from "@/offline/useLiveTable";
+import { offlineUpdate } from "@/offline/offlineWrite";
 import { toast } from "sonner";
 
 const BUSY_THRESHOLD = 20;
@@ -87,6 +89,7 @@ function getWeekMonday(d: Date) {
 }
 
 export function EmployeeExpenseDialog({ open, onClose }: Props) {
+  const { user } = useAuth();
   const { tenant } = useTenant();
   const { formatPrice, currency } = useCurrency();
   const { addExpense } = useExpenses();
