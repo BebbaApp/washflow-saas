@@ -142,16 +142,15 @@ Deno.serve(async (req) => {
       if (dbUrl) {
         const sql = postgres(dbUrl, { max: 1, prepare: false });
         try {
-          await sql.begin(async (tx) => {
-            await tx`SET LOCAL session_replication_role = replica`;
-            await tx`
-              UPDATE public.orders
-                 SET status = 'deleted', notes = ${nextNotes}, updated_at = ${stamp}
-               WHERE id = ${order_id} AND tenant_id = ${tenant_id}
-            `;
-          });
+          await softDeleteWithDb(sql, order_id, tenant_id, nextNotes, stamp);
         } catch (e) {
-          delErr = { message: (e as Error).message };
+          const message = (e as Error).message;
+          if (message.includes("orders_status_check")) {
+            await ensureDeletedStatusAllowed(sql);
+            await softDeleteWithDb(sql, order_id, tenant_id, nextNotes, stamp);
+          } else {
+            delErr = { message };
+          }
         } finally {
           await sql.end({ timeout: 1 });
         }
@@ -172,5 +171,32 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function softDeleteWithDb(
+  sql: ReturnType<typeof postgres>,
+  orderId: string,
+  tenantId: string,
+  notes: string,
+  stamp: string,
+) {
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL session_replication_role = replica`;
+    await tx`
+      UPDATE public.orders
+         SET status = 'deleted', notes = ${notes}, updated_at = ${stamp}
+       WHERE id = ${orderId} AND tenant_id = ${tenantId}
+    `;
+  });
+}
+
+async function ensureDeletedStatusAllowed(sql: ReturnType<typeof postgres>) {
+  await sql.begin(async (tx) => {
+    await tx`ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check`;
+    await tx`
+      ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
+      CHECK (status IN ('waiting', 'in-progress', 'completed', 'cancelled', 'deleted'))
+    `;
   });
 }
