@@ -503,8 +503,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     () =>
       dailyRows !== null
         ? dailyRows.reduce((sum, r) => sum + (r.amount || 0), 0)
-        : visibleRows.reduce((sum, o) => sum + (o.servicePrice || 0), 0),
-    [dailyRows, visibleRows]
+        : 0,
+    [dailyRows]
   );
 
 
