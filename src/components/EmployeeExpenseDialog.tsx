@@ -692,41 +692,87 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       const isEditing = editingId === r.id;
                       if (isEditing) {
                         return (
-                          <div key={r.id} className="px-3 py-2 grid grid-cols-12 gap-1 items-center text-xs bg-primary/5">
-                            <select
-                              value={editKind}
-                              onChange={(e) => setEditKind(e.target.value as any)}
-                              className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
-                            >
-                              <option value="advance">advance</option>
-                              <option value="penalty">penalty</option>
-                            </select>
-                            <input
-                              type="date"
-                              value={editDate}
-                              onChange={(e) => setEditDate(e.target.value)}
-                              className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
-                            />
-                            <input
-                              type="text"
-                              value={editReason}
-                              onChange={(e) => setEditReason(e.target.value.slice(0, 200))}
-                              placeholder="Reason"
-                              className="col-span-4 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
-                            />
-                            <input
-                              type="number" min="0" step="0.01" inputMode="decimal"
-                              value={editAmount}
-                              onChange={(e) => setEditAmount(e.target.value)}
-                              className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px] text-right"
-                            />
-                            <div className="col-span-2 flex items-center justify-end gap-1">
-                              <button onClick={() => saveEdit(r)} className="p-1 rounded hover:bg-emerald-500/15 text-emerald-600" title="Save">
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={cancelEdit} className="p-1 rounded hover:bg-muted text-muted-foreground" title="Discard">
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+                          <div key={r.id} className="px-3 py-2 text-xs bg-primary/5 border-b border-border last:border-b-0">
+                            {/* Mobile edit form */}
+                            <div className="sm:hidden space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <select
+                                  value={editKind}
+                                  onChange={(e) => setEditKind(e.target.value as any)}
+                                  className="px-2 py-1.5 rounded bg-background border border-border text-[11px]"
+                                >
+                                  <option value="advance">advance</option>
+                                  <option value="penalty">penalty</option>
+                                </select>
+                                <input
+                                  type="date"
+                                  value={editDate}
+                                  onChange={(e) => setEditDate(e.target.value)}
+                                  className="px-2 py-1.5 rounded bg-background border border-border text-[11px]"
+                                />
+                              </div>
+                              <input
+                                type="text"
+                                value={editReason}
+                                onChange={(e) => setEditReason(e.target.value.slice(0, 200))}
+                                placeholder="Reason"
+                                className="w-full px-2 py-1.5 rounded bg-background border border-border text-[11px]"
+                              />
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number" min="0" step="0.01" inputMode="decimal"
+                                  value={editAmount}
+                                  onChange={(e) => setEditAmount(e.target.value)}
+                                  className="flex-1 px-2 py-1.5 rounded bg-background border border-border text-[11px] text-right"
+                                />
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => saveEdit(r)} className="p-1.5 rounded hover:bg-emerald-500/15 text-emerald-600" title="Save">
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={cancelEdit} className="p-1.5 rounded hover:bg-muted text-muted-foreground" title="Discard">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Desktop edit form */}
+                            <div className="hidden sm:grid grid-cols-12 gap-1 items-center">
+                              <select
+                                value={editKind}
+                                onChange={(e) => setEditKind(e.target.value as any)}
+                                className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
+                              >
+                                <option value="advance">advance</option>
+                                <option value="penalty">penalty</option>
+                              </select>
+                              <input
+                                type="date"
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
+                              />
+                              <input
+                                type="text"
+                                value={editReason}
+                                onChange={(e) => setEditReason(e.target.value.slice(0, 200))}
+                                placeholder="Reason"
+                                className="col-span-4 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
+                              />
+                              <input
+                                type="number" min="0" step="0.01" inputMode="decimal"
+                                value={editAmount}
+                                onChange={(e) => setEditAmount(e.target.value)}
+                                className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px] text-right"
+                              />
+                              <div className="col-span-2 flex items-center justify-end gap-1">
+                                <button onClick={() => saveEdit(r)} className="p-1 rounded hover:bg-emerald-500/15 text-emerald-600" title="Save">
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={cancelEdit} className="p-1 rounded hover:bg-muted text-muted-foreground" title="Discard">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
