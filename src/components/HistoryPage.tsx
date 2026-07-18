@@ -951,8 +951,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
             {dailyTotals.map((d) => (
               <div key={d.label} className="rounded-lg border border-border bg-secondary/30 p-3">
                 <p className="text-xs text-muted-foreground">{d.label}</p>
-                <p className="text-base font-bold text-foreground mt-1">{formatPrice(d.amount)}</p>
-                <p className="text-[11px] text-muted-foreground">{d.jobs} job{d.jobs !== 1 ? "s" : ""}</p>
+                <p className="text-base font-bold text-destructive mt-1">{d.netJobs} job{d.netJobs !== 1 ? "s" : ""}</p>
+                <p className="text-[11px] text-success font-medium">{formatPrice(d.netAmount)}</p>
               </div>
             ))}
           </div>
