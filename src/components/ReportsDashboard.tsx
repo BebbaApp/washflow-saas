@@ -56,10 +56,15 @@ function rangeBounds(r: Range, customStart: string, customEnd: string): { start:
     const day = (d.getDay() + 6) % 7;
     d.setDate(d.getDate() - day);
     d.setHours(0, 0, 0, 0);
-    return { start: d.getTime(), end: endNow };
+    const e = new Date(d);
+    e.setDate(d.getDate() + 6);
+    e.setHours(23, 59, 59, 999);
+    return { start: d.getTime(), end: e.getTime() };
   }
   if (r === "month") {
-    return { start: new Date(now.getFullYear(), now.getMonth(), 1).getTime(), end: endNow };
+    const s = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    return { start: s, end: e };
   }
   if (r === "custom") {
     const s = customStart ? new Date(customStart + "T00:00:00").getTime() : 0;

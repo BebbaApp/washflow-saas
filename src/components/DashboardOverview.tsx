@@ -53,11 +53,15 @@ export const DashboardOverview = ({ orders, onUpdateStatus, onUpdateNotes, onVie
       const day = (d.getDay() + 6) % 7;
       d.setDate(d.getDate() - day);
       d.setHours(0, 0, 0, 0);
-      return { rangeStart: d.getTime(), rangeEnd: end, rangeLabel: "This week" };
+      const e = new Date(d);
+      e.setDate(d.getDate() + 6);
+      e.setHours(23, 59, 59, 999);
+      return { rangeStart: d.getTime(), rangeEnd: e.getTime(), rangeLabel: "This week" };
     }
     if (range === "month") {
       const s = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-      return { rangeStart: s, rangeEnd: end, rangeLabel: "This month" };
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+      return { rangeStart: s, rangeEnd: e, rangeLabel: "This month" };
     }
     const s = customStart ? new Date(customStart + "T00:00:00").getTime() : 0;
     const e = customEnd ? new Date(customEnd + "T23:59:59").getTime() : end;
