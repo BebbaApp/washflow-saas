@@ -502,7 +502,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
 
               {eligibleOrderIds.has(o.id) && !redeemedOrderIds.has(o.id) && (
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
-                  <Gift className="w-3.5 h-3.5" /> FREE WASH REWARD
+                  <Gift className="w-3.5 h-3.5" /> QUALIFY FOR FREE WASH
+                </div>
+              )}
+              {!eligibleOrderIds.has(o.id) && !redeemedOrderIds.has(o.id) && progressByOrderId.get(o.id) && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs font-semibold border border-border w-fit">
+                  <Gift className="w-3.5 h-3.5" /> {progressByOrderId.get(o.id)!.current}/{progressByOrderId.get(o.id)!.target} washes to free wash
                 </div>
               )}
               {redeemedOrderIds.has(o.id) && (
