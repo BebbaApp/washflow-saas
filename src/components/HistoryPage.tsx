@@ -389,8 +389,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         const batch = ((data as any)?.orders ?? []) as any[];
         collected.push(...batch);
         total = Number((data as any)?.count ?? collected.length);
-        if (batch.length === 0) break;
-        offset += batch.length;
+      if (batch.length === 0) break;
+      offset += 100;
       }
 
       setDailyRows(mapDailyRows(collected));
@@ -439,8 +439,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
       const batch = data || [];
       collected.push(...batch);
-      if (batch.length < DAILY_FETCH_PAGE_SIZE) break;
       offset += DAILY_FETCH_PAGE_SIZE;
+      if (batch.length < DAILY_FETCH_PAGE_SIZE) break;
     }
 
     setDailyRows(mapDailyRows(collected));
