@@ -395,9 +395,16 @@ export function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-muted-foreground">
-        Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
-      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Staff check-in &amp; check-out has moved to the <span className="font-medium text-foreground">Staff</span> page.
+        </p>
+        {canAdjust && (
+          <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} className="w-full sm:w-auto">
+            <Wallet className="w-4 h-4 mr-1" /> Pay Adjustments
+          </Button>
+        )}
+      </div>
 
       <Tabs value={activeSub} onValueChange={handleSubChange}>
         <TabsList className="grid grid-cols-2 h-auto w-full gap-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-nowrap sm:gap-0">
