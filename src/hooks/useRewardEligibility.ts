@@ -12,6 +12,14 @@ const phoneKey = (p?: string | null) => {
   return d ? d.slice(-9) : "";
 };
 const nameKey = (n?: string | null) => (n ?? "").trim().toLowerCase();
+const plateKey = (p?: string | null) => (p ?? "").replace(/\s+/g, "").toUpperCase();
+const groupKey = (o: { customer?: string | null; customerPhone?: string | null; plate?: string | null }) => {
+  const p = phoneKey(o.customerPhone);
+  const n = nameKey(o.customer);
+  const pl = plateKey(o.plate);
+  if (!p || !n || !pl) return "";
+  return `${p}|${n}|${pl}`;
+};
 
 interface CustomerLookup {
   byPhone: Record<string, string>;
