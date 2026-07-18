@@ -500,8 +500,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const visibleRows = rows;
 
   const loadedAmount = useMemo(
-    () => visibleRows.reduce((sum, o) => sum + (o.servicePrice || 0), 0),
-    [visibleRows]
+    () =>
+      dailyRows !== null
+        ? dailyRows.reduce((sum, r) => sum + (r.amount || 0), 0)
+        : visibleRows.reduce((sum, o) => sum + (o.servicePrice || 0), 0),
+    [dailyRows, visibleRows]
   );
 
 
