@@ -215,5 +215,5 @@ export function useRewardEligibility(orders: WashOrder[]) {
     })();
   }, [orders, eligibleOrderIds, redeemedOrderIds, customerLookup]);
 
-  return { eligibleOrderIds, redeemedOrderIds, refresh };
+  return { eligibleOrderIds, redeemedOrderIds, progressByOrderId, refresh };
 }
