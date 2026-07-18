@@ -680,7 +680,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                     </span>
                     <span className="text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.total)}</span>
                   </div>
-                  <div className="hidden sm:grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
+                  <div className="hidden lg:grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
                     <div className="col-span-2">Type</div>
                     <div className="col-span-2">Date</div>
                     <div className="col-span-4">Reason</div>
@@ -694,7 +694,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                         return (
                           <div key={r.id} className="px-3 py-2 text-xs bg-primary/5 border-b border-border last:border-b-0">
                             {/* Mobile edit form */}
-                            <div className="sm:hidden space-y-2">
+                            <div className="lg:hidden space-y-2">
                               <div className="grid grid-cols-2 gap-2">
                                 <select
                                   value={editKind}
@@ -737,7 +737,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                             </div>
 
                             {/* Desktop edit form */}
-                            <div className="hidden sm:grid grid-cols-12 gap-1 items-center">
+                            <div className="hidden lg:grid grid-cols-12 gap-1 items-center">
                               <select
                                 value={editKind}
                                 onChange={(e) => setEditKind(e.target.value as any)}
@@ -792,7 +792,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       return (
                         <div key={r.id} className="px-3 py-2 text-xs border-b border-border last:border-b-0">
                           {/* Mobile card layout */}
-                          <div className="sm:hidden space-y-2">
+                          <div className="lg:hidden space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 {kindBadge}
@@ -824,7 +824,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                           </div>
 
                           {/* Desktop grid layout */}
-                          <div className="hidden sm:grid grid-cols-12 gap-1 items-center">
+                          <div className="hidden lg:grid grid-cols-12 gap-1 items-center">
                             <div className="col-span-2">{kindBadge}</div>
                             <div className="col-span-2 text-muted-foreground">{adjDate}</div>
                             <div className="col-span-4 group relative">
