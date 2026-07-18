@@ -132,6 +132,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   });
 
   const [rows, setRows] = useState<WashOrder[]>([]);
+  const [dailyRows, setDailyRows] = useState<{ iso: string; amount: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
@@ -316,6 +317,52 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setTotalAmountAll(0);
   }, [buildQuery, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id, filter, cancelledSub]);
 
+  // Fetch minimal (date + amount) rows across the full filtered range for daily totals,
+  // independent of pagination so all days are represented.
+  const fetchDaily = useCallback(async () => {
+    if (isSuperAdmin && tenant?.id) {
+      // For super admin, aggregate whatever the page fetch already returned; keeps this lightweight.
+      setDailyRows([]);
+      return;
+    }
+    let q = supabase.from("orders").select("created_at,completed_at,service_price,status,notes");
+    if (filter === "all") {
+      q = q.in("status", ["completed", "cancelled"]);
+    } else {
+      q = q.eq("status", filter);
+    }
+    const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+    if (from) q = q.gte("created_at", from.toISOString());
+    if (to) q = q.lte("created_at", to.toISOString());
+    const term = debouncedQuery.trim();
+    if (term) {
+      const safe = term.replace(/[%,()]/g, " ").trim();
+      if (safe) {
+        const like = `%${safe}%`;
+        q = q.or(
+          `customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`
+        );
+      }
+    }
+    if (filter === "cancelled" && cancelledSub !== "all") {
+      if (cancelledSub === "with") q = q.ilike("notes", "%[CANCELLED%");
+      else q = q.or("notes.is.null,notes.not.ilike.%[CANCELLED%");
+    }
+    q = q.range(0, 4999); // cap for safety
+    const { data, error } = await q;
+    if (error) {
+      console.error("[HistoryPage] fetchDaily error", error);
+      setDailyRows([]);
+      return;
+    }
+    setDailyRows(
+      (data || []).map((r: any) => ({
+        iso: r.completed_at || r.created_at,
+        amount: Number(r.service_price) || 0,
+      }))
+    );
+  }, [filter, cancelledSub, datePreset, customRange, debouncedQuery, isSuperAdmin, tenant?.id]);
+
   // Reset to first page when filters/search/pageSize change
   useEffect(() => {
     setPage(1);
@@ -327,7 +374,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setLoading(true);
     (async () => {
       const offset = (page - 1) * pageSize;
-      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+      const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals(), fetchDaily()]);
       if (cancelled) return;
       setRows(pageRows);
       setLoading(false);
@@ -343,7 +390,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [fetchPage, fetchTotals, page, pageSize]);
+  }, [fetchPage, fetchTotals, fetchDaily, page, pageSize]);
 
   // Realtime: refetch current page when relevant orders change
   useEffect(() => {
@@ -352,13 +399,13 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
         (async () => {
           const offset = (page - 1) * pageSize;
-          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals()]);
+          const [pageRows] = await Promise.all([fetchPage(offset), fetchTotals(), fetchDaily()]);
           setRows(pageRows);
         })();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchPage, fetchTotals, page, pageSize]);
+  }, [fetchPage, fetchTotals, fetchDaily, page, pageSize]);
 
   // Server-side filtering covers cancelled-with/without-reason now.
   const visibleRows = rows;
@@ -378,13 +425,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
   const dailyTotals = useMemo(() => {
     const map = new Map<string, { jobs: number; amount: number; sortKey: string }>();
-    for (const o of visibleRows) {
-      const iso = o.completedAt || o.createdAt;
-      const key = dayKey(iso);
-      const sortKey = iso ? new Date(iso).toISOString().slice(0, 10) : "0000";
+    // Prefer the full-range daily rows; fall back to loaded page rows (super-admin path).
+    const source: { iso: string; amount: number }[] =
+      dailyRows.length > 0
+        ? dailyRows
+        : visibleRows.map((o) => ({
+            iso: (o.completedAt || o.createdAt) as string,
+            amount: o.servicePrice || 0,
+          }));
+    for (const r of source) {
+      const key = dayKey(r.iso);
+      const sortKey = r.iso ? new Date(r.iso).toISOString().slice(0, 10) : "0000";
       const cur = map.get(key) || { jobs: 0, amount: 0, sortKey };
       cur.jobs += 1;
-      cur.amount += o.servicePrice || 0;
+      cur.amount += r.amount;
       map.set(key, cur);
     }
     // Fill in zero-value days across the active preset range so the strip shows every day
@@ -408,7 +462,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     return Array.from(map.entries())
       .map(([label, v]) => ({ label, ...v }))
       .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-  }, [visibleRows, datePreset, customRange]);
+  }, [dailyRows, visibleRows, datePreset, customRange]);
 
   const fmtDate = (iso?: string | null) => {
     if (!iso) return "—";
@@ -792,7 +846,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
       {dailyTotals.length > 0 && (
         <div className="glass-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">
-            Daily totals <span className="normal-case text-[10px] text-muted-foreground/70">(loaded rows)</span>
+            Daily totals <span className="normal-case text-[10px] text-muted-foreground/70">(filtered range)</span>
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {dailyTotals.map((d) => (
