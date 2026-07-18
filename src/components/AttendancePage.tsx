@@ -874,6 +874,8 @@ export function AttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StaffAdjustmentsDialog open={adjustOpen} onClose={() => setAdjustOpen(false)} />
     </div>
   );
 }
