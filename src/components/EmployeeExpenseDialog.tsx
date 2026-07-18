@@ -580,10 +580,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   <div className="max-h-64 overflow-auto divide-y divide-border">
                     <div className="grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
                       <div className="col-span-5">Date</div>
-                      <div className="col-span-2 text-right">Vehicles</div>
+                      <div className="col-span-2 text-center">Vehicles</div>
                       <div className="col-span-2 text-center">Type</div>
                       <div className="col-span-3 text-right">Rate applied</div>
                     </div>
+
                     {Array.from(selectedWorkedDays)
                       .map((k) => new Date(k))
                       .sort((a, b) => a.getTime() - b.getTime())
