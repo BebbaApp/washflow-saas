@@ -88,6 +88,24 @@ export function useRewardEligibility(orders: WashOrder[]) {
 
   // For each active order, find the matching completed-customer+vehicle group
   // and check whether the balance is enough for a free wash.
+  // Redemptions are attributed to a group via the order they were tagged with,
+  // so a free wash on car A only reduces car A's balance, not car B's.
+  const redemptionsByGroupKey = useMemo(() => {
+    const orderKeyById = new Map<string, string>();
+    for (const o of orders) {
+      const k = groupKey(o);
+      if (k) orderKeyById.set(o.id, k);
+    }
+    const acc: Record<string, number> = {};
+    for (const t of redeemedTxns) {
+      if (!t.order_id) continue;
+      const k = orderKeyById.get(t.order_id);
+      if (!k) continue;
+      acc[k] = (acc[k] || 0) + t.points;
+    }
+    return acc;
+  }, [orders, redeemedTxns]);
+
   const eligibleOrderIds = useMemo(() => {
     const eligible = new Set<string>();
     const active = orders.filter((o) => o.status === "waiting" || o.status === "in-progress");
@@ -99,18 +117,13 @@ export function useRewardEligibility(orders: WashOrder[]) {
       const group = groups.get(k);
       if (!group || group.length === 0) continue;
 
-      // Resolve customer_id (for redemption history) via phone/name lookup
-      const customerId =
-        customerLookup.byPhone[phoneKey(o.customerPhone)] ||
-        customerLookup.byName[nameKey(o.customer)];
-
       const earned = group.length * POINTS_PER_WASH;
-      const redeemed = customerId ? (redemptionsByCustomerId[customerId] || 0) : 0;
+      const redeemed = redemptionsByGroupKey[k] || 0;
       const balance = Math.max(0, earned - redeemed);
       if (balance >= FREE_WASH_COST) eligible.add(o.id);
     }
     return eligible;
-  }, [orders, groups, customerLookup, redemptionsByCustomerId]);
+  }, [orders, groups, redemptionsByGroupKey]);
 
   // Auto-redeem: when an active order is eligible and no redemption is yet
   // recorded against this order, insert one (idempotent).
