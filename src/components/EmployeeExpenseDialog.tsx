@@ -792,7 +792,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                       return (
                         <div key={r.id} className="px-3 py-2 text-xs border-b border-border last:border-b-0">
                           {/* Mobile card layout */}
-                          <div className="sm:hidden space-y-2">
+                          <div className="lg:hidden space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 {kindBadge}
