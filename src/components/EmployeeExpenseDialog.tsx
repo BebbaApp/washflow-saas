@@ -671,45 +671,122 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 <div className="rounded-xl border border-border overflow-hidden">
                   <div className="px-3 py-2 bg-secondary flex items-center justify-between text-xs font-semibold text-foreground">
                     <span className="inline-flex items-center gap-1.5">
-                      <MinusCircle className="w-3.5 h-3.5" /> Pay adjustments to deduct
+                      <MinusCircle className="w-3.5 h-3.5" /> Pay adjustments to deduct ({applicableAdjustments.length})
                     </span>
                     <span className="text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.total)}</span>
                   </div>
-                  <div className="max-h-40 overflow-auto divide-y divide-border">
-                    {applicableAdjustments.map((r: any) => (
-                      <div key={r.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                          r.kind === "advance"
-                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                            : "bg-red-500/15 text-red-700 dark:text-red-300"
-                        }`}>{r.kind}</span>
-                        <span className="text-muted-foreground">
-                          {new Date(r.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
-                        </span>
-                        <span className="text-muted-foreground truncate flex-1">{r.reason || "—"}</span>
-                        <span className="font-semibold text-foreground">−{formatPrice(Number(r.amount) || 0)}</span>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
+                    <div className="col-span-2">Type</div>
+                    <div className="col-span-2">Date</div>
+                    <div className="col-span-4">Reason</div>
+                    <div className="col-span-2 text-right">Amount</div>
+                    <div className="col-span-2 text-right">Status</div>
+                  </div>
+                  <div className="max-h-56 overflow-auto divide-y divide-border">
+                    {applicableAdjustments.map((r: any) => {
+                      const isEditing = editingId === r.id;
+                      if (isEditing) {
+                        return (
+                          <div key={r.id} className="px-3 py-2 grid grid-cols-12 gap-1 items-center text-xs bg-primary/5">
+                            <select
+                              value={editKind}
+                              onChange={(e) => setEditKind(e.target.value as any)}
+                              className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
+                            >
+                              <option value="advance">advance</option>
+                              <option value="penalty">penalty</option>
+                            </select>
+                            <input
+                              type="date"
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                              className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
+                            />
+                            <input
+                              type="text"
+                              value={editReason}
+                              onChange={(e) => setEditReason(e.target.value.slice(0, 200))}
+                              placeholder="Reason"
+                              className="col-span-4 px-1.5 py-1 rounded bg-background border border-border text-[11px]"
+                            />
+                            <input
+                              type="number" min="0" step="0.01" inputMode="decimal"
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              className="col-span-2 px-1.5 py-1 rounded bg-background border border-border text-[11px] text-right"
+                            />
+                            <div className="col-span-2 flex items-center justify-end gap-1">
+                              <button onClick={() => saveEdit(r)} className="p-1 rounded hover:bg-emerald-500/15 text-emerald-600" title="Save">
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={cancelEdit} className="p-1 rounded hover:bg-muted text-muted-foreground" title="Discard">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={r.id} className="px-3 py-2 grid grid-cols-12 gap-1 items-center text-xs">
+                          <div className="col-span-2">
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              r.kind === "advance"
+                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                : "bg-red-500/15 text-red-700 dark:text-red-300"
+                            }`}>{r.kind}</span>
+                          </div>
+                          <div className="col-span-2 text-muted-foreground">
+                            {new Date(r.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
+                          </div>
+                          <div className="col-span-4 text-muted-foreground truncate" title={r.reason || ""}>{r.reason || "—"}</div>
+                          <div className="col-span-2 text-right font-semibold text-foreground">−{formatPrice(Number(r.amount) || 0)}</div>
+                          <div className="col-span-2 flex items-center justify-end gap-1">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">Pending</span>
+                            {canManageAdj && (
+                              <>
+                                <button onClick={() => beginEdit(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => cancelAdjustment(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-red-500" title="Cancel this adjustment">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                   <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-muted/40">
-                    These entries will be marked settled once this expense is recorded.
+                    Edits/cancellations only apply to pending entries. These will be marked settled once this expense is recorded.
                   </p>
                 </div>
               )}
 
-              <div className="rounded-xl bg-muted/50 border border-border p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-muted-foreground" />
-                  <div className="text-sm">
-                    <p className="font-medium text-foreground">Computed amount</p>
-                    <p className="text-xs text-muted-foreground">
-                      Base {formatPrice(baseAmount)}
-                      {workBonusAmount > 0 ? ` + ${formatPrice(workBonusAmount)} bonus` : ""}
-                      {adjustmentTotals.total > 0 ? ` − ${formatPrice(adjustmentTotals.total)} adjustments` : ""}
-                    </p>
+              {wouldGoNegative && (
+                <div className="rounded-lg border border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300 text-xs p-3 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Adjustments exceed pay by {formatPrice(Math.abs(rawNet))}.</p>
+                    <p className="mt-0.5">Payout cannot be negative. Edit or cancel some adjustments above, or add a work bonus, before recording this expense.</p>
                   </div>
                 </div>
-                <span className="text-2xl font-bold text-primary">{formatPrice(total)}</span>
+              )}
+
+              <div className="rounded-xl bg-muted/50 border border-border p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-muted-foreground" />
+                    <p className="font-medium text-foreground text-sm">Net Payable</p>
+                  </div>
+                  <span className={`text-2xl font-bold ${wouldGoNegative ? "text-red-500" : "text-primary"}`}>{formatPrice(total)}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>Base</span><span className="text-right text-foreground">{formatPrice(baseAmount)}</span>
+                  {workBonusAmount > 0 && (<><span>Work bonus</span><span className="text-right text-foreground">+{formatPrice(workBonusAmount)}</span></>)}
+                  {adjustmentTotals.advances > 0 && (<><span>Less advances</span><span className="text-right text-amber-600 dark:text-amber-400">−{formatPrice(adjustmentTotals.advances)}</span></>)}
+                  {adjustmentTotals.penalties > 0 && (<><span>Less penalties</span><span className="text-right text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.penalties)}</span></>)}
+                </div>
               </div>
             </>
           )}
