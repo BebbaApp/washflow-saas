@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useExpenseCategories } from "@/hooks/useExpenseCategories";
 import { useAttendance } from "@/hooks/useAttendance";
+import { useLiveTable } from "@/offline/useLiveTable";
 import { toast } from "sonner";
 
 const BUSY_THRESHOLD = 20;
