@@ -425,13 +425,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
   const dailyTotals = useMemo(() => {
     const map = new Map<string, { jobs: number; amount: number; sortKey: string }>();
-    for (const o of visibleRows) {
-      const iso = o.completedAt || o.createdAt;
-      const key = dayKey(iso);
-      const sortKey = iso ? new Date(iso).toISOString().slice(0, 10) : "0000";
+    // Prefer the full-range daily rows; fall back to loaded page rows (super-admin path).
+    const source: { iso: string; amount: number }[] =
+      dailyRows.length > 0
+        ? dailyRows
+        : visibleRows.map((o) => ({
+            iso: (o.completedAt || o.createdAt) as string,
+            amount: o.servicePrice || 0,
+          }));
+    for (const r of source) {
+      const key = dayKey(r.iso);
+      const sortKey = r.iso ? new Date(r.iso).toISOString().slice(0, 10) : "0000";
       const cur = map.get(key) || { jobs: 0, amount: 0, sortKey };
       cur.jobs += 1;
-      cur.amount += o.servicePrice || 0;
+      cur.amount += r.amount;
       map.set(key, cur);
     }
     // Fill in zero-value days across the active preset range so the strip shows every day
@@ -455,7 +462,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     return Array.from(map.entries())
       .map(([label, v]) => ({ label, ...v }))
       .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-  }, [visibleRows, datePreset, customRange]);
+  }, [dailyRows, visibleRows, datePreset, customRange]);
 
   const fmtDate = (iso?: string | null) => {
     if (!iso) return "—";
