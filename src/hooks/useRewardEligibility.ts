@@ -106,24 +106,35 @@ export function useRewardEligibility(orders: WashOrder[]) {
     return acc;
   }, [orders, redeemedTxns]);
 
-  const eligibleOrderIds = useMemo(() => {
-    const eligible = new Set<string>();
+  // Progress per active order: how many qualifying washes toward next free wash
+  // (e.g. { current: 9, target: 10 } — completed washes for this vehicle after
+  // accounting for redemptions already applied).
+  const progressByOrderId = useMemo(() => {
+    const map = new Map<string, { current: number; target: number }>();
+    const target = FREE_WASH_COST / POINTS_PER_WASH; // washes per free wash
     const active = orders.filter((o) => o.status === "waiting" || o.status === "in-progress");
-    if (active.length === 0) return eligible;
-
     for (const o of active) {
       const k = groupKey(o);
       if (!k) continue;
       const group = groups.get(k);
-      if (!group || group.length === 0) continue;
-
-      const earned = group.length * POINTS_PER_WASH;
+      const earned = (group?.length ?? 0) * POINTS_PER_WASH;
       const redeemed = redemptionsByGroupKey[k] || 0;
-      const balance = Math.max(0, earned - redeemed);
-      if (balance >= FREE_WASH_COST) eligible.add(o.id);
+      const balancePoints = Math.max(0, earned - redeemed);
+      const current = Math.min(target, Math.floor(balancePoints / POINTS_PER_WASH));
+      map.set(o.id, { current, target });
+    }
+    return map;
+  }, [orders, groups, redemptionsByGroupKey]);
+
+  const eligibleOrderIds = useMemo(() => {
+    const eligible = new Set<string>();
+    for (const [id, p] of progressByOrderId) {
+      if (p.current >= p.target) eligible.add(id);
     }
     return eligible;
-  }, [orders, groups, redemptionsByGroupKey]);
+  }, [progressByOrderId]);
+
+
 
   // Auto-redeem: when an active order is eligible and no redemption is yet
   // recorded against this order, insert one (idempotent).
