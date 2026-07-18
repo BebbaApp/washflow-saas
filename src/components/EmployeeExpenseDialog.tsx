@@ -731,32 +731,76 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                           </div>
                         );
                       }
+                      const adjDate = new Date(r.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+                      const adjAmount = formatPrice(Number(r.amount) || 0);
+                      const kindBadge = (
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          r.kind === "advance"
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            : "bg-red-500/15 text-red-700 dark:text-red-300"
+                        }`}>{r.kind}</span>
+                      );
+                      const statusBadge = (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">Pending</span>
+                      );
                       return (
-                        <div key={r.id} className="px-3 py-2 grid grid-cols-12 gap-1 items-center text-xs">
-                          <div className="col-span-2">
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                              r.kind === "advance"
-                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                                : "bg-red-500/15 text-red-700 dark:text-red-300"
-                            }`}>{r.kind}</span>
+                        <div key={r.id} className="px-3 py-2 text-xs border-b border-border last:border-b-0">
+                          {/* Mobile card layout */}
+                          <div className="sm:hidden space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {kindBadge}
+                                <span className="text-muted-foreground shrink-0">{adjDate}</span>
+                              </div>
+                              <span className="font-semibold text-foreground shrink-0">−{adjAmount}</span>
+                            </div>
+                            <div className="group relative">
+                              <div className="text-muted-foreground truncate cursor-help" title={r.reason || ""}>
+                                {r.reason || "—"}
+                              </div>
+                              <div className="hidden sm:block absolute z-10 left-0 top-full mt-1 w-max max-w-xs bg-popover text-popover-foreground text-xs p-2 rounded-md shadow-md border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                {r.reason || "—"}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between bg-muted/50 rounded-lg px-2.5 py-1.5">
+                              {statusBadge}
+                              {canManageAdj && (
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => beginEdit(r)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => cancelAdjustment(r)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-red-500" title="Cancel this adjustment">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="col-span-2 text-muted-foreground">
-                            {new Date(r.date + "T00:00:00").toLocaleDateString(undefined, { day: "2-digit", month: "short" })}
-                          </div>
-                          <div className="col-span-4 text-muted-foreground truncate" title={r.reason || ""}>{r.reason || "—"}</div>
-                          <div className="col-span-2 text-right font-semibold text-foreground">−{formatPrice(Number(r.amount) || 0)}</div>
-                          <div className="col-span-2 flex items-center justify-end gap-1">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">Pending</span>
-                            {canManageAdj && (
-                              <>
-                                <button onClick={() => beginEdit(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => cancelAdjustment(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-red-500" title="Cancel this adjustment">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
+
+                          {/* Desktop grid layout */}
+                          <div className="hidden sm:grid grid-cols-12 gap-1 items-center">
+                            <div className="col-span-2">{kindBadge}</div>
+                            <div className="col-span-2 text-muted-foreground">{adjDate}</div>
+                            <div className="col-span-4 group relative">
+                              <div className="text-muted-foreground truncate cursor-help" title={r.reason || ""}>{r.reason || "—"}</div>
+                              <div className="absolute z-10 left-0 top-full mt-1 w-max max-w-xs bg-popover text-popover-foreground text-xs p-2 rounded-md shadow-md border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                {r.reason || "—"}
+                              </div>
+                            </div>
+                            <div className="col-span-2 text-right font-semibold text-foreground">−{adjAmount}</div>
+                            <div className="col-span-2 flex items-center justify-end gap-1">
+                              {statusBadge}
+                              {canManageAdj && (
+                                <>
+                                  <button onClick={() => beginEdit(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => cancelAdjustment(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-red-500" title="Cancel this adjustment">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
