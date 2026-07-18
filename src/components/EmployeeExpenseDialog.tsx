@@ -820,12 +820,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
                           {/* Desktop grid layout */}
                           <div className="hidden lg:grid grid-cols-12 gap-1 items-center">
-                            <div className="col-span-2">{kindBadge}</div>
+                            <div className="col-span-3 flex items-center gap-2">{kindBadge}{statusBadge}</div>
                             <div className="col-span-2 text-muted-foreground">{adjDate}</div>
-                            <div className="col-span-4 text-muted-foreground truncate">{r.reason || "—"}</div>
+                            <div className="col-span-4 text-muted-foreground truncate" title={r.reason || undefined}>{r.reason || "—"}</div>
                             <div className="col-span-2 text-right font-semibold text-foreground">−{adjAmount}</div>
-                            <div className="col-span-2 flex items-center justify-end gap-1">
-                              {statusBadge}
+                            <div className="col-span-1 flex items-center justify-end gap-1">
                               {canManageAdj && (
                                 <>
                                   <button onClick={() => beginEdit(r)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
