@@ -255,6 +255,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const fetchPage = useCallback(async (offset: number) => {
     if (isSuperAdmin && tenant?.id) {
       const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const dateRange = platformDateRangePayload(from, to);
       const { data, error } = await supabase.functions.invoke("platform-admin", {
         body: {
           action: "history_orders",
@@ -262,8 +263,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           status: filter,
           cancelled_reason: cancelledSub,
           query: debouncedQuery.trim() || undefined,
-          from: from?.toISOString().slice(0, 10),
-          to: to?.toISOString().slice(0, 10),
+          ...dateRange,
           offset,
           limit: pageSize,
         },
@@ -288,12 +288,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const fetchTotals = useCallback(async () => {
     if (isSuperAdmin && tenant?.id) {
       const { from, to } = presetRange(datePreset, customRange?.from?.toISOString(), customRange?.to?.toISOString());
+      const dateRange = platformDateRangePayload(from, to);
       const common = {
         action: "history_orders",
         tenant_id: tenant.id,
         query: debouncedQuery.trim() || undefined,
-        from: from?.toISOString().slice(0, 10),
-        to: to?.toISOString().slice(0, 10),
+        ...dateRange,
         offset: 0,
         limit: 1,
       };
