@@ -51,6 +51,9 @@ const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const LS_FILTERS_KEY = "aquawash:history:filters:v1";
 const LS_SCROLL_KEY = "aquawash:history:scroll:v1";
+const DAILY_FETCH_PAGE_SIZE = 1000;
+
+type DailyRow = { iso: string; amount: number };
 
 interface PersistedFilters {
   query: string;
@@ -88,21 +91,49 @@ function mapRow(row: any): WashOrder {
   };
 }
 
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function localDateKey(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function presetRange(preset: DatePreset, customFrom?: string, customTo?: string): { from?: Date; to?: Date } {
   const now = new Date();
-  if (preset === "7d") return { from: new Date(now.getTime() - 7 * 86400000) };
-  if (preset === "30d") return { from: new Date(now.getTime() - 30 * 86400000) };
-  if (preset === "90d") return { from: new Date(now.getTime() - 90 * 86400000) };
+  if (preset === "7d") return { from: startOfDay(addDays(now, -6)), to: endOfDay(now) };
+  if (preset === "30d") return { from: startOfDay(addDays(now, -29)), to: endOfDay(now) };
+  if (preset === "90d") return { from: startOfDay(addDays(now, -89)), to: endOfDay(now) };
   if (preset === "custom") {
-    const from = customFrom ? new Date(customFrom) : undefined;
-    const to = customTo ? new Date(customTo) : undefined;
-    if (to) {
-      // include the whole "to" day
-      to.setHours(23, 59, 59, 999);
-    }
+    const from = customFrom ? startOfDay(new Date(customFrom)) : undefined;
+    const to = customTo ? endOfDay(new Date(customTo)) : undefined;
     return { from, to };
   }
   return {};
+}
+
+function platformDateRangePayload(from?: Date, to?: Date) {
+  return {
+    from: from ? localDateKey(from) : undefined,
+    to: to ? localDateKey(to) : undefined,
+  };
 }
 
 export const HistoryPage = (_props: HistoryPageProps) => {
@@ -132,7 +163,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   });
 
   const [rows, setRows] = useState<WashOrder[]>([]);
-  const [dailyRows, setDailyRows] = useState<{ iso: string; amount: number }[]>([]);
+  const [dailyRows, setDailyRows] = useState<DailyRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
