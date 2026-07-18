@@ -518,21 +518,26 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   };
   const dailyTotals = useMemo(() => {
-    const map = new Map<string, { jobs: number; amount: number; sortKey: string }>();
+    const map = new Map<string, { totalJobs: number; totalAmount: number; netJobs: number; netAmount: number; sortKey: string }>();
     // Prefer the full-range daily rows; fall back only before the first daily fetch resolves.
-    const source: { iso: string; amount: number }[] =
+    const source: { iso: string; amount: number; status: string }[] =
       dailyRows !== null
         ? dailyRows
         : visibleRows.map((o) => ({
             iso: o.createdAt as string,
             amount: o.servicePrice || 0,
+            status: o.status || "completed",
           }));
     for (const r of source) {
       const key = dayKey(r.iso);
       const sortKey = r.iso ? localDateKey(new Date(r.iso)) : "0000";
-      const cur = map.get(key) || { jobs: 0, amount: 0, sortKey };
-      cur.jobs += 1;
-      cur.amount += r.amount;
+      const cur = map.get(key) || { totalJobs: 0, totalAmount: 0, netJobs: 0, netAmount: 0, sortKey };
+      cur.totalJobs += 1;
+      cur.totalAmount += r.amount;
+      if (r.status !== "cancelled" && r.status !== "deleted") {
+        cur.netJobs += 1;
+        cur.netAmount += r.amount;
+      }
       map.set(key, cur);
     }
     // Fill in zero-value days across the active preset range so the strip shows every day
@@ -547,7 +552,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         const iso = cursor.toISOString();
         const key = dayKey(iso);
         if (!map.has(key)) {
-          map.set(key, { jobs: 0, amount: 0, sortKey: localDateKey(cursor) });
+          map.set(key, { totalJobs: 0, totalAmount: 0, netJobs: 0, netAmount: 0, sortKey: localDateKey(cursor) });
         }
         cursor.setDate(cursor.getDate() + 1);
         safety++;
