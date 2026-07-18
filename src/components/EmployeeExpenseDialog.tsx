@@ -424,7 +424,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                     ))}
                   </div>
                   {calendarWeeks.map((week) => {
-                    const weekKey = week.monday.toDateString();
+                    const weekKey = week.key;
                     const isSelected = selectedWeeks.has(weekKey);
                     const hasWorked = week.cells.some((c) => c?.status === "worked");
                     return (
