@@ -540,7 +540,13 @@ Deno.serve(async (req) => {
           q = q.or(`customer.ilike.${like},customer_phone.ilike.${like},plate.ilike.${like},service.ilike.${like},vehicle.ilike.${like}`);
         }
         const { data, error, count } = await q.order("created_at", { ascending: false }).range(body.offset, body.offset + body.limit - 1);
-        if (error) return json({ error: error.message }, 500);
+        if (error) {
+          // PostgREST returns PGRST103 when offset is past the last row; treat as empty page
+          if ((error as any).code === "PGRST103" || /range not satisfiable/i.test(error.message)) {
+            return json({ orders: [], count: count ?? 0 });
+          }
+          return json({ error: error.message }, 500);
+        }
         return json({ orders: data ?? [], count: count ?? 0 });
       }
 
