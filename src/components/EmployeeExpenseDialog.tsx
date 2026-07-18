@@ -680,7 +680,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                     </span>
                     <span className="text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.total)}</span>
                   </div>
-                  <div className="grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
+                  <div className="hidden sm:grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
                     <div className="col-span-2">Type</div>
                     <div className="col-span-2">Date</div>
                     <div className="col-span-4">Reason</div>
