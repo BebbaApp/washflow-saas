@@ -694,7 +694,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                         return (
                           <div key={r.id} className="px-3 py-2 text-xs bg-primary/5 border-b border-border last:border-b-0">
                             {/* Mobile edit form */}
-                            <div className="sm:hidden space-y-2">
+                            <div className="lg:hidden space-y-2">
                               <div className="grid grid-cols-2 gap-2">
                                 <select
                                   value={editKind}
