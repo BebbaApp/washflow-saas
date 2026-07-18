@@ -681,11 +681,11 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                     <span className="text-red-600 dark:text-red-400">−{formatPrice(adjustmentTotals.total)}</span>
                   </div>
                   <div className="hidden lg:grid grid-cols-12 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">
-                    <div className="col-span-2">Type</div>
+                    <div className="col-span-3">Type</div>
                     <div className="col-span-2">Date</div>
                     <div className="col-span-4">Reason</div>
                     <div className="col-span-2 text-right">Amount</div>
-                    <div className="col-span-2 text-right">Status</div>
+                    <div className="col-span-1 text-right">Actions</div>
                   </div>
                   <div className="max-h-56 overflow-auto divide-y divide-border">
                     {applicableAdjustments.map((r: any) => {
