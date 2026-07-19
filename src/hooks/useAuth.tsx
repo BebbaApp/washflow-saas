@@ -370,11 +370,13 @@ function useAuthInternal(): AuthContextValue {
 
       warnTimer = setTimeout(() => {
         setIdleWarning(true);
+        idleWarningRef.current = true;
         setIdleSecondsLeft(Math.ceil(warningMs / 1000));
         countdownTimer = setInterval(() => {
           setIdleSecondsLeft((s) => (s > 0 ? s - 1 : 0));
         }, 1000);
       }, untilWarn);
+
 
       logoutTimer = setTimeout(async () => {
         try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
