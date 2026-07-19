@@ -197,14 +197,54 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     setSelectedWeeks(new Set());
   }, [staffId, monthAnchor]);
 
-  // Map each week key to the actual set of in-row date keys, so a partial
-  // first/last row of a month never leaks into the neighbouring row.
+  // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dayCells = useMemo(() => {
+    const cells: { date: Date; status: "worked" | "absent" | "future" }[] = [];
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(from.getFullYear(), from.getMonth(), i);
+      let status: "worked" | "absent" | "future";
+      if (d > today) status = "future";
+      else if (workedDays.has(d.toDateString())) status = "worked";
+      else status = "absent";
+      cells.push({ date: d, status });
+    }
+    return cells;
+  }, [from, daysInMonth, workedDays, today]);
+
+  // Calendar weeks for rendering with a checkbox per row.
+  // Key each row by the ISO date of its first non-null cell — always unique
+  // within a month, so no key collisions like getWeekMonday could produce.
+  const calendarWeeks = useMemo(() => {
+    const weeks: { key: string; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
+    let currentWeek: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] = [];
+    for (let i = 0; i < from.getDay(); i++) currentWeek.push(null);
+    const flush = () => {
+      const firstDay = currentWeek.find((c) => c !== null)?.date;
+      const key = firstDay ? firstDay.toISOString() : `empty-${weeks.length}`;
+      weeks.push({ key, cells: currentWeek });
+      currentWeek = [];
+    };
+    for (const c of dayCells) {
+      currentWeek.push(c);
+      if (currentWeek.length === 7) flush();
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      flush();
+    }
+    return weeks;
+  }, [dayCells, from]);
+
+  // Map each week key to the actual set of in-row date keys (as toDateString),
+  // so a partial first/last row of a month never leaks into the neighbouring row.
   const weekDateKeys = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+    const map = new Map<string, { keys: Set<string>; dates: Date[] }>();
     calendarWeeks.forEach((w) => {
       const keys = new Set<string>();
-      w.cells.forEach((c) => { if (c) keys.add(c.date.toDateString()); });
-      map.set(w.key, keys);
+      const dates: Date[] = [];
+      w.cells.forEach((c) => { if (c) { keys.add(c.date.toDateString()); dates.push(c.date); } });
+      map.set(w.key, { keys, dates });
     });
     return map;
   }, [calendarWeeks]);
@@ -214,7 +254,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     selectedWeeks.forEach((weekKey) => {
       const inRow = weekDateKeys.get(weekKey);
       if (!inRow) return;
-      workedDays.forEach((k) => { if (inRow.has(k)) selected.add(k); });
+      workedDays.forEach((k) => { if (inRow.keys.has(k)) selected.add(k); });
     });
     return selected;
   }, [workedDays, selectedWeeks, weekDateKeys]);
