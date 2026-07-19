@@ -117,8 +117,9 @@ function useAuthInternal(): AuthContextValue {
   }, []);
 
   const extendSession = useCallback(() => {
-    bumpRef.current();
+    bumpRef.current(true);
   }, []);
+
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
     const CACHE_KEY = `wf_user_profile_${authUser.id}`;
