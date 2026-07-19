@@ -286,6 +286,16 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     return count;
   }, [calendarWeeks, selectedWeeks]);
 
+  // Exact selected date cells (worked + absent) inside the ticked weeks.
+  const selectedDateCells = useMemo(() => {
+    const list: { date: Date; status: "worked" | "absent" | "future" }[] = [];
+    calendarWeeks.forEach((week) => {
+      if (!selectedWeeks.has(week.key)) return;
+      week.cells.forEach((cell) => { if (cell) list.push(cell); });
+    });
+    return list.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [calendarWeeks, selectedWeeks]);
+
   // Base amount: for wage, quiet days are paid at quiet_day_rate (flat)
   // instead of the base rate. Salary and weekly are flat amounts; busy-day
   // bonuses are entered manually as "Work Bonus" below.
