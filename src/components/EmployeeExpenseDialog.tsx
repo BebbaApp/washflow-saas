@@ -273,46 +273,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const selectedWeeksWorked = selectedWeeks.size;
 
-  // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const dayCells = useMemo(() => {
-    const cells: { date: Date; status: "worked" | "absent" | "future" }[] = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-      const d = new Date(from.getFullYear(), from.getMonth(), i);
-      let status: "worked" | "absent" | "future";
-      if (d > today) status = "future";
-      else if (workedDays.has(d.toDateString())) status = "worked";
-      else status = "absent";
-      cells.push({ date: d, status });
-    }
-    return cells;
-  }, [from, daysInMonth, workedDays, today]);
-
   const absentDays = dayCells.filter((c) => c.status === "absent").length;
-
-  // Calendar weeks for rendering with a checkbox per row.
-  // Key each row by the ISO date of its first non-null cell — always unique
-  // within a month, so no key collisions like getWeekMonday could produce.
-  const calendarWeeks = useMemo(() => {
-    const weeks: { key: string; cells: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] }[] = [];
-    let currentWeek: ({ date: Date; status: "worked" | "absent" | "future" } | null)[] = [];
-    for (let i = 0; i < from.getDay(); i++) currentWeek.push(null);
-    const flush = () => {
-      const firstDay = currentWeek.find((c) => c !== null)?.date;
-      const key = firstDay ? firstDay.toISOString() : `empty-${weeks.length}`;
-      weeks.push({ key, cells: currentWeek });
-      currentWeek = [];
-    };
-    for (const c of dayCells) {
-      currentWeek.push(c);
-      if (currentWeek.length === 7) flush();
-    }
-    if (currentWeek.length > 0) {
-      while (currentWeek.length < 7) currentWeek.push(null);
-      flush();
-    }
-    return weeks;
-  }, [dayCells, from]);
 
   const selectedAbsentDays = useMemo(() => {
     let count = 0;
