@@ -197,33 +197,6 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     setSelectedWeeks(new Set());
   }, [staffId, monthAnchor]);
 
-  const selectedWorkedDays = useMemo(() => {
-    const selected = new Set<string>();
-    workedDays.forEach((k) => {
-      const d = new Date(k); d.setHours(0, 0, 0, 0);
-      selectedWeeks.forEach((weekKey) => {
-        const start = new Date(weekKey); start.setHours(0, 0, 0, 0);
-        const end = new Date(start); end.setDate(end.getDate() + 6);
-        if (d >= start && d <= end) selected.add(k);
-      });
-    });
-    return selected;
-  }, [workedDays, selectedWeeks]);
-
-  const selectedDays = selectedWorkedDays.size;
-  const { busyDays, quietDays, normalDays } = useMemo(() => {
-    let busy = 0, quiet = 0, normal = 0;
-    selectedWorkedDays.forEach((key) => {
-      const v = dayVolumes[key] || 0;
-      if (v >= BUSY_THRESHOLD) busy++;
-      else if (v < QUIET_THRESHOLD) quiet++;
-      else normal++;
-    });
-    return { busyDays: busy, quietDays: quiet, normalDays: normal };
-  }, [selectedWorkedDays, dayVolumes]);
-
-  const selectedWeeksWorked = selectedWeeks.size;
-
   // Build the day grid for the chosen month, clamped to "today" so future days aren't counted.
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const dayCells = useMemo(() => {
@@ -238,8 +211,6 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     }
     return cells;
   }, [from, daysInMonth, workedDays, today]);
-
-  const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
   // Calendar weeks for rendering with a checkbox per row.
   // Key each row by the ISO date of its first non-null cell — always unique
@@ -264,6 +235,45 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     }
     return weeks;
   }, [dayCells, from]);
+
+  // Map each week key to the actual set of in-row date keys (as toDateString),
+  // so a partial first/last row of a month never leaks into the neighbouring row.
+  const weekDateKeys = useMemo(() => {
+    const map = new Map<string, { keys: Set<string>; dates: Date[] }>();
+    calendarWeeks.forEach((w) => {
+      const keys = new Set<string>();
+      const dates: Date[] = [];
+      w.cells.forEach((c) => { if (c) { keys.add(c.date.toDateString()); dates.push(c.date); } });
+      map.set(w.key, { keys, dates });
+    });
+    return map;
+  }, [calendarWeeks]);
+
+  const selectedWorkedDays = useMemo(() => {
+    const selected = new Set<string>();
+    selectedWeeks.forEach((weekKey) => {
+      const inRow = weekDateKeys.get(weekKey);
+      if (!inRow) return;
+      workedDays.forEach((k) => { if (inRow.keys.has(k)) selected.add(k); });
+    });
+    return selected;
+  }, [workedDays, selectedWeeks, weekDateKeys]);
+
+  const selectedDays = selectedWorkedDays.size;
+  const { busyDays, quietDays, normalDays } = useMemo(() => {
+    let busy = 0, quiet = 0, normal = 0;
+    selectedWorkedDays.forEach((key) => {
+      const v = dayVolumes[key] || 0;
+      if (v >= BUSY_THRESHOLD) busy++;
+      else if (v < QUIET_THRESHOLD) quiet++;
+      else normal++;
+    });
+    return { busyDays: busy, quietDays: quiet, normalDays: normal };
+  }, [selectedWorkedDays, dayVolumes]);
+
+  const selectedWeeksWorked = selectedWeeks.size;
+
+  const absentDays = dayCells.filter((c) => c.status === "absent").length;
 
   const selectedAbsentDays = useMemo(() => {
     let count = 0;
@@ -293,12 +303,16 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   // ── Pay adjustments (advances + penalties) ────────────────────────────────
   const adjRows = useLiveTable<any>(tenant?.id, "staff_pay_adjustments");
   const weekRanges = useMemo(() => {
-    return Array.from(selectedWeeks).map((k) => {
-      const start = new Date(k); start.setHours(0, 0, 0, 0);
-      const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
-      return { start, end };
+    // Use the actual date cells in each visible row so a partial first/last
+    // row of a month doesn't spill into the neighbouring row.
+    return Array.from(selectedWeeks).flatMap((k) => {
+      const info = weekDateKeys.get(k);
+      if (!info || info.dates.length === 0) return [] as { start: Date; end: Date }[];
+      const start = new Date(info.dates[0]); start.setHours(0, 0, 0, 0);
+      const end = new Date(info.dates[info.dates.length - 1]); end.setHours(23, 59, 59, 999);
+      return [{ start, end }];
     });
-  }, [selectedWeeks]);
+  }, [selectedWeeks, weekDateKeys]);
   const applicableAdjustments = useMemo(() => {
     if (!staffId || weekRanges.length === 0) return [] as any[];
     return (adjRows ?? []).filter((r: any) => {
