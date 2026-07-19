@@ -303,12 +303,16 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
   // ── Pay adjustments (advances + penalties) ────────────────────────────────
   const adjRows = useLiveTable<any>(tenant?.id, "staff_pay_adjustments");
   const weekRanges = useMemo(() => {
-    return Array.from(selectedWeeks).map((k) => {
-      const start = new Date(k); start.setHours(0, 0, 0, 0);
-      const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23,59,59,999);
-      return { start, end };
+    // Use the actual date cells in each visible row so a partial first/last
+    // row of a month doesn't spill into the neighbouring row.
+    return Array.from(selectedWeeks).flatMap((k) => {
+      const info = weekDateKeys.get(k);
+      if (!info || info.dates.length === 0) return [] as { start: Date; end: Date }[];
+      const start = new Date(info.dates[0]); start.setHours(0, 0, 0, 0);
+      const end = new Date(info.dates[info.dates.length - 1]); end.setHours(23, 59, 59, 999);
+      return [{ start, end }];
     });
-  }, [selectedWeeks]);
+  }, [selectedWeeks, weekDateKeys]);
   const applicableAdjustments = useMemo(() => {
     if (!staffId || weekRanges.length === 0) return [] as any[];
     return (adjRows ?? []).filter((r: any) => {
