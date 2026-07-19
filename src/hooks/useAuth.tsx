@@ -392,6 +392,7 @@ function useAuthInternal(): AuthContextValue {
     const applyActivity = (ts: number, broadcast: boolean) => {
       try { localStorage.setItem(LAST_ACTIVITY_KEY, String(ts)); } catch { /* ignore */ }
       setIdleWarning(false);
+      idleWarningRef.current = false;
       setIdleSecondsLeft(0);
       scheduleFrom(ts);
       if (broadcast) {
@@ -399,15 +400,22 @@ function useAuthInternal(): AuthContextValue {
       }
     };
 
-    const bump = () => {
+    const bump = (force = false) => {
+      // Once the idle-warning dialog is showing, ignore ambient activity
+      // (mousemove, scroll, etc.) — otherwise moving the cursor toward the
+      // "Stay signed in" button silently dismisses the dialog before the
+      // click lands. Only an explicit extendSession() call (force=true)
+      // clears the warning.
+      if (idleWarningRef.current && !force) return;
       const now = Date.now();
-      if (now - lastBump < bumpThrottleMs) return;
+      if (!force && now - lastBump < bumpThrottleMs) return;
       lastBump = now;
       applyActivity(now, true);
     };
 
     // Expose bump() for the one-click "Stay signed in" extend action.
     bumpRef.current = bump;
+
 
     const onRemoteActivity = (ts: number) => {
       if (!Number.isFinite(ts)) return;
