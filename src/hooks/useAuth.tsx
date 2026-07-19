@@ -462,7 +462,9 @@ function useAuthInternal(): AuthContextValue {
       "focus",
     ] as const;
     const listenerOpts: AddEventListenerOptions = { passive: true, capture: true };
-    winEvents.forEach((ev) => window.addEventListener(ev, bump, listenerOpts));
+    const bumpListener: EventListener = () => bump();
+    winEvents.forEach((ev) => window.addEventListener(ev, bumpListener, listenerOpts));
+
     document.addEventListener("visibilitychange", onVisibility);
 
     // Keepalive: refresh the Supabase access token on a schedule so background
