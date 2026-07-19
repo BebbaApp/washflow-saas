@@ -197,18 +197,27 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     setSelectedWeeks(new Set());
   }, [staffId, monthAnchor]);
 
+  // Map each week key to the actual set of in-row date keys, so a partial
+  // first/last row of a month never leaks into the neighbouring row.
+  const weekDateKeys = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    calendarWeeks.forEach((w) => {
+      const keys = new Set<string>();
+      w.cells.forEach((c) => { if (c) keys.add(c.date.toDateString()); });
+      map.set(w.key, keys);
+    });
+    return map;
+  }, [calendarWeeks]);
+
   const selectedWorkedDays = useMemo(() => {
     const selected = new Set<string>();
-    workedDays.forEach((k) => {
-      const d = new Date(k); d.setHours(0, 0, 0, 0);
-      selectedWeeks.forEach((weekKey) => {
-        const start = new Date(weekKey); start.setHours(0, 0, 0, 0);
-        const end = new Date(start); end.setDate(end.getDate() + 6);
-        if (d >= start && d <= end) selected.add(k);
-      });
+    selectedWeeks.forEach((weekKey) => {
+      const inRow = weekDateKeys.get(weekKey);
+      if (!inRow) return;
+      workedDays.forEach((k) => { if (inRow.has(k)) selected.add(k); });
     });
     return selected;
-  }, [workedDays, selectedWeeks]);
+  }, [workedDays, selectedWeeks, weekDateKeys]);
 
   const selectedDays = selectedWorkedDays.size;
   const { busyDays, quietDays, normalDays } = useMemo(() => {
