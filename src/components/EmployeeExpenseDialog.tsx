@@ -871,6 +871,56 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                 </div>
               )}
 
+              {selectedDateCells.length > 0 && (
+                <div className="rounded-xl border border-border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-foreground">Selected period summary</p>
+                    <span className="text-[11px] text-muted-foreground">
+                      {selectedDateCells.length} day{selectedDateCells.length === 1 ? "" : "s"} · {selectedWeeks.size} week{selectedWeeks.size === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedDateCells.map((cell) => {
+                      const dateLabel = cell.date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+                      const statusClasses =
+                        cell.status === "worked"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : cell.status === "absent"
+                          ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                          : "bg-muted text-muted-foreground";
+                      return (
+                        <span
+                          key={cell.date.toISOString()}
+                          className={`inline-flex items-center px-2 py-1 rounded text-[11px] font-medium ${statusClasses}`}
+                          title={cell.date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
+                        >
+                          {dateLabel}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="flex flex-col rounded-lg bg-emerald-500/10 px-2.5 py-1.5">
+                      <span className="text-[10px] text-muted-foreground">Worked</span>
+                      <span className="font-semibold text-foreground">
+                        {selectedDays}{" "}
+                        <span className="font-normal text-muted-foreground">
+                          ({busyDays} busy, {quietDays} quiet, {normalDays} normal)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex flex-col rounded-lg bg-red-500/10 px-2.5 py-1.5">
+                      <span className="text-[10px] text-muted-foreground">Absent</span>
+                      <span className="font-semibold text-foreground">{selectedAbsentDays}</span>
+                    </div>
+                    <div className="flex flex-col rounded-lg bg-muted px-2.5 py-1.5">
+                      <span className="text-[10px] text-muted-foreground">Selected</span>
+                      <span className="font-semibold text-foreground">{selectedDateCells.length}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {wouldGoNegative && (
                 <div className="rounded-lg border border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300 text-xs p-3 flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
