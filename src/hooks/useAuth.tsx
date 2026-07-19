@@ -102,7 +102,9 @@ function useAuthInternal(): AuthContextValue {
   const [sessionConfig, setSessionConfig] = useState<SessionConfig>(() => loadSessionConfig());
   const [idleWarning, setIdleWarning] = useState(false);
   const [idleSecondsLeft, setIdleSecondsLeft] = useState(0);
-  const bumpRef = useRef<() => void>(() => {});
+  const idleWarningRef = useRef(false);
+  const bumpRef = useRef<(force?: boolean) => void>(() => {});
+
 
   const setResolvedUser = useCallback((next: StaffUser | null) => {
     userRef.current = next;
@@ -115,8 +117,9 @@ function useAuthInternal(): AuthContextValue {
   }, []);
 
   const extendSession = useCallback(() => {
-    bumpRef.current();
+    bumpRef.current(true);
   }, []);
+
 
   const fetchProfile = useCallback(async (authUser: User): Promise<StaffUser | null> => {
     const CACHE_KEY = `wf_user_profile_${authUser.id}`;
@@ -367,11 +370,13 @@ function useAuthInternal(): AuthContextValue {
 
       warnTimer = setTimeout(() => {
         setIdleWarning(true);
+        idleWarningRef.current = true;
         setIdleSecondsLeft(Math.ceil(warningMs / 1000));
         countdownTimer = setInterval(() => {
           setIdleSecondsLeft((s) => (s > 0 ? s - 1 : 0));
         }, 1000);
       }, untilWarn);
+
 
       logoutTimer = setTimeout(async () => {
         try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ }
@@ -387,6 +392,7 @@ function useAuthInternal(): AuthContextValue {
     const applyActivity = (ts: number, broadcast: boolean) => {
       try { localStorage.setItem(LAST_ACTIVITY_KEY, String(ts)); } catch { /* ignore */ }
       setIdleWarning(false);
+      idleWarningRef.current = false;
       setIdleSecondsLeft(0);
       scheduleFrom(ts);
       if (broadcast) {
@@ -394,15 +400,22 @@ function useAuthInternal(): AuthContextValue {
       }
     };
 
-    const bump = () => {
+    const bump = (force = false) => {
+      // Once the idle-warning dialog is showing, ignore ambient activity
+      // (mousemove, scroll, etc.) — otherwise moving the cursor toward the
+      // "Stay signed in" button silently dismisses the dialog before the
+      // click lands. Only an explicit extendSession() call (force=true)
+      // clears the warning.
+      if (idleWarningRef.current && !force) return;
       const now = Date.now();
-      if (now - lastBump < bumpThrottleMs) return;
+      if (!force && now - lastBump < bumpThrottleMs) return;
       lastBump = now;
       applyActivity(now, true);
     };
 
     // Expose bump() for the one-click "Stay signed in" extend action.
     bumpRef.current = bump;
+
 
     const onRemoteActivity = (ts: number) => {
       if (!Number.isFinite(ts)) return;
@@ -449,7 +462,9 @@ function useAuthInternal(): AuthContextValue {
       "focus",
     ] as const;
     const listenerOpts: AddEventListenerOptions = { passive: true, capture: true };
-    winEvents.forEach((ev) => window.addEventListener(ev, bump, listenerOpts));
+    const bumpListener: EventListener = () => bump();
+    winEvents.forEach((ev) => window.addEventListener(ev, bumpListener, listenerOpts));
+
     document.addEventListener("visibilitychange", onVisibility);
 
     // Keepalive: refresh the Supabase access token on a schedule so background
@@ -463,7 +478,7 @@ function useAuthInternal(): AuthContextValue {
     return () => {
       clearTimers();
       clearInterval(keepalive);
-      winEvents.forEach((ev) => window.removeEventListener(ev, bump, listenerOpts));
+      winEvents.forEach((ev) => window.removeEventListener(ev, bumpListener, listenerOpts));
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("storage", onStorage);
       channel?.removeEventListener("message", onChannelMessage);
