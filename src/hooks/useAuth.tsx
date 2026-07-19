@@ -102,7 +102,9 @@ function useAuthInternal(): AuthContextValue {
   const [sessionConfig, setSessionConfig] = useState<SessionConfig>(() => loadSessionConfig());
   const [idleWarning, setIdleWarning] = useState(false);
   const [idleSecondsLeft, setIdleSecondsLeft] = useState(0);
-  const bumpRef = useRef<() => void>(() => {});
+  const idleWarningRef = useRef(false);
+  const bumpRef = useRef<(force?: boolean) => void>(() => {});
+
 
   const setResolvedUser = useCallback((next: StaffUser | null) => {
     userRef.current = next;
