@@ -478,7 +478,7 @@ function useAuthInternal(): AuthContextValue {
     return () => {
       clearTimers();
       clearInterval(keepalive);
-      winEvents.forEach((ev) => window.removeEventListener(ev, bump, listenerOpts));
+      winEvents.forEach((ev) => window.removeEventListener(ev, bumpListener, listenerOpts));
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("storage", onStorage);
       channel?.removeEventListener("message", onChannelMessage);
