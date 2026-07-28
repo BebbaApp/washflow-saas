@@ -53,6 +53,8 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null);
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Expense | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const filtered = useMemo(() => {
     return expenses
@@ -68,6 +70,19 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
         );
       });
   }, [expenses, range, catFilter, search]);
+
+  // Reset to first page whenever the underlying filtered set changes.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+  // Snap back to page 1 when filters shrink results below the current page.
+  if (page !== currentPage) {
+    // Defer to avoid setState-in-render warning.
+    queueMicrotask(() => setPage(currentPage));
+  }
 
   const rangeRevenue = useMemo(() => {
     return orders
@@ -129,30 +144,32 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
 
   return (
     <div className="space-y-6">
-      {/* Range pills + export */}
-      <div className="flex items-center justify-between flex-wrap gap-3 -mt-4">
-        <button
-          onClick={handleExportPDF}
-          disabled={filtered.length === 0}
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card border border-border text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Export PDF
-        </button>
-        <div className="inline-flex items-center gap-1 p-1 rounded-full bg-muted">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                range === r.id
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+      {/* Sticky header: range pills + export stay visible while scrolling */}
+      <div className="sticky top-0 z-20 -mx-4 px-4 pt-2 pb-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <button
+            onClick={handleExportPDF}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card border border-border text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export PDF
+          </button>
+          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-muted">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  range === r.id
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -257,7 +274,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {filtered.map((e) => (
+            {pagedRows.map((e) => (
               <li
                 key={e.id}
                 onClick={() => setDetailExpense(e)}
@@ -299,6 +316,34 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           </ul>
         )}
       </div>
+
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between flex-wrap gap-3 text-sm">
+          <p className="text-muted-foreground">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </p>
+          <div className="inline-flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {addOpen && (
         <ExpenseFormDialog
