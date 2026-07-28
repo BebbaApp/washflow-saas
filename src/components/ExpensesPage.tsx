@@ -274,7 +274,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {filtered.map((e) => (
+            {pagedRows.map((e) => (
               <li
                 key={e.id}
                 onClick={() => setDetailExpense(e)}
@@ -316,6 +316,34 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           </ul>
         )}
       </div>
+
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between flex-wrap gap-3 text-sm">
+          <p className="text-muted-foreground">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </p>
+          <div className="inline-flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {addOpen && (
         <ExpenseFormDialog
