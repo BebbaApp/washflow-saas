@@ -53,6 +53,8 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null);
   const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Expense | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const filtered = useMemo(() => {
     return expenses
@@ -68,6 +70,19 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
         );
       });
   }, [expenses, range, catFilter, search]);
+
+  // Reset to first page whenever the underlying filtered set changes.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+  // Snap back to page 1 when filters shrink results below the current page.
+  if (page !== currentPage) {
+    // Defer to avoid setState-in-render warning.
+    queueMicrotask(() => setPage(currentPage));
+  }
 
   const rangeRevenue = useMemo(() => {
     return orders
