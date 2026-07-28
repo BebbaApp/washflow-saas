@@ -373,7 +373,62 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
-    if (action === "save_compensation") {
+    if (action === "update_profile") {
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      const rawName = typeof body?.name === "string" ? body.name.trim() : "";
+      const rawEmail = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+      const rawPhone = typeof body?.phone === "string" ? body.phone.trim() : "";
+
+      if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        return reply({ error: "Invalid email address" }, 400);
+      }
+      if (rawName && rawName.length > 100) {
+        return reply({ error: "Name too long" }, 400);
+      }
+      if (rawPhone && rawPhone.length > 32) {
+        return reply({ error: "Phone too long" }, 400);
+      }
+
+      // Confirm the target is part of this tenant so admins can't edit strangers.
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+
+      // Update the auth user (email/phone) — only include fields the caller
+      // actually sent so we don't wipe existing values.
+      const authPatch: Record<string, unknown> = {};
+      if (rawEmail) authPatch.email = rawEmail;
+      if (rawPhone) authPatch.phone = rawPhone;
+      if (Object.keys(authPatch).length > 0) {
+        const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authPatch);
+        if (authErr) return reply({ error: authErr.message }, 500);
+      }
+
+      if (rawName) {
+        const { error: profErr } = await admin
+          .from("profiles")
+          .update({ name: rawName })
+          .eq("user_id", user_id);
+        if (profErr) return reply({ error: profErr.message }, 500);
+      }
+
+      // Keep the PIN-login phone in sync so staff can still sign in with PIN.
+      if (rawPhone) {
+        await admin
+          .from("staff_pins")
+          .update({ phone: rawPhone, updated_at: new Date().toISOString() })
+          .eq("user_id", user_id)
+          .eq("tenant_id", tenantId);
+      }
+
+      return reply({ success: true });
+    }
+
       const { user_id } = body ?? {};
       const payType = String(body?.pay_type ?? "salary");
       if (!user_id || !["salary", "wage", "weekly"].includes(payType)) {
