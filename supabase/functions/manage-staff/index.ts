@@ -68,6 +68,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     set_role: "update_role",
     change_role: "update_role",
 
+    update_profile: "update_profile",
+    edit_worker: "update_profile",
+    update_worker: "update_profile",
+    edit_profile: "update_profile",
+
     save_compensation: "save_compensation",
     set_compensation: "save_compensation",
     upsert_compensation: "save_compensation",
