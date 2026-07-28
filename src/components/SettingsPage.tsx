@@ -574,6 +574,15 @@ function WorkersSection() {
                   )}
 
                   <button
+                    onClick={() => openEditDialog(u)}
+                    title="Edit worker details"
+                    className="h-9 px-2.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+
+                  <button
                     onClick={() => openPinDialog(u)}
                     title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
                     className={`h-9 px-2.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium transition-colors ${
@@ -585,6 +594,7 @@ function WorkersSection() {
                     <KeyRound className="w-3.5 h-3.5" />
                     {u.has_pin ? "PIN set" : "Set PIN"}
                   </button>
+
 
                   <Select
                     value={u.role ?? ""}
