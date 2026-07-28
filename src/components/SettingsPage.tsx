@@ -210,6 +210,52 @@ function WorkersSection() {
   const [newPin, setNewPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
+  // Edit worker profile (name / email / phone)
+  const [editTarget, setEditTarget] = useState<StaffUser | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEditDialog = (u: StaffUser) => {
+    setEditTarget(u);
+    setEditName(u.name ?? "");
+    setEditEmail(u.email ?? "");
+    setEditPhone(u.phone ?? "");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget || !tenant?.id) return;
+    if (!editName.trim()) {
+      toast({ title: "Name is required", variant: "destructive" });
+      return;
+    }
+    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
+      toast({ title: "Enter a valid email address", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "update_profile",
+        tenant_id: tenant.id,
+        user_id: editTarget.id,
+        name: editName.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+      },
+    });
+    setSavingEdit(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Failed to save", description: res.data?.error || res.error?.message || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Worker updated" });
+    setEditTarget(null);
+    loadUsers();
+  };
+
   const openPinDialog = (u: StaffUser) => {
     setPinTarget(u);
     setPinPhone(u.phone ?? "");
@@ -528,6 +574,15 @@ function WorkersSection() {
                   )}
 
                   <button
+                    onClick={() => openEditDialog(u)}
+                    title="Edit worker details"
+                    className="h-9 px-2.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+
+                  <button
                     onClick={() => openPinDialog(u)}
                     title={u.has_pin ? "Edit PIN login" : "Set up PIN login"}
                     className={`h-9 px-2.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium transition-colors ${
@@ -539,6 +594,7 @@ function WorkersSection() {
                     <KeyRound className="w-3.5 h-3.5" />
                     {u.has_pin ? "PIN set" : "Set PIN"}
                   </button>
+
 
                   <Select
                     value={u.role ?? ""}
@@ -777,6 +833,69 @@ function WorkersSection() {
                   Remove
                 </button>
               )}
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <Edit2 className="w-4 h-4 text-primary" />
+              Edit worker details
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Full Name</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="John Smith"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Email</Label>
+              <Input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="worker@example.com"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+                data-no-capitalize
+              />
+              <p className="text-xs text-muted-foreground">Changing the email may require re-verification.</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-secondary-foreground">Phone Number</Label>
+              <Input
+                type="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="+1 234 567 8900"
+                className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+              />
+              <p className="text-xs text-muted-foreground">Also updates the phone used for PIN login (if set).</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditTarget(null)}
+                disabled={savingEdit}
+                className="px-4 py-2.5 rounded-lg bg-secondary text-foreground font-medium text-sm hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingEdit}
+                className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {savingEdit && <Loader2 className="w-4 h-4 animate-spin" />}
+                {savingEdit ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           </form>
         </DialogContent>

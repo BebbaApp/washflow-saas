@@ -8,7 +8,7 @@ const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
+const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records", "set_pin", "clear_pin", "update_role", "update_profile", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
 const READ_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
@@ -67,6 +67,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     update_role: "update_role",
     set_role: "update_role",
     change_role: "update_role",
+
+    update_profile: "update_profile",
+    edit_worker: "update_profile",
+    update_worker: "update_profile",
+    edit_profile: "update_profile",
 
     save_compensation: "save_compensation",
     set_compensation: "save_compensation",
@@ -365,6 +370,62 @@ Deno.serve(async (req) => {
         .from("user_roles")
         .insert({ user_id, role, tenant_id: tenantId });
       if (error) return reply({ error: error.message }, 500);
+      return reply({ success: true });
+    }
+
+    if (action === "update_profile") {
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      const rawName = typeof body?.name === "string" ? body.name.trim() : "";
+      const rawEmail = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+      const rawPhone = typeof body?.phone === "string" ? body.phone.trim() : "";
+
+      if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        return reply({ error: "Invalid email address" }, 400);
+      }
+      if (rawName && rawName.length > 100) {
+        return reply({ error: "Name too long" }, 400);
+      }
+      if (rawPhone && rawPhone.length > 32) {
+        return reply({ error: "Phone too long" }, 400);
+      }
+
+      // Confirm the target is part of this tenant so admins can't edit strangers.
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+
+      // Update the auth user (email/phone) — only include fields the caller
+      // actually sent so we don't wipe existing values.
+      const authPatch: Record<string, unknown> = {};
+      if (rawEmail) authPatch.email = rawEmail;
+      if (rawPhone) authPatch.phone = rawPhone;
+      if (Object.keys(authPatch).length > 0) {
+        const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authPatch);
+        if (authErr) return reply({ error: authErr.message }, 500);
+      }
+
+      if (rawName) {
+        const { error: profErr } = await admin
+          .from("profiles")
+          .update({ name: rawName })
+          .eq("user_id", user_id);
+        if (profErr) return reply({ error: profErr.message }, 500);
+      }
+
+      // Keep the PIN-login phone in sync so staff can still sign in with PIN.
+      if (rawPhone) {
+        await admin
+          .from("staff_pins")
+          .update({ phone: rawPhone, updated_at: new Date().toISOString() })
+          .eq("user_id", user_id)
+          .eq("tenant_id", tenantId);
+      }
+
       return reply({ success: true });
     }
 
