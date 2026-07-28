@@ -210,6 +210,52 @@ function WorkersSection() {
   const [newPin, setNewPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
+  // Edit worker profile (name / email / phone)
+  const [editTarget, setEditTarget] = useState<StaffUser | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEditDialog = (u: StaffUser) => {
+    setEditTarget(u);
+    setEditName(u.name ?? "");
+    setEditEmail(u.email ?? "");
+    setEditPhone(u.phone ?? "");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget || !tenant?.id) return;
+    if (!editName.trim()) {
+      toast({ title: "Name is required", variant: "destructive" });
+      return;
+    }
+    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
+      toast({ title: "Enter a valid email address", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    const res = await supabase.functions.invoke("manage-staff", {
+      body: {
+        action: "update_profile",
+        tenant_id: tenant.id,
+        user_id: editTarget.id,
+        name: editName.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+      },
+    });
+    setSavingEdit(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Failed to save", description: res.data?.error || res.error?.message || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Worker updated" });
+    setEditTarget(null);
+    loadUsers();
+  };
+
   const openPinDialog = (u: StaffUser) => {
     setPinTarget(u);
     setPinPhone(u.phone ?? "");
