@@ -429,6 +429,7 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    if (action === "save_compensation") {
       const { user_id } = body ?? {};
       const payType = String(body?.pay_type ?? "salary");
       if (!user_id || !["salary", "wage", "weekly"].includes(payType)) {
