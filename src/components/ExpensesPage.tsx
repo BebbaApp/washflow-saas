@@ -145,7 +145,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
   return (
     <div className="space-y-6">
       {/* Sticky header: range pills + export stay visible while scrolling */}
-      <div className="sticky top-0 z-20 -mx-4 px-4 pt-2 pb-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border">
+      <div className="sticky top-0 z-20 lg:top-14 lg:z-30 -mx-4 px-4 pt-2 pb-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <button
             onClick={handleExportPDF}
