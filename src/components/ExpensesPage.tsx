@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Filter, Receipt, TrendingDown, TrendingUp, Trash2, X, Download, Pencil, AlertTriangle } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -437,7 +437,16 @@ function ExpenseFormDialog({
 }) {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? categories[0] ?? "Other");
+  // Fallback categories so managers/supervisors can always pick a value even
+  // when their tenant hasn't loaded custom categories or the global catalog
+  // hasn't arrived yet.
+  const FALLBACK_CATEGORIES = ["Supplies", "Utilities", "Salaries", "Maintenance", "Rent", "Marketing", "Other"];
+  const effectiveCategories = useMemo(
+    () => (categories.length > 0 ? categories : FALLBACK_CATEGORIES),
+    [categories],
+  );
+
+  const [category, setCategory] = useState<ExpenseCategory>(initial?.category ?? effectiveCategories[0] ?? "Other");
   const [subcategory, setSubcategory] = useState<string>(initial?.subcategory ?? "");
   const [vendor, setVendor] = useState(initial?.vendor ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -445,6 +454,17 @@ function ExpenseFormDialog({
     initial ? new Date(initial.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
   );
   const [error, setError] = useState("");
+
+  // When categories arrive after mount, or the current value isn't in the
+  // list, snap the field to a valid option so the <select> is always
+  // interactive (rather than stuck on a phantom value).
+  useEffect(() => {
+    if (initial) return;
+    if (!effectiveCategories.includes(category)) {
+      setCategory(effectiveCategories[0] ?? "Other");
+      setSubcategory("");
+    }
+  }, [effectiveCategories, initial, category]);
 
   const subOptions = useMemo(() => subcategoriesFor(category), [category, subcategoriesFor]);
 
@@ -516,7 +536,7 @@ function ExpenseFormDialog({
                 onChange={(e) => { setCategory(e.target.value as ExpenseCategory); setSubcategory(""); }}
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
-                {categories.map((c) => (
+                {effectiveCategories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
