@@ -554,15 +554,17 @@ function ExpenseFormDialog({
                   ))}
                 </select>
               ) : (
+                // No catalog subcategories for this category — still allow a
+                // free-text subcategory so every role can always capture one.
                 <input
                   value={subcategory}
                   onChange={(e) => setSubcategory(e.target.value)}
-                  placeholder="No subcategories"
-                  disabled
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-muted-foreground"
+                  placeholder="Type a subcategory"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               )}
             </Field>
+
           </div>
 
           <Field label="Vendor (optional)">
