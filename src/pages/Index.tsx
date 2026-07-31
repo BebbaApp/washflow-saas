@@ -4,6 +4,7 @@ import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
   Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint, AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import type { StaffRole } from "@/hooks/useAuth";
@@ -40,6 +41,9 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
 import { MobileBottomNav, type BottomNavItem } from "@/components/MobileBottomNav";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTauriSync } from "@/lib/tauri/sync";
+import { toast } from "sonner";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
@@ -92,6 +96,26 @@ const Index = () => {
   const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { isTauriApp, forceSync } = useTauriSync();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (isTauriApp) {
+        await forceSync();
+      }
+      await queryClient.invalidateQueries({ predicate: () => true });
+      toast.success("Data refreshed", { duration: 2000 });
+    } catch (err) {
+      console.error("Refresh failed:", err);
+      toast.error("Refresh failed — try again", { duration: 3000 });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
@@ -286,9 +310,20 @@ const Index = () => {
             </span>
           )}
         </div>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground shrink-0">
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+            title="Refresh data"
+            aria-label="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground shrink-0">
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu Overlay */}
@@ -335,6 +370,15 @@ const Index = () => {
           </div>
 
           <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+            title="Refresh data"
+            aria-label="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary transition-colors text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
