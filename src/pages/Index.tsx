@@ -96,6 +96,26 @@ const Index = () => {
   const workspaceName = tenant?.name || "Washflow Saas";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { isTauriApp, forceSync } = useTauriSync();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (isTauriApp) {
+        await forceSync();
+      }
+      await queryClient.invalidateQueries({ predicate: () => true });
+      toast.success("Data refreshed", { duration: 2000 });
+    } catch (err) {
+      console.error("Refresh failed:", err);
+      toast.error("Refresh failed — try again", { duration: 3000 });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
 
   // Auto-deduct inventory when orders are completed (idempotent fallback for
