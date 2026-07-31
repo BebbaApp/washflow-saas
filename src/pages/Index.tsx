@@ -310,9 +310,20 @@ const Index = () => {
             </span>
           )}
         </div>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground shrink-0">
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+            title="Refresh data"
+            aria-label="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground shrink-0">
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu Overlay */}
