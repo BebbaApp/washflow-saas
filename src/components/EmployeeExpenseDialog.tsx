@@ -323,15 +323,35 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       return [{ start, end }];
     });
   }, [selectedWeeks, weekDateKeys]);
+  // Every unsettled adjustment for this worker (regardless of date).
+  const pendingForWorker = useMemo(() => {
+    if (!staffId) return [] as any[];
+    return (adjRows ?? [])
+      .filter((r: any) => r.worker_id === staffId && (r.status ?? "pending") === "pending")
+      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+  }, [adjRows, staffId]);
+
+  // End of the latest selected week — anything unsettled on/before that date
+  // is owed against this payout, including advances taken in earlier weeks or
+  // in a previous month that were never deducted.
+  const periodEnd = useMemo(() => {
+    if (weekRanges.length === 0) return null;
+    return weekRanges.reduce<Date>((max, w) => (w.end > max ? w.end : max), weekRanges[0].end);
+  }, [weekRanges]);
+
   const applicableAdjustments = useMemo(() => {
-    if (!staffId || weekRanges.length === 0) return [] as any[];
-    return (adjRows ?? []).filter((r: any) => {
-      if (r.worker_id !== staffId) return false;
-      if ((r.status ?? "pending") !== "pending") return false;
-      const d = new Date(r.date + "T00:00:00");
-      return weekRanges.some((w) => d >= w.start && d <= w.end);
+    if (!periodEnd) return [] as any[];
+    return pendingForWorker.filter((r: any) => {
+      const d = new Date(String(r.date).slice(0, 10) + "T00:00:00");
+      return !isNaN(d.getTime()) && d <= periodEnd;
     });
-  }, [adjRows, staffId, weekRanges]);
+  }, [pendingForWorker, periodEnd]);
+
+  const futureAdjustments = useMemo(
+    () => pendingForWorker.filter((r: any) => !applicableAdjustments.includes(r)),
+    [pendingForWorker, applicableAdjustments]
+  );
+
   const adjustmentTotals = useMemo(() => {
     let advances = 0; let penalties = 0;
     applicableAdjustments.forEach((r) => {
@@ -695,6 +715,24 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   />
                 </div>
               </label>
+
+              {pendingForWorker.length > 0 && applicableAdjustments.length === 0 && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs p-3">
+                  {displayName} has {pendingForWorker.length} unsettled adjustment
+                  {pendingForWorker.length === 1 ? "" : "s"} totalling{" "}
+                  {formatPrice(pendingForWorker.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0))}
+                  {periodEnd
+                    ? " dated after the selected weeks, so nothing is deducted yet."
+                    : ". Tick the week(s) you are paying above and they will be deducted."}
+                </div>
+              )}
+
+              {futureAdjustments.length > 0 && applicableAdjustments.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {futureAdjustments.length} adjustment{futureAdjustments.length === 1 ? " is" : "s are"} dated after this
+                  period and will carry over to the next payout.
+                </p>
+              )}
 
               {applicableAdjustments.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">
