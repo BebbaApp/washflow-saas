@@ -323,15 +323,35 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       return [{ start, end }];
     });
   }, [selectedWeeks, weekDateKeys]);
+  // Every unsettled adjustment for this worker (regardless of date).
+  const pendingForWorker = useMemo(() => {
+    if (!staffId) return [] as any[];
+    return (adjRows ?? [])
+      .filter((r: any) => r.worker_id === staffId && (r.status ?? "pending") === "pending")
+      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+  }, [adjRows, staffId]);
+
+  // End of the latest selected week — anything unsettled on/before that date
+  // is owed against this payout, including advances taken in earlier weeks or
+  // in a previous month that were never deducted.
+  const periodEnd = useMemo(() => {
+    if (weekRanges.length === 0) return null;
+    return weekRanges.reduce<Date>((max, w) => (w.end > max ? w.end : max), weekRanges[0].end);
+  }, [weekRanges]);
+
   const applicableAdjustments = useMemo(() => {
-    if (!staffId || weekRanges.length === 0) return [] as any[];
-    return (adjRows ?? []).filter((r: any) => {
-      if (r.worker_id !== staffId) return false;
-      if ((r.status ?? "pending") !== "pending") return false;
-      const d = new Date(r.date + "T00:00:00");
-      return weekRanges.some((w) => d >= w.start && d <= w.end);
+    if (!periodEnd) return [] as any[];
+    return pendingForWorker.filter((r: any) => {
+      const d = new Date(String(r.date).slice(0, 10) + "T00:00:00");
+      return !isNaN(d.getTime()) && d <= periodEnd;
     });
-  }, [adjRows, staffId, weekRanges]);
+  }, [pendingForWorker, periodEnd]);
+
+  const futureAdjustments = useMemo(
+    () => pendingForWorker.filter((r: any) => !applicableAdjustments.includes(r)),
+    [pendingForWorker, applicableAdjustments]
+  );
+
   const adjustmentTotals = useMemo(() => {
     let advances = 0; let penalties = 0;
     applicableAdjustments.forEach((r) => {
