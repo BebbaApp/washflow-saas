@@ -4,6 +4,7 @@ import {
   Droplets, Plus, Menu, X, LayoutDashboard, ListOrdered, Package, BarChart3,
   LogOut, Loader2, Gift, Users, History as HistoryIcon, Boxes, Receipt,
   Settings as SettingsIcon, Sun, Moon, ChevronDown, User as UserIcon, Fingerprint, AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import type { StaffRole } from "@/hooks/useAuth";
@@ -40,6 +41,9 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
 import { MobileBottomNav, type BottomNavItem } from "@/components/MobileBottomNav";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTauriSync } from "@/lib/tauri/sync";
+import { toast } from "sonner";
 
 // Each nav item maps to the permission key that gates its visibility, plus a
 // list of legacy roles that always retain access (washer/driver field staff
