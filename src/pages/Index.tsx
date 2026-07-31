@@ -359,6 +359,15 @@ const Index = () => {
           </div>
 
           <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+            title="Refresh data"
+            aria-label="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary transition-colors text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
