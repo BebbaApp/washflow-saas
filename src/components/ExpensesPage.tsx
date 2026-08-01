@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Filter, Receipt, TrendingDown, TrendingUp, Trash2, X, Download, Pencil, AlertTriangle } from "lucide-react";
+import { Plus, Search, Filter, Receipt, TrendingDown, TrendingUp, Trash2, X, Download, Pencil, AlertTriangle, Camera, Paperclip, Eye, Loader2 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { useExpenses, getSignedReceiptUrl, type Expense } from "@/hooks/useExpenses";
 import { useExpenseCategories, categoryTone } from "@/hooks/useExpenseCategories";
 import type { WashOrder } from "@/hooks/useOrders";
 import { EmployeeExpenseDialog } from "@/components/EmployeeExpenseDialog";
@@ -43,7 +43,7 @@ interface Props {
 
 export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpenseOpen = false, onEmployeeExpenseOpenChange }: Props) {
   const { formatPrice, currency } = useCurrency();
-  const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { expenses, addExpense, updateExpense, deleteExpense, uploadReceipt } = useExpenses();
   const { categories, subcategoriesFor } = useExpenseCategories();
 
 
@@ -351,6 +351,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           initial={null}
           categories={categories}
           subcategoriesFor={subcategoriesFor}
+          uploadReceipt={uploadReceipt}
           onClose={() => onAddOpenChange(false)}
           onSubmit={(data) => {
             addExpense(data);
@@ -366,6 +367,7 @@ export function ExpensesPage({ orders, addOpen, onAddOpenChange, employeeExpense
           initial={editExpense}
           categories={categories}
           subcategoriesFor={subcategoriesFor}
+          uploadReceipt={uploadReceipt}
           onClose={() => setEditExpense(null)}
           onSubmit={(data) => {
             updateExpense(editExpense.id, data);
@@ -425,12 +427,13 @@ function StatCard({
 }
 
 function ExpenseFormDialog({
-  mode, initial, categories, subcategoriesFor, onClose, onSubmit, currencySymbol,
+  mode, initial, categories, subcategoriesFor, uploadReceipt, onClose, onSubmit, currencySymbol,
 }: {
   mode: "add" | "edit";
   initial: Expense | null;
   categories: string[];
   subcategoriesFor: (category: string) => string[];
+  uploadReceipt: (file: File | Blob, ext?: string) => Promise<string>;
   onClose: () => void;
   onSubmit: (data: Omit<Expense, "id" | "createdAt">) => void;
   currencySymbol: string;
@@ -454,6 +457,16 @@ function ExpenseFormDialog({
     initial ? new Date(initial.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
   );
   const [error, setError] = useState("");
+  const [receiptUrl, setReceiptUrl] = useState<string | undefined>(initial?.receiptUrl);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const pickReceipt = (file: File | null) => {
+    if (!file) return;
+    setReceiptFile(file);
+    setReceiptPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+  };
 
   // When categories arrive after mount, or the current value isn't in the
   // list, snap the field to a valid option so the <select> is always
@@ -468,12 +481,26 @@ function ExpenseFormDialog({
 
   const subOptions = useMemo(() => subcategoriesFor(category), [category, subcategoriesFor]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(amount);
     if (!description.trim()) return setError("Description is required");
     if (!amt || amt <= 0) return setError("Amount must be greater than zero");
     if (notes.length > 500) return setError("Notes too long (max 500 chars)");
+
+    let storedReceipt = receiptUrl;
+    if (receiptFile) {
+      setSaving(true);
+      try {
+        const ext = (receiptFile.name.split(".").pop() || "jpg").toLowerCase().slice(0, 5);
+        storedReceipt = await uploadReceipt(receiptFile, ext);
+      } catch (err: any) {
+        setSaving(false);
+        return setError(err?.message || "Could not upload the receipt. Check your connection and try again.");
+      }
+      setSaving(false);
+    }
+
     onSubmit({
       description: description.trim(),
       amount: amt,
@@ -482,6 +509,7 @@ function ExpenseFormDialog({
       vendor: vendor.trim() || undefined,
       notes: notes.trim() || undefined,
       date: new Date(date).toISOString(),
+      receiptUrl: storedReceipt,
     });
   };
 
@@ -583,6 +611,66 @@ function ExpenseFormDialog({
               className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
           </Field>
+          <Field label="Receipt (optional)">
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-background text-sm font-medium cursor-pointer hover:bg-muted">
+                  <Camera className="w-4 h-4" /> Take photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(e) => pickReceipt(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-background text-sm font-medium cursor-pointer hover:bg-muted">
+                  <Paperclip className="w-4 h-4" /> Attach file
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="sr-only"
+                    onChange={(e) => pickReceipt(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
+
+              {receiptFile ? (
+                <div className="flex items-center gap-3 p-2 rounded-lg border border-border bg-muted/40">
+                  {receiptPreview ? (
+                    <img src={receiptPreview} alt="Receipt preview" className="w-12 h-12 object-cover rounded-md" />
+                  ) : (
+                    <Receipt className="w-6 h-6 text-muted-foreground" />
+                  )}
+                  <span className="text-xs text-foreground truncate flex-1">{receiptFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setReceiptFile(null); setReceiptPreview(null); }}
+                    className="p-1.5 rounded-md hover:bg-muted"
+                    aria-label="Remove selected receipt"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : receiptUrl ? (
+                <div className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/40">
+                  <Receipt className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground flex-1">Receipt attached</span>
+                  <ViewReceiptButton path={receiptUrl} compact />
+                  <button
+                    type="button"
+                    onClick={() => setReceiptUrl(undefined)}
+                    className="p-1.5 rounded-md hover:bg-muted"
+                    aria-label="Remove receipt"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No receipt attached.</p>
+              )}
+            </div>
+          </Field>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
@@ -594,9 +682,11 @@ function ExpenseFormDialog({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-60"
             >
-              {mode === "add" ? "Save Expense" : "Save Changes"}
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {saving ? "Uploading…" : mode === "add" ? "Save Expense" : "Save Changes"}
             </button>
           </div>
         </form>
@@ -661,6 +751,15 @@ function ExpenseDetailsDialog({
             )}
           </div>
 
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Receipt</p>
+            {expense.receiptUrl ? (
+              <ViewReceiptButton path={expense.receiptUrl} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No receipt attached</p>
+            )}
+          </div>
+
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
               onClick={onDelete}
@@ -678,6 +777,37 @@ function ExpenseDetailsDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function ViewReceiptButton({ path, compact = false }: { path: string; compact?: boolean }) {
+  const [loading, setLoading] = useState(false);
+
+  const open = async () => {
+    setLoading(true);
+    try {
+      const url = await getSignedReceiptUrl(path, 600);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      else alert("Receipt is unavailable offline. Reconnect and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={loading}
+      className={
+        compact
+          ? "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-60"
+          : "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-background text-sm font-medium hover:bg-muted disabled:opacity-60"
+      }
+    >
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+      View receipt
+    </button>
   );
 }
 

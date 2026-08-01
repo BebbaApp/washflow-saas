@@ -59,6 +59,7 @@ const ExpenseInsertSchema = z.object({
   subcategory: optionalText(120),
   vendor: optionalText(180),
   notes: optionalText(1000),
+  receipt_url: optionalText(500),
   date: timestampText.optional(),
   created_by: nullableUuid,
   created_at: timestampText.optional(),
