@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { db } from "@/offline/db";
@@ -21,6 +22,17 @@ export interface Expense {
   notes?: string;
   date: string;
   createdAt: string;
+  receiptUrl?: string;
+}
+
+export const RECEIPT_BUCKET = "expense-receipts";
+
+/** Signed URL for a stored receipt — null when offline or missing. */
+export async function getSignedReceiptUrl(path: string, expiresIn = 300): Promise<string | null> {
+  if (!path) return null;
+  const clean = path.replace(/^.*expense-receipts\//, "");
+  const { data } = await supabase.storage.from(RECEIPT_BUCKET).createSignedUrl(clean, expiresIn);
+  return data?.signedUrl || null;
 }
 
 function rowToExpense(r: any): Expense {
@@ -34,6 +46,7 @@ function rowToExpense(r: any): Expense {
     notes: r.notes ?? undefined,
     date: r.date,
     createdAt: r.created_at,
+    receiptUrl: r.receipt_url ?? undefined,
   };
 }
 
@@ -63,6 +76,7 @@ export function useExpenses() {
       vendor: data.vendor ?? null,
       notes: data.notes ?? null,
       date: data.date,
+      receipt_url: data.receiptUrl ?? null,
       created_by: user?.id ?? null,
       created_at: now,
       updated_at: now,
@@ -84,6 +98,7 @@ export function useExpenses() {
     if (patch.vendor !== undefined) update.vendor = patch.vendor ?? null;
     if (patch.notes !== undefined) update.notes = patch.notes ?? null;
     if (patch.date !== undefined) update.date = patch.date;
+    if (patch.receiptUrl !== undefined) update.receipt_url = patch.receiptUrl ?? null;
     await (db as any).expenses.put({ ...existing, ...update, _dirty: 1, _op: "update" });
     await enqueueOutbox({ tenant_id: tenant.id, table: "expenses", op: "update", payload: update });
   }, [tenant?.id]);
@@ -94,7 +109,19 @@ export function useExpenses() {
     await enqueueOutbox({ tenant_id: tenant.id, table: "expenses", op: "delete", payload: { id } });
   }, [tenant?.id]);
 
+  /** Uploads a receipt image/PDF into the tenant folder; returns the storage path. */
+  const uploadReceipt = useCallback(async (file: File | Blob, ext = "jpg"): Promise<string> => {
+    if (!tenant?.id) throw new Error("No active tenant");
+    const path = `${tenant.id}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from(RECEIPT_BUCKET).upload(path, file, {
+      contentType: (file as File).type || "image/jpeg",
+      upsert: false,
+    });
+    if (error) throw error;
+    return path;
+  }, [tenant?.id]);
+
   const refresh = useCallback(async () => { /* sync engine handles it */ }, []);
 
-  return { expenses, loading, addExpense, updateExpense, deleteExpense, refresh };
+  return { expenses, loading, addExpense, updateExpense, deleteExpense, uploadReceipt, refresh };
 }
