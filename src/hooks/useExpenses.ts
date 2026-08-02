@@ -98,7 +98,7 @@ export function useExpenses() {
     if (patch.vendor !== undefined) update.vendor = patch.vendor ?? null;
     if (patch.notes !== undefined) update.notes = patch.notes ?? null;
     if (patch.date !== undefined) update.date = patch.date;
-    if (patch.receiptUrl !== undefined) update.receipt_url = patch.receiptUrl ?? null;
+    if ("receiptUrl" in patch) update.receipt_url = patch.receiptUrl ?? null;
     await (db as any).expenses.put({ ...existing, ...update, _dirty: 1, _op: "update" });
     await enqueueOutbox({ tenant_id: tenant.id, table: "expenses", op: "update", payload: update });
   }, [tenant?.id]);
