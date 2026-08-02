@@ -245,6 +245,7 @@ export type Database = {
           description: string
           id: string
           notes: string | null
+          receipt_url: string | null
           subcategory: string | null
           tenant_id: string
           vendor: string | null
@@ -258,6 +259,7 @@ export type Database = {
           description: string
           id?: string
           notes?: string | null
+          receipt_url?: string | null
           subcategory?: string | null
           tenant_id?: string
           vendor?: string | null
@@ -271,6 +273,7 @@ export type Database = {
           description?: string
           id?: string
           notes?: string | null
+          receipt_url?: string | null
           subcategory?: string | null
           tenant_id?: string
           vendor?: string | null
