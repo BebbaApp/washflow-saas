@@ -498,11 +498,22 @@ function useAuthInternal(): AuthContextValue {
   const signup = useCallback(async (
     email: string, password: string, name: string, phone?: string, companyName?: string,
   ): Promise<string | null> => {
+    // Preserve the tenant the user arrived from (?tenant=<slug>) so the confirmation
+    // link returns to this app/tenant instead of the default Site URL, and so the
+    // signup trigger joins the existing workspace instead of creating a duplicate.
+    let tenantSlug: string | null = null;
+    try { tenantSlug = new URLSearchParams(window.location.search).get("tenant"); } catch { /* ignore */ }
+    const redirectTo = `${window.location.origin}/auth/callback${tenantSlug ? `?tenant=${encodeURIComponent(tenantSlug)}` : ""}`;
     const { data, error } = await supabase.auth.signUp({
       email, password, phone: phone || undefined,
       options: {
-        data: { name, ...(phone ? { phone } : {}), ...(companyName ? { company_name: companyName } : {}) },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          name,
+          ...(phone ? { phone } : {}),
+          ...(companyName ? { company_name: companyName } : {}),
+          ...(tenantSlug ? { join_tenant_slug: tenantSlug } : {}),
+        },
+        emailRedirectTo: redirectTo,
       },
     });
     if (error) return error.message;

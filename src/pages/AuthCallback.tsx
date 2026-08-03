@@ -10,6 +10,14 @@ type Status = "working" | "success" | "error";
 const POLL_INTERVAL_MS = 1200;
 const DEADLINE_MS = 15000;
 
+function homePath() {
+  try {
+    const slug = new URLSearchParams(window.location.search).get("tenant");
+    if (slug) return `/?tenant=${encodeURIComponent(slug)}`;
+  } catch { /* ignore */ }
+  return "/";
+}
+
 export default function AuthCallback() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
@@ -43,7 +51,7 @@ export default function AuthCallback() {
               setStatus("success");
               setMessage("Email confirmed. Please sign in to continue.");
               setProgressPct(100);
-              setTimeout(() => navigate("/", { replace: true }), 1800);
+              setTimeout(() => navigate(homePath(), { replace: true }), 1800);
               return;
             }
             throw error;
@@ -78,7 +86,7 @@ export default function AuthCallback() {
           setStatus("success");
           setMessage("Email confirmed. Please sign in to continue.");
           setProgressPct(100);
-          setTimeout(() => navigate("/", { replace: true }), 1800);
+          setTimeout(() => navigate(homePath(), { replace: true }), 1800);
           return;
         }
 
@@ -119,7 +127,7 @@ export default function AuthCallback() {
         setProgressPct(100);
         await refresh();
         setMessage(confirmed ? "You're verified. Redirecting…" : "Almost done. Redirecting…");
-        setTimeout(() => navigate("/", { replace: true }), 800);
+        setTimeout(() => navigate(homePath(), { replace: true }), 800);
       } catch (err) {
         if (pollTimer) clearInterval(pollTimer);
         if (cancelled) return;
@@ -176,7 +184,7 @@ export default function AuthCallback() {
         )}
 
         {status === "error" && (
-          <Button onClick={() => navigate("/", { replace: true })} className="mt-2">
+          <Button onClick={() => navigate(homePath(), { replace: true })} className="mt-2">
             Back to login
           </Button>
         )}
