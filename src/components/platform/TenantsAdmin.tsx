@@ -315,13 +315,14 @@ export function TenantsAdmin() {
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
               placeholder={deleteTenant?.slug ?? ""}
+              data-no-capitalize
             />
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); confirmDelete(); }}
-              disabled={deleting || deleteConfirm.trim() !== (deleteTenant?.slug ?? "")}
+              disabled={deleting || deleteConfirm.trim().toLowerCase() !== (deleteTenant?.slug ?? "").toLowerCase()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete forever"}
