@@ -35,6 +35,10 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [tenantSlug] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return new URLSearchParams(window.location.search).get("tenant"); } catch { return null; }
+  });
   const [rememberMe, setRememberMe] = useState<boolean>(() => {
     try { return localStorage.getItem(REMEMBER_KEY) !== "false"; } catch { return true; }
   });
@@ -168,9 +172,15 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                     <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Smith" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="company" className="text-sm text-secondary-foreground">Company / Workspace Name</Label>
-                    <Input id="company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Car Wash" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-                    <p className="text-[11px] text-muted-foreground">Your 30-day free trial starts on signup.</p>
+                    <Label htmlFor="company" className="text-sm text-secondary-foreground">
+                      {tenantSlug ? "Joining Workspace" : "Company / Workspace Name"}
+                    </Label>
+                    <Input id="company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Car Wash" disabled={!!tenantSlug} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+                    <p className="text-[11px] text-muted-foreground">
+                      {tenantSlug
+                        ? "You'll be added to this existing workspace after confirming your email."
+                        : "Your 30-day free trial starts on signup."}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-phone" className="text-sm text-secondary-foreground">Phone Number</Label>
