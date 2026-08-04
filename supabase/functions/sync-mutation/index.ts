@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
     if (table === "orders" && op === "insert") {
       const existingNumber = typeof row.order_number === "string" ? row.order_number : "";
       if (!existingNumber || /^WO-/i.test(existingNumber)) {
-        const { data: orderNumber, error: orderNumberError } = await admin.rpc("next_order_number");
+        const { data: orderNumber, error: orderNumberError } = await admin.rpc("next_tenant_order_number", { _tenant: tenant_id });
         if (orderNumberError) return json({ error: orderNumberError.message }, 500);
         row = { ...row, order_number: orderNumber };
       }
