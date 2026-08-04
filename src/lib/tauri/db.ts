@@ -150,7 +150,7 @@ export const db = {
         created_by: params.createdBy ?? null,
       });
     }
-    const { data: orderNum } = await supabase.rpc('next_order_number');
+    const { data: orderNum } = await (supabase as any).rpc('next_tenant_order_number', { _tenant: params.tenantId });
     const { data, error } = await supabase
       .from('orders')
       .insert({
