@@ -1722,6 +1722,36 @@ export type Database = {
           },
         ]
       }
+      tenant_order_counters: {
+        Row: {
+          last_number: number
+          tenant_id: string
+        }
+        Insert: {
+          last_number?: number
+          tenant_id: string
+        }
+        Update: {
+          last_number?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_order_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "platform_tenants_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_order_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_settings: {
         Row: {
           created_at: string
@@ -1958,6 +1988,7 @@ export type Database = {
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
       is_tenant_member: { Args: { _tenant: string }; Returns: boolean }
       next_order_number: { Args: never; Returns: string }
+      next_tenant_order_number: { Args: { _tenant: string }; Returns: string }
       tenant_has_role: {
         Args: {
           _role: Database["public"]["Enums"]["tenant_role"]
