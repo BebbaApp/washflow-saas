@@ -18,7 +18,11 @@ for select
 to authenticated
 using (public.is_tenant_member(tenant_id));
 
--- 2) Renumber existing orders per tenant, starting at W-001 (chronological)
+-- 2) Drop global uniqueness FIRST (otherwise renumbering collides across tenants)
+alter table public.orders drop constraint if exists orders_order_number_key;
+drop index if exists public.orders_order_number_key;
+
+-- 3) Renumber existing orders per tenant, starting at W-001 (chronological)
 with numbered as (
   select id,
          'W-' || lpad(row_number() over (partition by tenant_id order by created_at asc, id asc)::text, 3, '0') as new_number
