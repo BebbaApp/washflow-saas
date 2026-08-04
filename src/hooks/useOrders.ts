@@ -116,11 +116,14 @@ export function useOrders() {
           }
         : null;
 
-      // Try to get a sequential order number when online; fall back to a local
-      // placeholder offline so the row is still usable until sync resolves it.
+      // Try to get a sequential, per-tenant order number when online; fall back
+      // to a local placeholder offline so the row is still usable until sync
+      // resolves it.
       let orderNum: string | null = null;
       try {
-        const { data: rpc } = await supabase.rpc("next_order_number");
+        const { data: rpc } = await (supabase as any).rpc("next_tenant_order_number", {
+          _tenant: tenant.id,
+        });
         if (rpc) orderNum = rpc as unknown as string;
       } catch {
         /* offline */
@@ -129,6 +132,7 @@ export function useOrders() {
         const allLocal = await db.orders.toArray();
         let highest = 0;
         for (const r of allLocal as any[]) {
+          if (r?.tenant_id !== tenant.id) continue;
           const m = String(r?.order_number ?? "").match(/^(?:W|WO)-(\d+)$/i);
           if (m) {
             const n = parseInt(m[1], 10);
