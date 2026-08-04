@@ -18,7 +18,11 @@ for select
 to authenticated
 using (public.is_tenant_member(tenant_id));
 
--- 2) Renumber existing orders per tenant, starting at W-001 (chronological)
+-- 2) Drop global uniqueness FIRST (otherwise renumbering collides across tenants)
+alter table public.orders drop constraint if exists orders_order_number_key;
+drop index if exists public.orders_order_number_key;
+
+-- 3) Renumber existing orders per tenant, starting at W-001 (chronological)
 with numbered as (
   select id,
          'W-' || lpad(row_number() over (partition by tenant_id order by created_at asc, id asc)::text, 3, '0') as new_number
@@ -30,7 +34,7 @@ from numbered n
 where o.id = n.id
   and o.order_number is distinct from n.new_number;
 
--- 3) Seed counters from current max per tenant
+-- 4) Seed counters from current max per tenant
 insert into public.tenant_order_counters (tenant_id, last_number)
 select tenant_id,
        coalesce(max(nullif(regexp_replace(order_number, '\D', '', 'g'), '')::int), 0)
@@ -38,9 +42,7 @@ from public.orders
 group by tenant_id
 on conflict (tenant_id) do update set last_number = excluded.last_number;
 
--- 4) Uniqueness scoped to tenant (drop any global unique constraint/index)
-alter table public.orders drop constraint if exists orders_order_number_key;
-drop index if exists public.orders_order_number_key;
+-- 5) Uniqueness scoped to tenant
 create unique index if not exists orders_tenant_order_number_uidx
   on public.orders (tenant_id, order_number);
 
