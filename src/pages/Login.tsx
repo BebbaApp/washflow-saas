@@ -35,10 +35,17 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  const [tenantSlug] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try { return new URLSearchParams(window.location.search).get("tenant"); } catch { return null; }
+  const [tenantContext] = useState<{ slug: string | null; id: string | null }>(() => {
+    if (typeof window === "undefined") return { slug: null, id: null };
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return { slug: params.get("tenant"), id: params.get("tenant_id") };
+    } catch {
+      return { slug: null, id: null };
+    }
   });
+  const tenantSlug = tenantContext.slug;
+  const isTenantSignup = Boolean(tenantContext.id || tenantSlug);
   const [rememberMe, setRememberMe] = useState<boolean>(() => {
     try { return localStorage.getItem(REMEMBER_KEY) !== "false"; } catch { return true; }
   });
@@ -173,11 +180,11 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="company" className="text-sm text-secondary-foreground">
-                      {tenantSlug ? "Joining Workspace" : "Company / Workspace Name"}
+                       {isTenantSignup ? "Joining Workspace" : "Company / Workspace Name"}
                     </Label>
-                    <Input id="company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Car Wash" disabled={!!tenantSlug} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
+                     <Input id="company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Car Wash" disabled={isTenantSignup} className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
                     <p className="text-[11px] text-muted-foreground">
-                      {tenantSlug
+                       {isTenantSignup
                         ? "You'll be added to this existing workspace after confirming your email."
                         : "Your 30-day free trial starts on signup."}
                     </p>
