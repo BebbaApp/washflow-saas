@@ -1,67 +1,54 @@
 ## Goal
 
-Let Admin/Manager log **advances** (money paid to a worker early) and **penalties** (charges/fines) against a staff member from the Attendance/Staff page, then have those amounts auto-deduct from the calculated pay in the Employee Expense dialog for whichever weeks are ticked. Once the payout expense is submitted, the deducted adjustments are marked settled and disappear from future payouts.
+Make Platform Console tenant onboarding idempotent: the console creates the tenant once, and the first account created through its signup link is attached to that exact tenant without creating another workspace.
 
-## Data model
+## Confirmed flow and failure mode
 
-New table `staff_pay_adjustments`:
+- The Platform Console creates an empty tenant first through `platform-admin` (`create_tenant`).
+- Its signup link currently identifies that tenant only with `?tenant=<slug>`.
+- The deployed signup page does pass that slug as `join_tenant_slug` in Supabase user metadata.
+- The database signup trigger attempts to find that slug. If the metadata is absent, altered, stale, or does not resolve to a tenant, it silently continues into the normal self-signup branch and creates a new tenant using `company_name`.
+- That fallback accounts for the observed shape: the console-created tenant remains empty while the new user is attached to a second tenant with the same display name.
 
-- `id uuid pk`
-- `tenant_id uuid` (default `current_tenant_id()`)
-- `worker_id uuid` — the staff member (user_id)
-- `kind text` — `'advance' | 'penalty'`
-- `amount numeric(12,2)` — always positive; deduction direction is implied by `kind` (both reduce net pay)
-- `date date` — the date it applies to (drives which week it belongs to)
-- `reason text`
-- `status text` — `'pending' | 'settled'` (default `pending`)
-- `settled_at timestamptz null`, `settled_by uuid null`, `settled_expense_id uuid null` (link back to the expense that consumed it)
-- `created_by uuid`, `created_at`, `updated_at`
+The exact reason a particular signup's slug failed to resolve cannot be confirmed from this session because direct database reads are unavailable. The fix will remove the unsafe fallback rather than relying on the slug always surviving every redirect.
 
-RLS + grants:
-- `SELECT/INSERT/UPDATE/DELETE` for `authenticated` scoped to `tenant_id = current_tenant_id()`.
-- Write policy additionally gated to Admin/Manager via `has_role`.
-- `GRANT`s to `authenticated` and `service_role`; add to `MIRRORED_TABLES` in `src/offline/db.ts` so it syncs offline like other tables and add to the realtime publication.
+## Implementation
 
-## Capture UI (Attendance page)
+1. **Use the tenant UUID in console-generated onboarding links**
+   - Include the created tenant ID alongside the human-readable slug in the signup URL.
+   - Preserve both values through the login/signup screen and email confirmation redirect.
+   - Store the tenant ID in signup metadata as the primary join reference; retain the slug only for readable URLs and backwards compatibility.
 
-On each staff row on `AttendancePage.tsx`, add an "Adjustments" action (Admin/Manager only) that opens a small dialog:
+2. **Make the signup trigger fail closed**
+   - Update `handle_new_user_tenant()` to resolve link-based signups by tenant ID first, then by slug for existing links.
+   - If either join marker is present but no matching tenant exists, raise a clear error instead of creating a new tenant.
+   - Keep automatic tenant creation only for genuine standalone signups that contain no join marker.
+   - Keep membership insertion idempotent so retries cannot create duplicate memberships.
 
-- List of existing pending adjustments for that worker (kind, date, amount, reason, delete).
-- Form to add a new one: kind (Advance / Penalty), amount, date (default today), reason.
-- Writes go through the existing `offlineInsert`/`offlineUpdate`/`offlineDelete` helpers so the change is offline-safe.
+3. **Assign the first linked user correctly**
+   - When the console-created tenant has no members, attach the signup user as tenant `owner`.
+   - If it already has members, attach later signup-link users as `member`, preserving the existing shared-link behavior.
+   - Ensure confirmation-time staff-role assignment uses the tenant membership that was created.
 
-## Consume in Employee Expense dialog
+4. **Handle existing empty duplicates safely**
+   - Add a read-only diagnostic query to identify same-name tenants, their slugs, creation times, and member counts.
+   - Do not automatically delete existing duplicates because they may already contain business data; provide a targeted cleanup query only for confirmed empty tenants after reviewing the diagnostic result.
 
-In `EmployeeExpenseDialog.tsx`:
+5. **Validate the complete flow**
+   - Create one tenant in the Platform Console.
+   - Open its generated signup link, register and confirm the first user.
+   - Verify the tenant count remains unchanged, the user belongs to the original tenant as owner, and the confirmation redirect returns to that tenant.
+   - Verify a normal signup without a tenant link still creates exactly one new tenant.
 
-1. Load pending adjustments for the selected worker via `useLiveTable('staff_pay_adjustments')`.
-2. Filter to adjustments whose `date` falls inside the currently ticked calendar weeks (same week-key logic already used for `selectedWorkedDays`).
-3. Show a new "Adjustments" section under the per-day breakdown listing each included advance/penalty with date, reason, and signed amount.
-4. Compute:
-   - `advancesTotal` = sum of `advance` amounts in scope
-   - `penaltiesTotal` = sum of `penalty` amounts in scope
-   - `netAmount = baseAmount + workBonus - advancesTotal - penaltiesTotal`
-5. Show a summary block: Base, Bonus, − Advances, − Penalties, **Net Payable**.
-6. On submit:
-   - Record the expense using `netAmount` (unchanged flow otherwise) and include the breakdown in the expense `notes` so it's auditable.
-   - Mark each included adjustment `status='settled'`, `settled_at=now()`, `settled_by=auth.uid()`, `settled_expense_id=<new expense id>` via `offlineUpdate`.
-   - Settled rows are excluded from future dialog opens (query filters `status='pending'`).
+## Technical changes
 
-Weeks that aren't ticked leave their adjustments untouched — they remain pending and will appear next time those weeks are selected, matching the current week-checkbox behaviour.
-
-## Permissions
-
-- Attendance-page "Adjustments" button visible only when `has_role('admin')` or `has_role('manager')` (client check) — backed by RLS write policy on the table.
-- Deletion of an already-settled adjustment is blocked in UI; admins can still edit via the same dialog only while `status='pending'`.
-
-## Files
-
-- New migration `supabase/sql/phase48_staff_pay_adjustments.sql` — table, grants, RLS, realtime publication.
-- `src/offline/db.ts` — add `staff_pay_adjustments` to `MIRRORED_TABLES` and Dexie schema (version bump).
-- New `src/components/StaffAdjustmentsDialog.tsx` — capture UI.
-- `src/components/AttendancePage.tsx` — wire the new dialog button per staff row (Admin/Manager only).
-- `src/components/EmployeeExpenseDialog.tsx` — load, filter by selected weeks, display, deduct from total, settle on submit.
+- `src/components/platform/AddTenantDialog.tsx`: add the tenant ID to generated onboarding URLs.
+- `src/pages/Login.tsx`: preserve the immutable tenant reference from the URL.
+- `src/hooks/useAuth.tsx`: include tenant ID and slug in signup metadata and the confirmation redirect.
+- `src/pages/AuthCallback.tsx`: preserve tenant context when redirecting after confirmation.
+- Supabase migration: replace `handle_new_user_tenant()` with the fail-closed, ID-first, idempotent implementation.
+- Add focused trigger-flow verification covering linked signup, invalid linked signup, retry, and standalone signup.
 
 ## Out of scope
 
-- No reporting page for historical adjustments in this pass (settled rows are still queryable but not surfaced beyond the expense's notes). Can add later if you want a dedicated history view.
+- No automatic deletion or merging of existing tenant records without first confirming that the duplicate tenant has no orders, settings, staff, inventory, expenses, or other business data.
