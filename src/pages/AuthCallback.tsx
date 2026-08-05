@@ -12,8 +12,14 @@ const DEADLINE_MS = 15000;
 
 function homePath() {
   try {
-    const slug = new URLSearchParams(window.location.search).get("tenant");
-    if (slug) return `/?tenant=${encodeURIComponent(slug)}`;
+    const current = new URLSearchParams(window.location.search);
+    const next = new URLSearchParams();
+    const slug = current.get("tenant");
+    const tenantId = current.get("tenant_id");
+    if (slug) next.set("tenant", slug);
+    if (tenantId) next.set("tenant_id", tenantId);
+    const query = next.toString();
+    if (query) return `/?${query}`;
   } catch { /* ignore */ }
   return "/";
 }
