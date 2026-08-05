@@ -36,7 +36,7 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [tenantContext] = useState<{ slug: string | null; id: string | null }>(() => {
-    if (typeof window === "undefined") return null;
+    if (typeof window === "undefined") return { slug: null, id: null };
     try {
       const params = new URLSearchParams(window.location.search);
       return { slug: params.get("tenant"), id: params.get("tenant_id") };
@@ -44,8 +44,8 @@ const Login = ({ onLogin, onSignup }: LoginProps) => {
       return { slug: null, id: null };
     }
   });
-  const tenantSlug = tenantContext?.slug ?? null;
-  const isTenantSignup = Boolean(tenantContext?.id || tenantSlug);
+  const tenantSlug = tenantContext.slug;
+  const isTenantSignup = Boolean(tenantContext.id || tenantSlug);
   const [rememberMe, setRememberMe] = useState<boolean>(() => {
     try { return localStorage.getItem(REMEMBER_KEY) !== "false"; } catch { return true; }
   });
