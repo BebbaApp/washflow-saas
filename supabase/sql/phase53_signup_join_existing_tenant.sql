@@ -1,6 +1,5 @@
--- Fix duplicate tenants created when a user signs up through a tenant share link
--- (…/login?tenant=<slug>&mode=signup). If the signup metadata carries
--- join_tenant_slug and that tenant exists, join it instead of creating a new one.
+-- Superseded by phase55_idempotent_tenant_signup.sql, which uses an immutable
+-- tenant ID and fails closed when a linked workspace cannot be resolved.
 create or replace function public.handle_new_user_tenant()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
