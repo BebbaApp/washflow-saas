@@ -77,8 +77,7 @@ begin
 
     insert into public.tenant_members (tenant_id, user_id, tenant_role)
     values (target_tenant, new.id, assigned_tenant_role)
-    on conflict (tenant_id, user_id) do update
-      set tenant_role = excluded.tenant_role;
+    on conflict (tenant_id, user_id) do nothing;
 
     return new;
   end if;
@@ -115,3 +114,82 @@ end;
 $$;
 
 revoke execute on function public.handle_new_user_tenant() from anon, authenticated, public;
+
+-- Give the first linked tenant owner an application admin role after email
+-- confirmation. Regular linked members retain the existing washer default.
+create or replace function public.assign_default_role_on_confirm()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_tenant uuid;
+  target_staff_role public.app_role;
+  is_global_admin boolean;
+begin
+  if new.email_confirmed_at is not null
+     and (old.email_confirmed_at is null or old.email_confirmed_at is distinct from new.email_confirmed_at)
+  then
+    select exists (select 1 from public.super_admins sa where sa.user_id = new.id)
+        or exists (select 1 from public.platform_admins pa where pa.user_id = new.id)
+        or lower(coalesce(new.email, '')) = 'postfastbiz@gmail.com'
+      into is_global_admin;
+
+    if is_global_admin then
+      return new;
+    end if;
+
+    begin
+      target_tenant := coalesce(
+        nullif(new.raw_app_meta_data->>'active_tenant_id', '')::uuid,
+        nullif(new.raw_app_meta_data->>'invited_to_tenant', '')::uuid,
+        nullif(new.raw_user_meta_data->>'join_tenant_id', '')::uuid
+      );
+    exception when others then
+      target_tenant := null;
+    end;
+
+    if target_tenant is null then
+      select tm.tenant_id
+        into target_tenant
+        from public.tenant_members tm
+        where tm.user_id = new.id
+        order by tm.created_at asc
+        limit 1;
+    end if;
+
+    if target_tenant is not null then
+      select case
+               when tm.tenant_role in ('owner'::public.tenant_role, 'admin'::public.tenant_role)
+                 then 'admin'::public.app_role
+               else 'washer'::public.app_role
+             end
+        into target_staff_role
+        from public.tenant_members tm
+        where tm.user_id = new.id
+          and tm.tenant_id = target_tenant;
+
+      if target_staff_role is not null then
+        begin
+          insert into public.user_roles (user_id, tenant_id, role)
+          select new.id, target_tenant, target_staff_role
+          where not exists (
+            select 1
+            from public.user_roles ur
+            where ur.user_id = new.id
+              and ur.tenant_id = target_tenant
+          )
+          on conflict (user_id, role) do nothing;
+        exception when others then
+          raise warning 'Skipping default role assignment for confirmed user %: %', new.id, sqlerrm;
+        end;
+      end if;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.assign_default_role_on_confirm() from anon, authenticated, public;
