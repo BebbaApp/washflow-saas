@@ -1989,6 +1989,10 @@ export type Database = {
       is_tenant_member: { Args: { _tenant: string }; Returns: boolean }
       next_order_number: { Args: never; Returns: string }
       next_tenant_order_number: { Args: { _tenant: string }; Returns: string }
+      shares_tenant_history: {
+        Args: { _profile_user: string }
+        Returns: boolean
+      }
       tenant_has_role: {
         Args: {
           _role: Database["public"]["Enums"]["tenant_role"]
