@@ -466,23 +466,24 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
                   <div className="text-2xl leading-none mt-0.5">🚗</div>
                   <div className="min-w-0">
                     <p className="text-base font-bold text-foreground truncate">{o.customer}</p>
-                    <div className="mt-3 space-y-0.5">
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <div className="mt-2 space-y-0.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
                         <Hash className="w-3 h-3 shrink-0" />
                         {o.plate}
+                        {o.customerPhone && (
+                          <>
+                            <span className="mx-1 text-border">/</span>
+                            <Phone className="w-3 h-3 shrink-0" />
+                            <a
+                              href={`tel:${telHref(o.customerPhone)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-foreground"
+                            >
+                              {formatPhone(o.customerPhone)}
+                            </a>
+                          </>
+                        )}
                       </p>
-                      {o.customerPhone && (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Phone className="w-3 h-3 shrink-0" />
-                          <a
-                            href={`tel:${telHref(o.customerPhone)}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:text-foreground"
-                          >
-                            {formatPhone(o.customerPhone)}
-                          </a>
-                        </p>
-                      )}
                       <p className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Phone className="w-3 h-3" />
