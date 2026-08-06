@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift } from "lucide-react";
+import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift, Car } from "lucide-react";
 import { useRewardEligibility } from "@/hooks/useRewardEligibility";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
