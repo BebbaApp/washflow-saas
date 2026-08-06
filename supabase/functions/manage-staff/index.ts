@@ -548,33 +548,58 @@ Deno.serve(async (req) => {
       if ((targetRoles ?? []).some((r: any) => r.role === "admin")) {
         return reply({ error: "Admin users cannot be deleted" }, 400);
       }
-      // Clean up rows that FK-reference auth.users(id) without ON DELETE CASCADE.
-      // Any failure here is logged but not fatal — we still attempt the auth delete.
-      const cleanupTables = [
-        "staff_pins",
-        "staff_face_enrollments",
-        "staff_compensation",
-        "staff_active_status",
-        "user_roles",
-        "tenant_members",
-        "time_off_requests",
-        "shifts",
-        "attendance_records",
-        "profiles",
-        "platform_admins",
-        "super_admins",
-      ];
-      for (const t of cleanupTables) {
-        const { error: delErr } = await admin.from(t).delete().eq("user_id", user_id);
-        if (delErr) console.warn(`[manage-staff.delete] cleanup ${t} failed:`, delErr.message);
+
+      // Remove the enrolled face immediately (storage objects + rows).
+      try {
+        const { data: enrollments } = await admin
+          .from("staff_face_enrollments")
+          .select("id,image_url")
+          .eq("tenant_id", tenantId)
+          .eq("user_id", user_id);
+        const paths = (enrollments ?? [])
+          .map((e: any) => e.image_url)
+          .filter((p: any) => typeof p === "string" && p.length > 0);
+        if (paths.length > 0) {
+          const { error: rmErr } = await admin.storage.from("attendance-selfies").remove(paths);
+          if (rmErr) console.warn("[manage-staff.delete] face image removal failed:", rmErr.message);
+        }
+        const { error: feErr } = await admin
+          .from("staff_face_enrollments")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .eq("user_id", user_id);
+        if (feErr) console.warn("[manage-staff.delete] enrollment delete failed:", feErr.message);
+      } catch (e) {
+        console.warn("[manage-staff.delete] face cleanup error:", (e as Error).message);
       }
 
-      const { error } = await admin.auth.admin.deleteUser(user_id);
-      if (error) {
-        console.error("[manage-staff.delete] auth.admin.deleteUser failed:", error);
-        return reply({ error: error.message, detail: (error as any).cause ?? null }, 500);
+      // Revoke access only. Historical rows (attendance records, expenses,
+      // pay adjustments, audit logs, orders, profile name) are intentionally
+      // preserved so audit trails and past payments stay intact.
+      const accessTables = [
+        "staff_pins",          // PIN login
+        "staff_active_status", // active roster flag
+        "user_roles",          // app permissions
+        "tenant_members",      // workspace membership (also writes member.removed audit)
+      ];
+      for (const t of accessTables) {
+        const q = admin.from(t).delete().eq("user_id", user_id);
+        const { error: delErr } = t === "user_roles" || t === "tenant_members" || t === "staff_pins" || t === "staff_active_status"
+          ? await q.eq("tenant_id", tenantId)
+          : await q;
+        if (delErr) console.warn(`[manage-staff.delete] revoke ${t} failed:`, delErr.message);
       }
-      return reply({ success: true });
+
+      // Block sign-in without destroying the account (keeps the audit trail).
+      const { error: banErr } = await admin.auth.admin.updateUserById(user_id, {
+        ban_duration: "876000h",
+      } as any);
+      if (banErr) {
+        console.error("[manage-staff.delete] ban failed:", banErr);
+        return reply({ error: banErr.message }, 500);
+      }
+
+      return reply({ success: true, retained_history: true });
     }
 
     if (action === "resend_verification") {
