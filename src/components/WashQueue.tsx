@@ -466,33 +466,40 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
                   <div className="text-2xl leading-none mt-0.5">🚗</div>
                   <div className="min-w-0">
                     <p className="text-base font-bold text-foreground truncate">{o.customer}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                      <Hash className="w-3 h-3" />
-                      {o.plate}
+                    <div className="mt-3 space-y-0.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <Hash className="w-3 h-3 shrink-0" />
+                        {o.plate}
+                      </p>
                       {o.customerPhone && (
-                        <>
-                          <span className="mx-1 text-border">/</span>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                           <Phone className="w-3 h-3 shrink-0" />
                           <a
                             href={`tel:${telHref(o.customerPhone)}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="hover:text-foreground truncate"
+                            className="hover:text-foreground"
                           >
                             {formatPhone(o.customerPhone)}
                           </a>
-                        </>
+                        </p>
                       )}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-3 mt-1">
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {o.orderNumber}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {time}
-                      </span>
-                    </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {o.orderNumber}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {time}
+                        </span>
+                        {o.vehicle && (
+                          <span className="flex items-center gap-1 truncate max-w-[140px]" title={o.vehicle}>
+                            <Car className="w-3 h-3 shrink-0" />
+                            {o.vehicle}
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <span className={`status-badge border ${statusBadge[o.status]} shrink-0`}>
