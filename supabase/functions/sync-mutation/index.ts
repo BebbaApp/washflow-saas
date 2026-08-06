@@ -172,6 +172,18 @@ Deno.serve(async (req) => {
 
     let { id, row } = clean.value;
     if (table === "orders" && op === "insert") {
+      // A repeated offline delivery must return the row already created rather
+      // than consume another counter value or change its work-order number.
+      if (id) {
+        const { data: existingOrder, error: existingOrderError } = await admin
+          .from("orders")
+          .select("*")
+          .eq("tenant_id", tenant_id)
+          .eq("id", id)
+          .maybeSingle();
+        if (existingOrderError) return json({ error: existingOrderError.message }, 500);
+        if (existingOrder) return json({ ok: true, row: existingOrder });
+      }
       // Never trust a client-provided W-### value. Older/offline clients may
       // still carry the retired global sequence, which previously allowed a
       // new tenant to receive numbers such as W-456. The server is the sole
