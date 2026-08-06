@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { db } from "@/offline/db";
@@ -116,37 +115,11 @@ export function useOrders() {
           }
         : null;
 
-      // Try to get a sequential, per-tenant order number when online; fall back
-      // to a local placeholder offline so the row is still usable until sync
-      // resolves it.
-      let orderNum: string | null = null;
-      try {
-        const { data: rpc } = await (supabase as any).rpc("next_tenant_order_number", {
-          _tenant: tenant.id,
-        });
-        if (rpc) orderNum = rpc as unknown as string;
-      } catch {
-        /* offline */
-      }
-      if (!orderNum) {
-        const allLocal = await db.orders.toArray();
-        let highest = 0;
-        for (const r of allLocal as any[]) {
-          if (r?.tenant_id !== tenant.id) continue;
-          const m = String(r?.order_number ?? "").match(/^(?:W|WO)-(\d+)$/i);
-          if (m) {
-            const n = parseInt(m[1], 10);
-            if (n > highest) highest = n;
-          }
-        }
-        const key = `__wf_offline_wo_seq_${tenant.id}`;
-        const stored = Number(localStorage.getItem(key) || "0");
-        const seq = Math.max(highest, stored) + 1;
-        localStorage.setItem(key, String(seq));
-        orderNum = `WO-${String(seq).padStart(3, "0")}`;
-      }
-
       const id = crypto.randomUUID();
+      // This is deliberately only a local placeholder. The sync edge function
+      // is the single authority that allocates the tenant's canonical W-###
+      // number, preventing two clients from consuming or reusing counters.
+      const orderNum = `WO-${id.slice(0, 8).toUpperCase()}`;
       const nowIso = new Date().toISOString();
       const payload: any = {
         id,
