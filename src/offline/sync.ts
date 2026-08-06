@@ -586,12 +586,19 @@ async function drainOutbox() {
       await db.outbox.delete(it.id!);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      // Session ended mid-drain (sign-out / expiry): stop quietly and keep the
+      // item queued. Surfacing this as an error blanks the screen on /login.
+      if (e?.status === 401 || /unauthorized|jwt|401/i.test(msg)) {
+        const { data: check } = await supabase.auth.getSession();
+        if (!check.session) { setStatus("idle"); return; }
+      }
       if (isPermanentOutboxError(e)) {
         console.warn("[sync] dropping invalid queued mutation", it.table, it.op, msg);
         await db.outbox.delete(it.id!);
         setStatus("online", null);
         continue;
       }
+
       await db.outbox.update(it.id!, { attempts: it.attempts + 1, last_error: msg });
       // Stop the loop on transient errors; retry with backoff.
       schedulePush(Math.min(30_000, 1000 * 2 ** Math.min(it.attempts, 5)));
