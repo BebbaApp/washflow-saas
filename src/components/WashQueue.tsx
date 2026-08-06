@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift } from "lucide-react";
+import { Clock, CheckCircle2, Play, Phone, Hash, ArrowUp, ArrowDown, ArrowUpDown, X, Gift, Car } from "lucide-react";
 import { useRewardEligibility } from "@/hooks/useRewardEligibility";
 import type { WashOrder, WashStatus } from "@/hooks/useOrders";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -466,33 +466,41 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
                   <div className="text-2xl leading-none mt-0.5">🚗</div>
                   <div className="min-w-0">
                     <p className="text-base font-bold text-foreground truncate">{o.customer}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                      <Hash className="w-3 h-3" />
-                      {o.plate}
-                      {o.customerPhone && (
-                        <>
-                          <span className="mx-1 text-border">/</span>
-                          <Phone className="w-3 h-3 shrink-0" />
-                          <a
-                            href={`tel:${telHref(o.customerPhone)}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:text-foreground truncate"
-                          >
-                            {formatPhone(o.customerPhone)}
-                          </a>
-                        </>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-3 mt-1">
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {o.orderNumber}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {time}
-                      </span>
-                    </p>
+                    <div className="mt-2 space-y-0.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                        <Hash className="w-3 h-3 shrink-0" />
+                        {o.plate}
+                        {o.customerPhone && (
+                          <>
+                            <span className="mx-1 text-border">/</span>
+                            <Phone className="w-3 h-3 shrink-0" />
+                            <a
+                              href={`tel:${telHref(o.customerPhone)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-foreground"
+                            >
+                              {formatPhone(o.customerPhone)}
+                            </a>
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {o.orderNumber}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {time}
+                        </span>
+                        {o.vehicle && (
+                          <span className="flex items-center gap-1 truncate max-w-[140px]" title={o.vehicle}>
+                            <Car className="w-3 h-3 shrink-0" />
+                            {o.vehicle}
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <span className={`status-badge border ${statusBadge[o.status]} shrink-0`}>
@@ -501,27 +509,27 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
               </div>
 
               {eligibleOrderIds.has(o.id) && !redeemedOrderIds.has(o.id) && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
                   <Gift className="w-3.5 h-3.5" /> 1 FREE WASH
                 </div>
               )}
               {!eligibleOrderIds.has(o.id) && !redeemedOrderIds.has(o.id) && progressByOrderId.get(o.id) && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs font-semibold border border-border w-fit">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground text-xs font-semibold border border-border w-fit">
                   <Gift className="w-3.5 h-3.5" /> {progressByOrderId.get(o.id)!.current}/{progressByOrderId.get(o.id)!.target} washes to free wash
                 </div>
               )}
               {redeemedOrderIds.has(o.id) && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-success/15 text-success text-xs font-bold border border-success/40 w-fit">
                   <Gift className="w-3.5 h-3.5" /> FREE WASH APPLIED
                 </div>
               )}
               {!redeemedOrderIds.has(o.id) && (o.discount ?? 0) > 0 && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
                   DISCOUNT −{formatPrice(o.discount ?? 0)}
                 </div>
               )}
               {o.pendingDiscount && o.status !== "completed" && o.status !== "cancelled" && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-warning/15 text-warning text-xs font-bold border border-warning/40 w-fit">
                   DISCOUNT PENDING −{formatPrice(o.pendingDiscount.amount)} · {o.pendingDiscount.requestedByName}
                 </div>
               )}
