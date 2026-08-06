@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus, Trash2, ListOrdered } from "lucide-react";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
   AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
@@ -261,6 +261,16 @@ export function TenantsAdmin() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => impersonate(t)}>
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={busyId === t.id}
+                          onClick={() => callAction(
+                            { action: "renumber_tenant_orders", tenant_id: t.id },
+                            t.id,
+                            `Work orders renumbered for ${t.name}`,
+                          )}
+                        >
+                          <ListOrdered className="w-3.5 h-3.5 mr-2" /> Renumber work orders
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
