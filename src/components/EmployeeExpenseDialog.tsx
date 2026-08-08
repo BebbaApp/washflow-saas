@@ -468,7 +468,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
     if (adjustmentTotals.advances > 0) parts.push(`less advances ${formatPrice(adjustmentTotals.advances)}`);
     if (adjustmentTotals.penalties > 0) parts.push(`less penalties ${formatPrice(adjustmentTotals.penalties)}`);
-    const desc = `Remuneration — ${displayName} (${monthLabel})`;
+    const desc = `Remuneration — ${displayName} (${periodLabel})`;
     const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
     const created = await addExpense({
       description: desc,
