@@ -416,40 +416,6 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
-  // Human-readable period label used on the expense line description.
-  const periodLabel = useMemo(() => {
-    const monthName = from.toLocaleString(undefined, { month: "long" });
-    const year = from.getFullYear();
-    const rangeText = (dates: Date[]) => {
-      if (dates.length === 0) return `${monthName} ${year}`;
-      const first = dates[0];
-      const last = dates[dates.length - 1];
-      const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
-      const fmtDay = (d: Date) => String(d.getDate());
-      const fmtFull = (d: Date) =>
-        `${d.getDate()} ${d.toLocaleString(undefined, { month: "long" })} ${d.getFullYear()}`;
-      if (first.getTime() === last.getTime()) return fmtFull(first);
-      return sameMonth ? `${fmtDay(first)} to ${fmtFull(last)}` : `${fmtFull(first)} to ${fmtFull(last)}`;
-    };
-
-    if (!comp || comp.pay_type === "salary") return `Month - ${monthName} ${year}`;
-
-    const selectedIdx = calendarWeeks
-      .map((w, i) => (selectedWeeks.has(w.key) ? i + 1 : 0))
-      .filter((n) => n > 0);
-    const dates = selectedDateCells.map((c) => c.date);
-
-    if (comp.pay_type === "weekly") {
-      if (selectedIdx.length === 0) return `Week - ${monthName} ${year}`;
-      const label = selectedIdx.length === 1 ? `Week ${selectedIdx[0]}` : `Weeks ${selectedIdx.join(", ")}`;
-      return `${label} - ${rangeText(dates)}`;
-    }
-
-    // wage / daily — use the actual worked days inside the selection
-    const workedDates = selectedDateCells.filter((c) => c.status === "worked").map((c) => c.date);
-    return `Days - ${rangeText(workedDates.length > 0 ? workedDates : dates)}`;
-  }, [comp, from, calendarWeeks, selectedWeeks, selectedDateCells]);
-
   const handleSubmit = async () => {
     if (!selected) { toast.error("Select an employee"); return; }
     if (!comp) { toast.error("No pay settings — set them in Settings → Workers"); return; }
@@ -468,7 +434,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
     if (adjustmentTotals.advances > 0) parts.push(`less advances ${formatPrice(adjustmentTotals.advances)}`);
     if (adjustmentTotals.penalties > 0) parts.push(`less penalties ${formatPrice(adjustmentTotals.penalties)}`);
-    const desc = `Remuneration — ${displayName} (${periodLabel})`;
+    const desc = `Remuneration — ${displayName} (${monthLabel})`;
     const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
     const created = await addExpense({
       description: desc,
