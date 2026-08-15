@@ -849,6 +849,8 @@ export function AttendancePage() {
               <label className="text-xs text-muted-foreground">Date &amp; time</label>
               <input
                 type="datetime-local"
+                lang="en-GB"
+                step={60}
                 className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                 value={overrideForm.whenLocal}
                 onChange={(e) => setOverrideForm((f) => ({ ...f, whenLocal: e.target.value }))}
