@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { phoneDigits } from "@/lib/phone";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export const POINTS_PER_WASH = 10;
 export const FREE_WASH_COST = 100;
@@ -38,6 +39,7 @@ interface CustomerLookup {
  * can show a "FREE WASH" badge on Active cards.
  */
 export function useRewardEligibility(orders: WashOrder[]) {
+  const { user } = useAuth();
   const [redeemedOrderIds, setRedeemedOrderIds] = useState<Set<string>>(new Set());
   const [redeemedTxns, setRedeemedTxns] = useState<Array<{ order_id: string | null; points: number }>>([]);
   const [customerLookup, setCustomerLookup] = useState<CustomerLookup>({ byPhone: {}, byName: {} });
@@ -170,7 +172,9 @@ export function useRewardEligibility(orders: WashOrder[]) {
       order_id: o.id,
       points: FREE_WASH_COST,
       type: "redeemed",
-      description: `Free wash applied on order ${o.orderNumber}`,
+      description: `Free wash applied on order ${o.orderNumber}${
+        user ? ` by ${user.name || user.email}` : ""
+      }`,
     });
     if (error && (error as any).code !== "23505") {
       autoRedeemedRef.current.delete(o.id);
