@@ -235,7 +235,7 @@ export const CompleteWashDialog = ({
           );
         })()}
 
-        {onApplyFreeWash && (freeWashEligible || freeWashApplied || freeWashProgress) && (
+        {onApplyFreeWash && (
           <div className="rounded-lg border border-border bg-secondary/40 p-3 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Balance due</p>
@@ -248,7 +248,7 @@ export const CompleteWashDialog = ({
                 </p>
               )}
             </div>
-            {(freeWashEligible || freeWashApplied) && (
+            {(freeWashEligible || freeWashApplied) ? (
               <button
                 type="button"
                 disabled={!freeWashEligible || freeWashApplied || applyingFree}
@@ -266,6 +266,14 @@ export const CompleteWashDialog = ({
                 <Gift className="w-4 h-4" />
                 {freeWashApplied ? "FREE WASH APPLIED" : applyingFree ? "Applying…" : "Apply FREE WASH"}
               </button>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">
+                {freeWashProgress
+                  ? `${Math.max(0, freeWashProgress.target - freeWashProgress.current)} wash${
+                      Math.max(0, freeWashProgress.target - freeWashProgress.current) === 1 ? "" : "es"
+                    } to free wash`
+                  : "No free wash available"}
+              </span>
             )}
           </div>
         )}
