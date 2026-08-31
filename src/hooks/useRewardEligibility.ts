@@ -139,84 +139,71 @@ export function useRewardEligibility(orders: WashOrder[]) {
 
 
 
-  // Auto-redeem: when an active order is eligible and no redemption is yet
-  // recorded against this order, insert one (idempotent).
-  useEffect(() => {
-    const active = orders.filter((o) => o.status === "waiting" || o.status === "in-progress");
-    const candidates = active.filter(
-      (o) =>
-        eligibleOrderIds.has(o.id) &&
-        !redeemedOrderIds.has(o.id) &&
-        !autoRedeemedRef.current.has(o.id),
-    );
-    if (candidates.length === 0) return;
+  // Manual redemption: staff open the order and press "Apply FREE WASH".
+  // Inserts one redemption tagged with the order (idempotent) and zeroes the
+  // order's remaining price into its discount.
+  const applyFreeWash = async (o: WashOrder): Promise<boolean> => {
+    if (!eligibleOrderIds.has(o.id) || redeemedOrderIds.has(o.id)) return false;
+    if (autoRedeemedRef.current.has(o.id)) return false;
+    autoRedeemedRef.current.add(o.id);
 
-    (async () => {
-      for (const o of candidates) {
-        autoRedeemedRef.current.add(o.id);
+    let customerId =
+      customerLookup.byPhone[phoneKey(o.customerPhone)] ||
+      customerLookup.byName[nameKey(o.customer)];
 
-        // Resolve / create a customers row to attach the transaction to.
-        let customerId =
-          customerLookup.byPhone[phoneKey(o.customerPhone)] ||
-          customerLookup.byName[nameKey(o.customer)];
-
-        if (!customerId) {
-          const { data, error } = await supabase
-            .from("customers")
-            .insert({ name: o.customer, phone: o.customerPhone || null })
-            .select("id")
-            .single();
-          if (error || !data) {
-            autoRedeemedRef.current.delete(o.id);
-            continue;
-          }
-          customerId = data.id;
-        }
-
-        const { error } = await supabase.from("loyalty_transactions").insert({
-          customer_id: customerId,
-          order_id: o.id,
-          points: FREE_WASH_COST,
-          type: "redeemed",
-          description: `Auto-redeemed free wash on order ${o.orderNumber}`,
-        });
-        if (error) {
-          // Postgres unique_violation (23505) means another tab/device beat us
-          // to the redemption — that's the intended idempotency path, not an
-          // error worth surfacing.
-          const isDuplicate = (error as any).code === "23505";
-          if (!isDuplicate) {
-            autoRedeemedRef.current.delete(o.id);
-            console.error("[useRewardEligibility] auto-redeem failed", error);
-          }
-          continue;
-        }
-
-        // Zero out the order's revenue: move remaining service_price into discount.
-        if (o.servicePrice > 0) {
-          const { data: current } = await supabase
-            .from("orders")
-            .select("service_price, discount")
-            .eq("id", o.id)
-            .maybeSingle();
-          const currentPrice = Number(current?.service_price ?? o.servicePrice) || 0;
-          const currentDiscount = Number(current?.discount ?? 0) || 0;
-          if (currentPrice > 0) {
-            await supabase
-              .from("orders")
-              .update({
-                service_price: 0,
-                discount: +(currentDiscount + currentPrice).toFixed(2),
-              })
-              .eq("id", o.id);
-          }
-        }
-
-        toast.success(`🎁 Free wash auto-applied for ${o.customer} (${o.orderNumber})`);
+    if (!customerId) {
+      const { data, error } = await supabase
+        .from("customers")
+        .insert({ name: o.customer, phone: o.customerPhone || null })
+        .select("id")
+        .single();
+      if (error || !data) {
+        autoRedeemedRef.current.delete(o.id);
+        toast.error("Could not apply free wash.");
+        return false;
       }
-      await refresh();
-    })();
-  }, [orders, eligibleOrderIds, redeemedOrderIds, customerLookup]);
+      customerId = data.id;
+    }
 
-  return { eligibleOrderIds, redeemedOrderIds, progressByOrderId, refresh };
+    const { error } = await supabase.from("loyalty_transactions").insert({
+      customer_id: customerId,
+      order_id: o.id,
+      points: FREE_WASH_COST,
+      type: "redeemed",
+      description: `Free wash applied on order ${o.orderNumber}`,
+    });
+    if (error && (error as any).code !== "23505") {
+      autoRedeemedRef.current.delete(o.id);
+      console.error("[useRewardEligibility] redeem failed", error);
+      toast.error("Could not apply free wash.");
+      return false;
+    }
+
+    // Zero out the order's revenue: move remaining service_price into discount.
+    if (o.servicePrice > 0) {
+      const { data: current } = await supabase
+        .from("orders")
+        .select("service_price, discount")
+        .eq("id", o.id)
+        .maybeSingle();
+      const currentPrice = Number(current?.service_price ?? o.servicePrice) || 0;
+      const currentDiscount = Number(current?.discount ?? 0) || 0;
+      if (currentPrice > 0) {
+        await supabase
+          .from("orders")
+          .update({
+            service_price: 0,
+            discount: +(currentDiscount + currentPrice).toFixed(2),
+          })
+          .eq("id", o.id);
+      }
+    }
+
+    toast.success(`🎁 Free wash applied for ${o.customer} (${o.orderNumber})`);
+    await refresh();
+    return true;
+  };
+
+  return { eligibleOrderIds, redeemedOrderIds, progressByOrderId, applyFreeWash, refresh };
 }
+
