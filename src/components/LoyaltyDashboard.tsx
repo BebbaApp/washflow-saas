@@ -399,7 +399,7 @@ export const LoyaltyDashboard = () => {
         `🎉 Free wash redeemed for ${live.name} — ${remaining} pts remaining (${visitsToNext} more visit${visitsToNext !== 1 ? "s" : ""} to next reward)`
       );
       setRedeemTarget(null);
-      await Promise.all([fetchCustomers(), fetchRedemptions()]);
+      await Promise.all([fetchCustomers(), fetchRedemptions(), fetchUsage()]);
     } finally {
       setRedeeming(false);
     }

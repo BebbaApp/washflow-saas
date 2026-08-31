@@ -3,6 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import type { WashOrder } from "@/hooks/useOrders";
 
 // ---- Mocks ----
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1", name: "Test Staff", email: "t@x.com" } }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const txnInsert = vi.fn();
