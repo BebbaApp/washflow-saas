@@ -13,12 +13,15 @@ const phoneKey = (p?: string | null) => {
 };
 const nameKey = (n?: string | null) => (n ?? "").trim().toLowerCase();
 const plateKey = (p?: string | null) => (p ?? "").replace(/\s+/g, "").toUpperCase();
+// Loyalty identity = the VEHICLE. The plate is the one field staff capture
+// consistently, so washes accumulate per normalized plate regardless of how
+// the customer name or phone number was typed on each visit.
 const groupKey = (o: { customer?: string | null; customerPhone?: string | null; plate?: string | null }) => {
-  const p = phoneKey(o.customerPhone);
-  const n = nameKey(o.customer);
   const pl = plateKey(o.plate);
-  if (!p || !n || !pl) return "";
-  return `${p}|${n}|${pl}`;
+  if (pl) return `plate:${pl}`;
+  // Walk-ins with no plate captured still accumulate by phone.
+  const p = phoneKey(o.customerPhone);
+  return p ? `phone:${p}` : "";
 };
 
 interface CustomerLookup {
