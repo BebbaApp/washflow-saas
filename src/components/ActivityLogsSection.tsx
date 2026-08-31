@@ -47,6 +47,7 @@ type UnifiedLog = {
   actorUserId: string | null;
   actorName: string | null;
   targetName: string | null;
+  memberName: string | null;
   createdAt: string;
 };
 
@@ -242,6 +243,7 @@ export function ActivityLogsSection() {
           actorUserId: m.actor_user_id,
           actorName: nameOf(m.actor_user_id, m.actor_email),
           targetName: nameOf(m.target_user_id, m.target_email),
+          memberName: nameOf(m.target_user_id, m.target_email) ?? nameOf(m.actor_user_id, m.actor_email),
           createdAt: m.created_at,
         });
       });
@@ -256,6 +258,7 @@ export function ActivityLogsSection() {
           actorUserId: o.created_by,
           actorName: nameOf(o.created_by),
           targetName: o.order_number,
+          memberName: nameOf(o.created_by),
           createdAt: o.created_at,
         });
         // Completion event
@@ -268,6 +271,7 @@ export function ActivityLogsSection() {
             actorUserId: o.created_by,
             actorName: nameOf(o.created_by),
             targetName: o.order_number,
+            memberName: nameOf(o.created_by),
             createdAt: o.completed_at,
           });
         } else if (o.status === "cancelled") {
@@ -279,6 +283,7 @@ export function ActivityLogsSection() {
             actorUserId: o.created_by,
             actorName: nameOf(o.created_by),
             targetName: o.order_number,
+            memberName: nameOf(o.created_by),
             createdAt: o.updated_at,
           });
         }
@@ -295,6 +300,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: t.source ?? null,
           targetName: t.item_name,
+          memberName: null,
           createdAt: t.created_at,
         });
       });
@@ -308,6 +314,7 @@ export function ActivityLogsSection() {
           actorUserId: a.acted_by,
           actorName: nameOf(a.acted_by),
           targetName: nameOf(a.target_user_id),
+          memberName: nameOf(a.target_user_id) ?? nameOf(a.acted_by),
           createdAt: a.created_at,
         });
       });
@@ -321,6 +328,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: "system",
           targetName: null,
+          memberName: null,
           createdAt: l.created_at,
         });
       });
@@ -334,6 +342,7 @@ export function ActivityLogsSection() {
           actorUserId: rec.data.updated_by ?? null,
           actorName: nameOf(rec.data.updated_by),
           targetName: null,
+          memberName: nameOf(rec.data.updated_by),
           createdAt: rec.data.updated_at,
         });
       }
@@ -347,6 +356,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: "system",
           targetName: tenantRow.data.name,
+          memberName: null,
           createdAt: tenantRow.data.created_at,
         });
       }
@@ -362,6 +372,7 @@ export function ActivityLogsSection() {
           actorUserId: a.user_id,
           actorName: nameOf(a.user_id),
           targetName: null,
+          memberName: nameOf(a.user_id),
           createdAt: a.created_at,
         });
       });
@@ -375,6 +386,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: null,
           targetName: s.name,
+          memberName: null,
           createdAt: s.created_at,
         });
         if (s.updated_at && s.updated_at !== s.created_at) {
@@ -386,6 +398,7 @@ export function ActivityLogsSection() {
             actorUserId: null,
             actorName: null,
             targetName: s.name,
+            memberName: null,
             createdAt: s.updated_at,
           });
         }
@@ -400,6 +413,7 @@ export function ActivityLogsSection() {
           actorUserId: e.created_by,
           actorName: nameOf(e.created_by),
           targetName: e.description,
+          memberName: nameOf(e.created_by),
           createdAt: e.created_at,
         });
       });
@@ -413,6 +427,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: null,
           targetName: s.name,
+          memberName: null,
           createdAt: s.created_at,
         });
         if (s.updated_at && s.updated_at !== s.created_at) {
@@ -424,6 +439,7 @@ export function ActivityLogsSection() {
             actorUserId: null,
             actorName: null,
             targetName: s.name,
+            memberName: null,
             createdAt: s.updated_at,
           });
         }
@@ -438,6 +454,7 @@ export function ActivityLogsSection() {
           actorUserId: c.updated_by,
           actorName: nameOf(c.updated_by),
           targetName: nameOf(c.user_id),
+          memberName: nameOf(c.user_id),
           createdAt: c.updated_at,
         });
       });
@@ -452,6 +469,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: null,
           targetName: null,
+          memberName: null,
           createdAt: ts.updated_at,
         });
       }
@@ -465,6 +483,7 @@ export function ActivityLogsSection() {
           actorUserId: null,
           actorName: null,
           targetName: c.name,
+          memberName: null,
           createdAt: c.created_at,
         });
       });
@@ -483,6 +502,7 @@ export function ActivityLogsSection() {
           actorUserId: a.user_id,
           actorName: nameOf(a.user_id, a.email),
           targetName: null,
+          memberName: nameOf(a.user_id, a.email),
           createdAt: a.created_at,
         });
       });
@@ -511,7 +531,8 @@ export function ActivityLogsSection() {
         l.action.toLowerCase().includes(q) ||
         l.detail.toLowerCase().includes(q) ||
         (l.actorName ?? "").toLowerCase().includes(q) ||
-        (l.targetName ?? "").toLowerCase().includes(q)
+        (l.targetName ?? "").toLowerCase().includes(q) ||
+        (l.memberName ?? "").toLowerCase().includes(q)
       );
     });
   }, [logs, filter, search]);
@@ -598,6 +619,11 @@ export function ActivityLogsSection() {
                     </div>
                     <p className="text-xs text-muted-foreground break-words">{l.detail}</p>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                      {(l.memberName ?? l.actorName) && (
+                        <span>
+                          Member: <span className="text-foreground font-medium">{l.memberName ?? l.actorName}</span>
+                        </span>
+                      )}
                       {l.actorName && (
                         <span>
                           by <span className="text-foreground font-medium">{l.actorName}</span>

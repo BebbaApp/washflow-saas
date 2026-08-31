@@ -498,11 +498,32 @@ function useAuthInternal(): AuthContextValue {
   const signup = useCallback(async (
     email: string, password: string, name: string, phone?: string, companyName?: string,
   ): Promise<string | null> => {
+    // Preserve the tenant the user arrived from (?tenant=<slug>) so the confirmation
+    // link returns to this app/tenant instead of the default Site URL, and so the
+    // signup trigger joins the existing workspace instead of creating a duplicate.
+    let tenantSlug: string | null = null;
+    let tenantId: string | null = null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      tenantSlug = params.get("tenant");
+      tenantId = params.get("tenant_id");
+    } catch { /* ignore */ }
+    const callbackParams = new URLSearchParams();
+    if (tenantSlug) callbackParams.set("tenant", tenantSlug);
+    if (tenantId) callbackParams.set("tenant_id", tenantId);
+    const callbackQuery = callbackParams.toString();
+    const redirectTo = `${window.location.origin}/auth/callback${callbackQuery ? `?${callbackQuery}` : ""}`;
     const { data, error } = await supabase.auth.signUp({
       email, password, phone: phone || undefined,
       options: {
-        data: { name, ...(phone ? { phone } : {}), ...(companyName ? { company_name: companyName } : {}) },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          name,
+          ...(phone ? { phone } : {}),
+          ...(companyName ? { company_name: companyName } : {}),
+          ...(tenantId ? { join_tenant_id: tenantId } : {}),
+          ...(tenantSlug ? { join_tenant_slug: tenantSlug } : {}),
+        },
+        emailRedirectTo: redirectTo,
       },
     });
     if (error) return error.message;

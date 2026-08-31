@@ -47,8 +47,11 @@ export function AddTenantDialog({ open, onOpenChange, plans, onCreated }: Props)
   }, [name, slugEdited]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const accessUrl = created ? `${origin}/?tenant=${created.slug}` : "";
-  const signupUrl = created ? `${origin}/login?tenant=${created.slug}&mode=signup` : "";
+  const tenantParams = created
+    ? `tenant=${encodeURIComponent(created.slug)}&tenant_id=${encodeURIComponent(created.id)}`
+    : "";
+  const accessUrl = created ? `${origin}/?${tenantParams}` : "";
+  const signupUrl = created ? `${origin}/login?${tenantParams}&mode=signup` : "";
 
   const copy = async (label: string, value: string) => {
     await navigator.clipboard.writeText(value);

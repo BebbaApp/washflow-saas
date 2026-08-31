@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Car, Hash, Phone, Clock, Calendar, StickyNote, CheckCircle2, Loader2, Play, Save, Loader, Receipt, ShieldAlert, ShieldCheck, X } from "lucide-react";
+import { Car, Hash, Phone, Clock, Calendar, StickyNote, CheckCircle2, Loader2, Play, Save, Loader, Receipt, ShieldAlert, ShieldCheck, X, Gift } from "lucide-react";
 import { formatPhone, telHref } from "@/lib/phone";
 import {
   Dialog,
@@ -24,7 +24,12 @@ interface OrderDetailsModalProps {
   onUpdateNotes?: (id: string, notes: string) => Promise<boolean> | void;
   onApproveDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
   onRejectDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
+  freeWashEligible?: boolean;
+  freeWashApplied?: boolean;
+  freeWashProgress?: { current: number; target: number };
+  onApplyFreeWash?: (order: WashOrder) => Promise<boolean> | void;
 }
+
 
 const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typeof Clock }> = {
   waiting: { label: "Waiting", classes: "bg-warning/10 text-warning border-warning/20", Icon: Clock },
@@ -34,7 +39,7 @@ const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typ
   deleted: { label: "Deleted", classes: "bg-muted text-muted-foreground border-border", Icon: Clock },
 };
 
-export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount }: OrderDetailsModalProps) => {
+export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount, freeWashEligible, freeWashApplied, freeWashProgress, onApplyFreeWash }: OrderDetailsModalProps) => {
   const { formatPrice } = useCurrency();
   const { can } = usePermissions();
   const { user } = useAuth();
@@ -42,6 +47,8 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
+  const [applyingFree, setApplyingFree] = useState(false);
+
 
   useEffect(() => {
     setNotesDraft(order?.notes ?? "");
@@ -260,11 +267,36 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
             )}
           </div>
 
-          {(onUpdateStatus && nextStatus) || order.status === "completed" ? (
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
-              {order.status === "completed" && (
-                <PrintReceiptButton order={order} variant="ghost" className="mr-auto" />
+          {(onUpdateStatus && nextStatus) || order.status === "completed" || onApplyFreeWash ? (
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+              {onApplyFreeWash && (freeWashEligible || freeWashApplied) && (
+                <button
+                  type="button"
+                  disabled={!freeWashEligible || freeWashApplied || applyingFree}
+                  onClick={async () => {
+                    setApplyingFree(true);
+                    await onApplyFreeWash(order);
+                    setApplyingFree(false);
+                  }}
+                  className={`mr-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-opacity ${
+                    freeWashApplied
+                      ? "bg-success/15 text-success border border-success/40"
+                      : "bg-warning text-warning-foreground hover:opacity-90"
+                  } disabled:opacity-70`}
+                >
+                  <Gift className="w-4 h-4" />
+                  {freeWashApplied ? "FREE WASH APPLIED" : applyingFree ? "Applying…" : "Apply FREE WASH"}
+                </button>
               )}
+              {onApplyFreeWash && !freeWashEligible && !freeWashApplied && freeWashProgress && (
+                <span className="mr-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-muted text-muted-foreground border border-border">
+                  <Gift className="w-3.5 h-3.5" /> {freeWashProgress.current}/{freeWashProgress.target} washes to free wash
+                </span>
+              )}
+              {order.status === "completed" && (
+                <PrintReceiptButton order={order} variant="ghost" />
+              )}
+
               <button
                 onClick={() => onOpenChange(false)}
                 className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"

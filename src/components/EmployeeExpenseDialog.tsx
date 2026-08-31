@@ -323,15 +323,35 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
       return [{ start, end }];
     });
   }, [selectedWeeks, weekDateKeys]);
+  // Every unsettled adjustment for this worker (regardless of date).
+  const pendingForWorker = useMemo(() => {
+    if (!staffId) return [] as any[];
+    return (adjRows ?? [])
+      .filter((r: any) => r.worker_id === staffId && (r.status ?? "pending") === "pending")
+      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+  }, [adjRows, staffId]);
+
+  // End of the latest selected week — anything unsettled on/before that date
+  // is owed against this payout, including advances taken in earlier weeks or
+  // in a previous month that were never deducted.
+  const periodEnd = useMemo(() => {
+    if (weekRanges.length === 0) return null;
+    return weekRanges.reduce<Date>((max, w) => (w.end > max ? w.end : max), weekRanges[0].end);
+  }, [weekRanges]);
+
   const applicableAdjustments = useMemo(() => {
-    if (!staffId || weekRanges.length === 0) return [] as any[];
-    return (adjRows ?? []).filter((r: any) => {
-      if (r.worker_id !== staffId) return false;
-      if ((r.status ?? "pending") !== "pending") return false;
-      const d = new Date(r.date + "T00:00:00");
-      return weekRanges.some((w) => d >= w.start && d <= w.end);
+    if (!periodEnd) return [] as any[];
+    return pendingForWorker.filter((r: any) => {
+      const d = new Date(String(r.date).slice(0, 10) + "T00:00:00");
+      return !isNaN(d.getTime()) && d <= periodEnd;
     });
-  }, [adjRows, staffId, weekRanges]);
+  }, [pendingForWorker, periodEnd]);
+
+  const futureAdjustments = useMemo(
+    () => pendingForWorker.filter((r: any) => !applicableAdjustments.includes(r)),
+    [pendingForWorker, applicableAdjustments]
+  );
+
   const adjustmentTotals = useMemo(() => {
     let advances = 0; let penalties = 0;
     applicableAdjustments.forEach((r) => {
@@ -396,6 +416,40 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
 
   const monthLabel = from.toLocaleString(undefined, { month: "long", year: "numeric" });
 
+  // "2 to 8 August 2026" / "30 July to 5 August 2026"
+  const formatDayRange = (start: Date, end: Date) => {
+    const month = (d: Date) => d.toLocaleString(undefined, { month: "long" });
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    if (start.toDateString() === end.toDateString()) return `${start.getDate()} ${month(start)} ${start.getFullYear()}`;
+    return sameMonth
+      ? `${start.getDate()} to ${end.getDate()} ${month(end)} ${end.getFullYear()}`
+      : `${start.getDate()} ${month(start)}${start.getFullYear() !== end.getFullYear() ? ` ${start.getFullYear()}` : ""} to ${end.getDate()} ${month(end)} ${end.getFullYear()}`;
+  };
+
+  // Descriptive period label used on the expense line, per pay type.
+  const periodLabel = useMemo(() => {
+    if (!comp) return `Month - ${monthLabel}`;
+    if (comp.pay_type === "salary") return `Month - ${monthLabel}`;
+
+    if (comp.pay_type === "weekly") {
+      const indexes = calendarWeeks
+        .map((w, i) => (selectedWeeks.has(w.key) ? i + 1 : null))
+        .filter((n): n is number => n !== null);
+      const dates = selectedDateCells.map((c) => c.date);
+      if (indexes.length === 0 || dates.length === 0) return `Week - ${monthLabel}`;
+      const range = formatDayRange(dates[0], dates[dates.length - 1]);
+      const weekPart = indexes.length === 1
+        ? `Week ${indexes[0]}`
+        : `Weeks ${indexes[0]}-${indexes[indexes.length - 1]}`;
+      return `${weekPart} - ${range}`;
+    }
+
+    // wage (daily)
+    const worked = Array.from(selectedWorkedDays).map((k) => new Date(k)).sort((a, b) => a.getTime() - b.getTime());
+    if (worked.length === 0) return `Days - ${monthLabel}`;
+    return `Days - ${formatDayRange(worked[0], worked[worked.length - 1])}`;
+  }, [comp, monthLabel, calendarWeeks, selectedWeeks, selectedDateCells, selectedWorkedDays]);
+
   const handleSubmit = async () => {
     if (!selected) { toast.error("Select an employee"); return; }
     if (!comp) { toast.error("No pay settings — set them in Settings → Workers"); return; }
@@ -414,7 +468,7 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
     if (workBonusAmount > 0) parts.push(`work bonus ${formatPrice(workBonusAmount)}`);
     if (adjustmentTotals.advances > 0) parts.push(`less advances ${formatPrice(adjustmentTotals.advances)}`);
     if (adjustmentTotals.penalties > 0) parts.push(`less penalties ${formatPrice(adjustmentTotals.penalties)}`);
-    const desc = `Remuneration — ${displayName} (${monthLabel})`;
+    const desc = `Remuneration — ${displayName} (${periodLabel})`;
     const summary = `${parts.join(", ")} · ${selectedDays} worked / ${selectedAbsentDays} absent`;
     const created = await addExpense({
       description: desc,
@@ -695,6 +749,24 @@ export function EmployeeExpenseDialog({ open, onClose }: Props) {
                   />
                 </div>
               </label>
+
+              {pendingForWorker.length > 0 && applicableAdjustments.length === 0 && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs p-3">
+                  {displayName} has {pendingForWorker.length} unsettled adjustment
+                  {pendingForWorker.length === 1 ? "" : "s"} totalling{" "}
+                  {formatPrice(pendingForWorker.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0))}
+                  {periodEnd
+                    ? " dated after the selected weeks, so nothing is deducted yet."
+                    : ". Tick the week(s) you are paying above and they will be deducted."}
+                </div>
+              )}
+
+              {futureAdjustments.length > 0 && applicableAdjustments.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {futureAdjustments.length} adjustment{futureAdjustments.length === 1 ? " is" : "s are"} dated after this
+                  period and will carry over to the next payout.
+                </p>
+              )}
 
               {applicableAdjustments.length > 0 && (
                 <div className="rounded-xl border border-border overflow-hidden">

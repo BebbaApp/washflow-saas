@@ -3,6 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import type { WashOrder } from "@/hooks/useOrders";
 
 // ---- Mocks ----
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1", name: "Test Staff", email: "t@x.com" } }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const txnInsert = vi.fn();
@@ -18,7 +19,12 @@ vi.mock("@/integrations/supabase/client", () => {
   const from = (table: string) => {
     const api: any = {
       // SELECT chain returns a thenable resolving to { data, error }
-      select: () => Promise.resolve({ data: tableData[table] ?? [], error: null }),
+      select: () => {
+        const p: any = Promise.resolve({ data: tableData[table] ?? [], error: null });
+        p.eq = () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) });
+        return p;
+      },
+      update: () => ({ eq: () => Promise.resolve({ error: null }) }),
       insert: (payload: any) => {
         if (table === "loyalty_transactions") {
           txnInsert(payload);
@@ -81,7 +87,10 @@ describe("useRewardEligibility", () => {
     // on the first render — even before the supabase fetch resolves.
     expect(result.current.eligibleOrderIds.has("active-1")).toBe(true);
 
-    await waitFor(() => expect(customerInsert).toHaveBeenCalled());
+    // Redemption is manual now: nothing is inserted until applyFreeWash runs.
+    await act(async () => { await Promise.resolve(); });
+    expect(txnInsert).not.toHaveBeenCalled();
+    expect(customerInsert).not.toHaveBeenCalled();
   });
 
   it("does NOT flag an active order when the customer has fewer than 10 completed visits", async () => {
@@ -96,43 +105,23 @@ describe("useRewardEligibility", () => {
     expect(txnInsert).not.toHaveBeenCalled();
   });
 
-  it("auto-redeems exactly once for a newly active eligible order, even across rerenders", async () => {
+  it("applies a free wash once when applyFreeWash is called, and not twice", async () => {
     const visitsNeeded = FREE_WASH_COST / POINTS_PER_WASH;
     const active = mkOrder({ id: "active-1", orderNumber: "W-999", status: "waiting" });
     const orders = [...completedVisits(visitsNeeded), active];
 
-    const { rerender } = renderHook(({ os }: { os: WashOrder[] }) => useRewardEligibility(os), {
-      initialProps: { os: orders },
-    });
+    const { result } = renderHook(() => useRewardEligibility(orders));
 
-    // Wait for the first auto-redeem cycle to complete.
-    await waitFor(() => expect(txnInsert).toHaveBeenCalledTimes(1));
+    await act(async () => { await result.current.applyFreeWash(active); });
 
-    const inserted = txnInsert.mock.calls[0][0];
-    expect(inserted).toMatchObject({
+    expect(txnInsert).toHaveBeenCalledTimes(1);
+    expect(txnInsert.mock.calls[0][0]).toMatchObject({
       order_id: "active-1",
       type: "redeemed",
       points: FREE_WASH_COST,
     });
 
-    // After the first redemption, the refresh() call sees the redemption row
-    // so subsequent refreshes shouldn't re-insert. Simulate that by adding
-    // the row to the mocked dataset before rerendering.
-    tableData.loyalty_transactions = [
-      { customer_id: "cust-1", order_id: "active-1", points: FREE_WASH_COST, type: "redeemed" },
-    ];
-    tableData.customers = [{ id: "cust-1", name: "Jane Doe", phone: "0821234567" }];
-
-    // Multiple rerenders (e.g. realtime updates, status flip) must not retrigger.
-    rerender({ os: [...orders] });
-    rerender({ os: orders.map((o) => ({ ...o })) });
-    rerender({
-      os: orders.map((o) =>
-        o.id === "active-1" ? { ...o, status: "in-progress" as const } : o,
-      ),
-    });
-
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await result.current.applyFreeWash(active); });
     expect(txnInsert).toHaveBeenCalledTimes(1);
   });
 });

@@ -325,11 +325,36 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
   const loadProfiles = useCallback(async () => {
     if (navigator.onLine) {
       try {
-        const { data } = await supabase.from("profiles").select("user_id,name");
         const map: Record<string, string> = {};
-        (data || []).forEach((p: any) => { map[p.user_id] = p.name; });
-        setProfilesMap(map);
-        lsSave(PROFILES_CACHE_KEY, map);
+        const { data } = await supabase.from("profiles").select("user_id,name");
+        (data || []).forEach((p: any) => { if (p.name) map[p.user_id] = p.name; });
+
+        // Fallback 1: the signed-in user always knows their own name, even when
+        // RLS/`profiles` hides it (e.g. platform admins scrubbed from the roster).
+        try {
+          const { data: authRes } = await supabase.auth.getUser();
+          const me = authRes?.user;
+          if (me?.id && !map[me.id]) {
+            map[me.id] = (me.user_metadata as any)?.name || me.email || map[me.id];
+          }
+        } catch { /* ignore */ }
+
+        // Fallback 2: service-role roster (covers users whose profile row is not
+        // readable under RLS) — names only, merged without overwriting.
+        if (tenantId) {
+          try {
+            const { data: staffData } = await supabase.functions.invoke("manage-staff", {
+              body: { action: "list", tenant_id: tenantId },
+            });
+            ((staffData as any)?.users ?? []).forEach((u: any) => {
+              const name = u?.name || u?.email;
+              if (u?.id && name && !map[u.id]) map[u.id] = name;
+            });
+          } catch { /* ignore */ }
+        }
+
+        setProfilesMap((prev) => ({ ...prev, ...map }));
+        lsSave(PROFILES_CACHE_KEY, { ...lsLoad<Record<string, string>>(PROFILES_CACHE_KEY, {}), ...map });
         setProfilesLoading(false);
         return;
       } catch { /* fall through */ }
@@ -348,6 +373,7 @@ export function useAttendance(_opts: { adminView?: boolean } = {}) {
     setProfilesMap(cached);
     setProfilesLoading(false);
   }, [tenantId]);
+
 
   useEffect(() => {
     loadProfiles();

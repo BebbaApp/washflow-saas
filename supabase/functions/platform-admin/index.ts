@@ -84,6 +84,8 @@ const ActionSchema = z.discriminatedUnion("action", [
     to: z.string().optional(),
     offset: z.number().int().min(0).default(0),
     limit: z.number().int().min(1).max(100).default(50) }),
+  z.object({ action: z.literal("renumber_tenant_orders"),
+    tenant_id: z.string().uuid() }),
   z.object({ action: z.literal("list_plans") }),
   z.object({ action: z.literal("upsert_plan"),
     id: z.string().uuid().optional(),
@@ -235,6 +237,47 @@ Deno.serve(async (req) => {
           payload: { by: callerId, plan_id: body.plan_id },
         });
         return json({ ok: true });
+      }
+
+      case "renumber_tenant_orders": {
+        const { data: orders, error: ordersError } = await admin
+          .from("orders")
+          .select("id")
+          .eq("tenant_id", body.tenant_id)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true });
+        if (ordersError) return json({ error: ordersError.message }, 500);
+
+        // Park every value first so the per-tenant unique index cannot collide
+        // while historical global numbers are replaced in chronological order.
+        for (const order of orders ?? []) {
+          const { error } = await admin
+            .from("orders")
+            .update({ order_number: `TMP-${order.id}` })
+            .eq("tenant_id", body.tenant_id)
+            .eq("id", order.id);
+          if (error) return json({ error: error.message }, 500);
+        }
+        for (const [index, order] of (orders ?? []).entries()) {
+          const orderNumber = `W-${String(index + 1).padStart(3, "0")}`;
+          const { error } = await admin
+            .from("orders")
+            .update({ order_number: orderNumber })
+            .eq("tenant_id", body.tenant_id)
+            .eq("id", order.id);
+          if (error) return json({ error: error.message }, 500);
+        }
+        const { error: counterError } = await admin
+          .from("tenant_order_counters")
+          .upsert({ tenant_id: body.tenant_id, last_number: orders?.length ?? 0 }, { onConflict: "tenant_id" });
+        if (counterError) return json({ error: counterError.message }, 500);
+
+        await admin.from("license_events").insert({
+          tenant_id: body.tenant_id,
+          kind: "platform.orders_renumbered",
+          payload: { by: callerId, order_count: orders?.length ?? 0 },
+        });
+        return json({ ok: true, order_count: orders?.length ?? 0 });
       }
 
       case "impersonate_tenant": {

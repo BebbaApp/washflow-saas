@@ -155,31 +155,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Helper: undo everything we created so a failed request never leaves a
+    // half-provisioned worker visible in the staff list.
+    const rollback = async (message: string, status = 500) => {
+      try { await adminClient.from("staff_pins").delete().eq("user_id", newUserId); } catch { /* ignore */ }
+      try { await adminClient.from("user_roles").delete().eq("user_id", newUserId); } catch { /* ignore */ }
+      try { await adminClient.from("tenant_members").delete().eq("user_id", newUserId); } catch { /* ignore */ }
+      try { await adminClient.auth.admin.deleteUser(newUserId); } catch { /* ignore */ }
+      return new Response(JSON.stringify({ error: message }), {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    };
+
     const { error: memberErr } = await adminClient.from("tenant_members").upsert(
       { tenant_id, user_id: newUserId, tenant_role: "member" },
       { onConflict: "tenant_id,user_id" },
     );
 
-    if (memberErr) {
-      return new Response(JSON.stringify({ error: memberErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (memberErr) return await rollback(memberErr.message);
 
-    // Assign role
-    const { error: roleErr } = await adminClient.from("user_roles").insert({
-      user_id: newUserId,
-      tenant_id,
-      role,
-    });
+    // Assign role. A trigger (or a previous attempt) may already have written a
+    // row for this user/tenant — clear it first so unique constraints on
+    // (user_id, tenant_id) or (user_id, role) can't fail the request.
+    await adminClient.from("user_roles").delete().eq("user_id", newUserId).eq("tenant_id", tenant_id);
 
-    if (roleErr) {
-      return new Response(JSON.stringify({ error: roleErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { error: roleErr } = await adminClient
+      .from("user_roles")
+      .upsert({ user_id: newUserId, tenant_id, role }, { onConflict: "user_id,role" });
+
+    if (roleErr) return await rollback(`Role assignment failed: ${roleErr.message}`);
 
     // Optional phone + PIN for PIN-based login
     if (phone && pin && /^\d{4,6}$/.test(String(pin))) {
@@ -187,17 +192,18 @@ Deno.serve(async (req) => {
       const pin_hash = bcrypt.hashSync(String(pin), salt);
       const normalizedPhone = String(phone).replace(/\s+/g, "");
       const { error: pinErr } = await adminClient.from("staff_pins").insert({
-        user_id: newUser.user.id,
+        user_id: newUserId,
         tenant_id,
         phone: normalizedPhone,
         pin_hash,
       });
       if (pinErr) {
-        return new Response(JSON.stringify({ error: `User created but PIN failed: ${pinErr.message}`, user_id: newUser.user.id }), {
+        return new Response(JSON.stringify({ error: `User created but PIN failed: ${pinErr.message}`, user_id: newUserId }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
+
 
     return new Response(
       JSON.stringify({ success: true, user_id: newUser.user.id }),

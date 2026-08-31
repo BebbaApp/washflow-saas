@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Building2, Users, Calendar, MoreHorizontal, Eye, Shield, Pencil, Plus, Trash2, ListOrdered } from "lucide-react";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
   AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
@@ -262,6 +262,16 @@ export function TenantsAdmin() {
                         <DropdownMenuItem onClick={() => impersonate(t)}>
                           <Eye className="w-3.5 h-3.5 mr-2" /> View as workspace
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={busyId === t.id}
+                          onClick={() => callAction(
+                            { action: "renumber_tenant_orders", tenant_id: t.id },
+                            t.id,
+                            `Work orders renumbered for ${t.name}`,
+                          )}
+                        >
+                          <ListOrdered className="w-3.5 h-3.5 mr-2" /> Renumber work orders
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
@@ -315,13 +325,14 @@ export function TenantsAdmin() {
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
               placeholder={deleteTenant?.slug ?? ""}
+              data-no-capitalize
             />
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); confirmDelete(); }}
-              disabled={deleting || deleteConfirm.trim() !== (deleteTenant?.slug ?? "")}
+              disabled={deleting || deleteConfirm.trim().toLowerCase() !== (deleteTenant?.slug ?? "").toLowerCase()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete forever"}

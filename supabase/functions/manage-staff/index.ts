@@ -8,7 +8,7 @@ const BOOTSTRAP_SUPER_ADMIN_EMAIL = "postfastbiz@gmail.com";
 const VALID_ROLES = ["admin", "supervisor", "washer", "driver", "manager", "cashier"];
 const STAFF_MANAGER_ROLES = ["admin", "manager"];
 const ROLE_PRIORITY = ["admin", "supervisor", "manager", "cashier", "washer", "driver"];
-const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records", "set_pin", "clear_pin", "update_role", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
+const ACCEPTED_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records", "set_pin", "clear_pin", "update_role", "update_profile", "save_compensation", "enroll_face", "delete", "resend_verification", "update_timeoff", "create_timeoff"];
 const READ_ACTIONS = ["list", "list_face_enrollments", "list_attendance_records"];
 const TIMEOFF_APPROVER_ROLES = ["admin", "manager"];
 const TIMEOFF_REQUESTER_ROLES = ["admin", "manager", "supervisor", "cashier"];
@@ -67,6 +67,11 @@ function normalizeAction(raw: unknown, body: Record<string, any>): string {
     update_role: "update_role",
     set_role: "update_role",
     change_role: "update_role",
+
+    update_profile: "update_profile",
+    edit_worker: "update_profile",
+    update_worker: "update_profile",
+    edit_profile: "update_profile",
 
     save_compensation: "save_compensation",
     set_compensation: "save_compensation",
@@ -368,6 +373,62 @@ Deno.serve(async (req) => {
       return reply({ success: true });
     }
 
+    if (action === "update_profile") {
+      const { user_id } = body ?? {};
+      if (!user_id) return reply({ error: "Missing user_id" }, 400);
+      const rawName = typeof body?.name === "string" ? body.name.trim() : "";
+      const rawEmail = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+      const rawPhone = typeof body?.phone === "string" ? body.phone.trim() : "";
+
+      if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        return reply({ error: "Invalid email address" }, 400);
+      }
+      if (rawName && rawName.length > 100) {
+        return reply({ error: "Name too long" }, 400);
+      }
+      if (rawPhone && rawPhone.length > 32) {
+        return reply({ error: "Phone too long" }, 400);
+      }
+
+      // Confirm the target is part of this tenant so admins can't edit strangers.
+      const [{ data: targetMember }, { data: targetRole }] = await Promise.all([
+        admin.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+        admin.from("user_roles").select("user_id").eq("tenant_id", tenantId).eq("user_id", user_id).maybeSingle(),
+      ]);
+      if (!targetMember && !targetRole) {
+        return reply({ error: "Worker is not part of this workspace" }, 400);
+      }
+
+      // Update the auth user (email/phone) — only include fields the caller
+      // actually sent so we don't wipe existing values.
+      const authPatch: Record<string, unknown> = {};
+      if (rawEmail) authPatch.email = rawEmail;
+      if (rawPhone) authPatch.phone = rawPhone;
+      if (Object.keys(authPatch).length > 0) {
+        const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authPatch);
+        if (authErr) return reply({ error: authErr.message }, 500);
+      }
+
+      if (rawName) {
+        const { error: profErr } = await admin
+          .from("profiles")
+          .update({ name: rawName })
+          .eq("user_id", user_id);
+        if (profErr) return reply({ error: profErr.message }, 500);
+      }
+
+      // Keep the PIN-login phone in sync so staff can still sign in with PIN.
+      if (rawPhone) {
+        await admin
+          .from("staff_pins")
+          .update({ phone: rawPhone, updated_at: new Date().toISOString() })
+          .eq("user_id", user_id)
+          .eq("tenant_id", tenantId);
+      }
+
+      return reply({ success: true });
+    }
+
     if (action === "save_compensation") {
       const { user_id } = body ?? {};
       const payType = String(body?.pay_type ?? "salary");
@@ -487,33 +548,58 @@ Deno.serve(async (req) => {
       if ((targetRoles ?? []).some((r: any) => r.role === "admin")) {
         return reply({ error: "Admin users cannot be deleted" }, 400);
       }
-      // Clean up rows that FK-reference auth.users(id) without ON DELETE CASCADE.
-      // Any failure here is logged but not fatal — we still attempt the auth delete.
-      const cleanupTables = [
-        "staff_pins",
-        "staff_face_enrollments",
-        "staff_compensation",
-        "staff_active_status",
-        "user_roles",
-        "tenant_members",
-        "time_off_requests",
-        "shifts",
-        "attendance_records",
-        "profiles",
-        "platform_admins",
-        "super_admins",
-      ];
-      for (const t of cleanupTables) {
-        const { error: delErr } = await admin.from(t).delete().eq("user_id", user_id);
-        if (delErr) console.warn(`[manage-staff.delete] cleanup ${t} failed:`, delErr.message);
+
+      // Remove the enrolled face immediately (storage objects + rows).
+      try {
+        const { data: enrollments } = await admin
+          .from("staff_face_enrollments")
+          .select("id,image_url")
+          .eq("tenant_id", tenantId)
+          .eq("user_id", user_id);
+        const paths = (enrollments ?? [])
+          .map((e: any) => e.image_url)
+          .filter((p: any) => typeof p === "string" && p.length > 0);
+        if (paths.length > 0) {
+          const { error: rmErr } = await admin.storage.from("attendance-selfies").remove(paths);
+          if (rmErr) console.warn("[manage-staff.delete] face image removal failed:", rmErr.message);
+        }
+        const { error: feErr } = await admin
+          .from("staff_face_enrollments")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .eq("user_id", user_id);
+        if (feErr) console.warn("[manage-staff.delete] enrollment delete failed:", feErr.message);
+      } catch (e) {
+        console.warn("[manage-staff.delete] face cleanup error:", (e as Error).message);
       }
 
-      const { error } = await admin.auth.admin.deleteUser(user_id);
-      if (error) {
-        console.error("[manage-staff.delete] auth.admin.deleteUser failed:", error);
-        return reply({ error: error.message, detail: (error as any).cause ?? null }, 500);
+      // Revoke access only. Historical rows (attendance records, expenses,
+      // pay adjustments, audit logs, orders, profile name) are intentionally
+      // preserved so audit trails and past payments stay intact.
+      const accessTables = [
+        "staff_pins",          // PIN login
+        "staff_active_status", // active roster flag
+        "user_roles",          // app permissions
+        "tenant_members",      // workspace membership (also writes member.removed audit)
+      ];
+      for (const t of accessTables) {
+        const q = admin.from(t).delete().eq("user_id", user_id);
+        const { error: delErr } = t === "user_roles" || t === "tenant_members" || t === "staff_pins" || t === "staff_active_status"
+          ? await q.eq("tenant_id", tenantId)
+          : await q;
+        if (delErr) console.warn(`[manage-staff.delete] revoke ${t} failed:`, delErr.message);
       }
-      return reply({ success: true });
+
+      // Block sign-in without destroying the account (keeps the audit trail).
+      const { error: banErr } = await admin.auth.admin.updateUserById(user_id, {
+        ban_duration: "876000h",
+      } as any);
+      if (banErr) {
+        console.error("[manage-staff.delete] ban failed:", banErr);
+        return reply({ error: banErr.message }, 500);
+      }
+
+      return reply({ success: true, retained_history: true });
     }
 
     if (action === "resend_verification") {
