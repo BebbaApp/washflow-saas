@@ -33,3 +33,5 @@ dist-ssr
 src-tauri/gen/
 src-tauri/target/
 package-lock.json
+src-tauri/gen/apple/*.ipa
+src-tauri/gen/apple/build/
