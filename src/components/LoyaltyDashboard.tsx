@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 
-type View = "customers" | "leaderboard";
+type View = "customers" | "leaderboard" | "usage";
 type DateRange = "all" | "30d" | "90d";
 type SortKey = "visits" | "points" | "lastVisit";
 
@@ -148,6 +148,22 @@ export const LoyaltyDashboard = () => {
     byName: {},
   });
 
+  // Free wash usage: every redemption row, newest first.
+  const [usageRows, setUsageRows] = useState<
+    Array<{ id: string; order_id: string | null; created_at: string; description: string | null; customer_id: string }>
+  >([]);
+
+  const fetchUsage = async () => {
+    const { data, error } = await supabase
+      .from("loyalty_transactions")
+      .select("id, order_id, created_at, description, customer_id, type")
+      .eq("type", "redeemed")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) return;
+    setUsageRows((data || []) as any);
+  };
+
   const fetchCustomers = async () => {
     const { data, error } = await supabase.from("customers").select("id, name, phone");
     if (error) return;
@@ -165,6 +181,7 @@ export const LoyaltyDashboard = () => {
   useEffect(() => {
     fetchRedemptions();
     fetchCustomers();
+    fetchUsage();
   }, []);
 
   // Build derived members (all-time, used for the customer list & details)
@@ -219,6 +236,38 @@ export const LoyaltyDashboard = () => {
       };
     });
   }, [orders, redemptionsByCustomerId, customerLookup]);
+
+  const orderById = useMemo(() => {
+    const m = new Map<string, WashOrder>();
+    for (const o of orders) m.set(o.id, o);
+    return m;
+  }, [orders]);
+
+  const usageList = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rows = usageRows.map((r) => {
+      const o = r.order_id ? orderById.get(r.order_id) : undefined;
+      const staffMatch = /\bby\s+(.+)$/i.exec(r.description || "");
+      return {
+        id: r.id,
+        date: o?.completedAt || o?.createdAt || r.created_at,
+        plate: o?.plate || "—",
+        customer: o?.customer || "—",
+        orderNumber: o?.orderNumber || "—",
+        staff: staffMatch ? staffMatch[1].trim() : "—",
+      };
+    });
+    const filteredRows = q
+      ? rows.filter(
+          (r) =>
+            r.plate.toLowerCase().includes(q) ||
+            r.customer.toLowerCase().includes(q) ||
+            r.staff.toLowerCase().includes(q) ||
+            r.orderNumber.toLowerCase().includes(q),
+        )
+      : rows;
+    return filteredRows.sort((a, b) => b.date.localeCompare(a.date));
+  }, [usageRows, orderById, query]);
 
   // Apply date filter (only affects leaderboard ranking & podium)
   const rangeStart = useMemo(() => {
@@ -466,6 +515,14 @@ export const LoyaltyDashboard = () => {
             }`}
           >
             <Users className="w-4 h-4" /> Customers
+          </button>
+          <button
+            onClick={() => setView("usage")}
+            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              view === "usage" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Gift className="w-4 h-4" /> Free Wash Usage
           </button>
           <button
             onClick={() => setView("leaderboard")}
