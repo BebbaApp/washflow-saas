@@ -4,6 +4,7 @@ import { phoneDigits } from "@/lib/phone";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 
 export const POINTS_PER_WASH = 10;
 export const FREE_WASH_COST = 100;
