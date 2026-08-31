@@ -4,6 +4,7 @@ import { phoneDigits } from "@/lib/phone";
 import type { WashOrder } from "@/hooks/useOrders";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 
 export const POINTS_PER_WASH = 10;
 export const FREE_WASH_COST = 100;
@@ -40,6 +41,7 @@ interface CustomerLookup {
  */
 export function useRewardEligibility(orders: WashOrder[]) {
   const { user } = useAuth();
+  const { tenant } = useTenant();
   const [redeemedOrderIds, setRedeemedOrderIds] = useState<Set<string>>(new Set());
   const [redeemedTxns, setRedeemedTxns] = useState<Array<{ order_id: string | null; points: number }>>([]);
   const [customerLookup, setCustomerLookup] = useState<CustomerLookup>({ byPhone: {}, byName: {} });
@@ -147,6 +149,10 @@ export function useRewardEligibility(orders: WashOrder[]) {
   const applyFreeWash = async (o: WashOrder): Promise<boolean> => {
     if (!eligibleOrderIds.has(o.id) || redeemedOrderIds.has(o.id)) return false;
     if (autoRedeemedRef.current.has(o.id)) return false;
+    if (!tenant?.id) {
+      toast.error("Could not apply free wash — no active workspace.");
+      return false;
+    }
     autoRedeemedRef.current.add(o.id);
 
     let customerId =
@@ -156,12 +162,13 @@ export function useRewardEligibility(orders: WashOrder[]) {
     if (!customerId) {
       const { data, error } = await supabase
         .from("customers")
-        .insert({ name: o.customer, phone: o.customerPhone || null })
+        .insert({ name: o.customer, phone: o.customerPhone || null, tenant_id: tenant.id })
         .select("id")
         .single();
       if (error || !data) {
         autoRedeemedRef.current.delete(o.id);
-        toast.error("Could not apply free wash.");
+        console.error("[useRewardEligibility] customer create failed", error);
+        toast.error(`Could not apply free wash: ${error?.message ?? "customer record failed"}`);
         return false;
       }
       customerId = data.id;
@@ -170,6 +177,7 @@ export function useRewardEligibility(orders: WashOrder[]) {
     const { error } = await supabase.from("loyalty_transactions").insert({
       customer_id: customerId,
       order_id: o.id,
+      tenant_id: tenant.id,
       points: FREE_WASH_COST,
       type: "redeemed",
       description: `Free wash applied on order ${o.orderNumber}${
@@ -179,9 +187,10 @@ export function useRewardEligibility(orders: WashOrder[]) {
     if (error && (error as any).code !== "23505") {
       autoRedeemedRef.current.delete(o.id);
       console.error("[useRewardEligibility] redeem failed", error);
-      toast.error("Could not apply free wash.");
+      toast.error(`Could not apply free wash: ${error.message}`);
       return false;
     }
+
 
     // Zero out the order's revenue: move remaining service_price into discount.
     if (o.servicePrice > 0) {
