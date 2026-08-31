@@ -1,6 +1,6 @@
 {
   "productName": "Washflow",
-  "version": "1.0.38",
+  "version": "1.0.39",
   "identifier": "com.aumsoft.washflow",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -68,7 +68,10 @@
         "depends": []
       }
     },
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "iOS": {
+      "developmentTeam": "D7FJM3Y34G"
+    }
   },
   "plugins": {
     "updater": {
