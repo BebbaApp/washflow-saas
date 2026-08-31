@@ -267,11 +267,36 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
             )}
           </div>
 
-          {(onUpdateStatus && nextStatus) || order.status === "completed" ? (
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
-              {order.status === "completed" && (
-                <PrintReceiptButton order={order} variant="ghost" className="mr-auto" />
+          {(onUpdateStatus && nextStatus) || order.status === "completed" || onApplyFreeWash ? (
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+              {onApplyFreeWash && (freeWashEligible || freeWashApplied) && (
+                <button
+                  type="button"
+                  disabled={!freeWashEligible || freeWashApplied || applyingFree}
+                  onClick={async () => {
+                    setApplyingFree(true);
+                    await onApplyFreeWash(order);
+                    setApplyingFree(false);
+                  }}
+                  className={`mr-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-opacity ${
+                    freeWashApplied
+                      ? "bg-success/15 text-success border border-success/40"
+                      : "bg-warning text-warning-foreground hover:opacity-90"
+                  } disabled:opacity-70`}
+                >
+                  <Gift className="w-4 h-4" />
+                  {freeWashApplied ? "FREE WASH APPLIED" : applyingFree ? "Applying…" : "Apply FREE WASH"}
+                </button>
               )}
+              {onApplyFreeWash && !freeWashEligible && !freeWashApplied && freeWashProgress && (
+                <span className="mr-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-muted text-muted-foreground border border-border">
+                  <Gift className="w-3.5 h-3.5" /> {freeWashProgress.current}/{freeWashProgress.target} washes to free wash
+                </span>
+              )}
+              {order.status === "completed" && (
+                <PrintReceiptButton order={order} variant="ghost" />
+              )}
+
               <button
                 onClick={() => onOpenChange(false)}
                 className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
