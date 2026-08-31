@@ -18,7 +18,12 @@ vi.mock("@/integrations/supabase/client", () => {
   const from = (table: string) => {
     const api: any = {
       // SELECT chain returns a thenable resolving to { data, error }
-      select: () => Promise.resolve({ data: tableData[table] ?? [], error: null }),
+      select: () => {
+        const p: any = Promise.resolve({ data: tableData[table] ?? [], error: null });
+        p.eq = () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) });
+        return p;
+      },
+      update: () => ({ eq: () => Promise.resolve({ error: null }) }),
       insert: (payload: any) => {
         if (table === "loyalty_transactions") {
           txnInsert(payload);
