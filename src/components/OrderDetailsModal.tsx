@@ -24,7 +24,12 @@ interface OrderDetailsModalProps {
   onUpdateNotes?: (id: string, notes: string) => Promise<boolean> | void;
   onApproveDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
   onRejectDiscount?: (id: string, authorizer?: { id: string; name: string }) => Promise<boolean> | void;
+  freeWashEligible?: boolean;
+  freeWashApplied?: boolean;
+  freeWashProgress?: { current: number; target: number };
+  onApplyFreeWash?: (order: WashOrder) => Promise<boolean> | void;
 }
+
 
 const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typeof Clock }> = {
   waiting: { label: "Waiting", classes: "bg-warning/10 text-warning border-warning/20", Icon: Clock },
