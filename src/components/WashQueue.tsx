@@ -66,7 +66,7 @@ const PAGE_SIZE = 15;
 
 export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount }: WashQueueProps) => {
   const { formatPrice } = useCurrency();
-  const { eligibleOrderIds, redeemedOrderIds, progressByOrderId } = useRewardEligibility(orders);
+  const { eligibleOrderIds, redeemedOrderIds, progressByOrderId, applyFreeWash } = useRewardEligibility(orders);
   const { can } = usePermissions();
   const canCancel = can("queue.cancel");
   const canStart = can("queue.start");
@@ -594,7 +594,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
         onUpdateNotes={onUpdateNotes}
         onApproveDiscount={onApproveDiscount}
         onRejectDiscount={onRejectDiscount}
+        freeWashEligible={selectedId ? eligibleOrderIds.has(selectedId) : false}
+        freeWashApplied={selectedId ? redeemedOrderIds.has(selectedId) : false}
+        freeWashProgress={selectedId ? progressByOrderId.get(selectedId) : undefined}
+        onApplyFreeWash={applyFreeWash}
       />
+
 
 
       <AlertDialog
