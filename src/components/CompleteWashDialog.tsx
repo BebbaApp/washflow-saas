@@ -266,6 +266,14 @@ export const CompleteWashDialog = ({
                 <Gift className="w-4 h-4" />
                 {freeWashApplied ? "FREE WASH APPLIED" : applyingFree ? "Applying…" : "Apply FREE WASH"}
               </button>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">
+                {freeWashProgress
+                  ? `${Math.max(0, freeWashProgress.target - freeWashProgress.current)} wash${
+                      Math.max(0, freeWashProgress.target - freeWashProgress.current) === 1 ? "" : "es"
+                    } to free wash`
+                  : "No free wash available"}
+              </span>
             )}
           </div>
         )}
