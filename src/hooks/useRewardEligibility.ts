@@ -169,9 +169,25 @@ export function useRewardEligibility(orders: WashOrder[]) {
     }
 
 
+    // Reflect the zeroed price locally right away (server is authoritative,
+    // sync will confirm on the next pull).
+    try {
+      const local: any = await db.orders.get(o.id);
+      if (local && Number(local.service_price) > 0) {
+        await db.orders.put({
+          ...local,
+          discount: +(Number(local.discount ?? 0) + Number(local.service_price)).toFixed(2),
+          service_price: 0,
+        });
+      }
+    } catch {
+      // ignore — remote state already updated
+    }
+
     toast.success(`🎁 Free wash applied for ${o.customer} (${o.orderNumber})`);
     await refresh();
     return true;
+
   };
 
   return { eligibleOrderIds, redeemedOrderIds, progressByOrderId, applyFreeWash, refresh };
