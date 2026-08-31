@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 
-type View = "customers" | "leaderboard";
+type View = "customers" | "leaderboard" | "usage";
 type DateRange = "all" | "30d" | "90d";
 type SortKey = "visits" | "points" | "lastVisit";
 
@@ -148,6 +148,22 @@ export const LoyaltyDashboard = () => {
     byName: {},
   });
 
+  // Free wash usage: every redemption row, newest first.
+  const [usageRows, setUsageRows] = useState<
+    Array<{ id: string; order_id: string | null; created_at: string; description: string | null; customer_id: string }>
+  >([]);
+
+  const fetchUsage = async () => {
+    const { data, error } = await supabase
+      .from("loyalty_transactions")
+      .select("id, order_id, created_at, description, customer_id, type")
+      .eq("type", "redeemed")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) return;
+    setUsageRows((data || []) as any);
+  };
+
   const fetchCustomers = async () => {
     const { data, error } = await supabase.from("customers").select("id, name, phone");
     if (error) return;
@@ -165,6 +181,7 @@ export const LoyaltyDashboard = () => {
   useEffect(() => {
     fetchRedemptions();
     fetchCustomers();
+    fetchUsage();
   }, []);
 
   // Build derived members (all-time, used for the customer list & details)
@@ -219,6 +236,38 @@ export const LoyaltyDashboard = () => {
       };
     });
   }, [orders, redemptionsByCustomerId, customerLookup]);
+
+  const orderById = useMemo(() => {
+    const m = new Map<string, WashOrder>();
+    for (const o of orders) m.set(o.id, o);
+    return m;
+  }, [orders]);
+
+  const usageList = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rows = usageRows.map((r) => {
+      const o = r.order_id ? orderById.get(r.order_id) : undefined;
+      const staffMatch = /\bby\s+(.+)$/i.exec(r.description || "");
+      return {
+        id: r.id,
+        date: o?.completedAt || o?.createdAt || r.created_at,
+        plate: o?.plate || "—",
+        customer: o?.customer || "—",
+        orderNumber: o?.orderNumber || "—",
+        staff: staffMatch ? staffMatch[1].trim() : "—",
+      };
+    });
+    const filteredRows = q
+      ? rows.filter(
+          (r) =>
+            r.plate.toLowerCase().includes(q) ||
+            r.customer.toLowerCase().includes(q) ||
+            r.staff.toLowerCase().includes(q) ||
+            r.orderNumber.toLowerCase().includes(q),
+        )
+      : rows;
+    return filteredRows.sort((a, b) => b.date.localeCompare(a.date));
+  }, [usageRows, orderById, query]);
 
   // Apply date filter (only affects leaderboard ranking & podium)
   const rangeStart = useMemo(() => {
@@ -350,7 +399,7 @@ export const LoyaltyDashboard = () => {
         `🎉 Free wash redeemed for ${live.name} — ${remaining} pts remaining (${visitsToNext} more visit${visitsToNext !== 1 ? "s" : ""} to next reward)`
       );
       setRedeemTarget(null);
-      await Promise.all([fetchCustomers(), fetchRedemptions()]);
+      await Promise.all([fetchCustomers(), fetchRedemptions(), fetchUsage()]);
     } finally {
       setRedeeming(false);
     }
@@ -468,6 +517,14 @@ export const LoyaltyDashboard = () => {
             <Users className="w-4 h-4" /> Customers
           </button>
           <button
+            onClick={() => setView("usage")}
+            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              view === "usage" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Gift className="w-4 h-4" /> Free Wash Usage
+          </button>
+          <button
             onClick={() => setView("leaderboard")}
             className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
               view === "leaderboard" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -478,6 +535,7 @@ export const LoyaltyDashboard = () => {
         </div>
       </div>
 
+      {view !== "usage" && (<>
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((s) => (
@@ -701,6 +759,81 @@ export const LoyaltyDashboard = () => {
           </div>
         )}
       </div>
+
+
+      </>)}
+
+      {view === "usage" && (
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by plate, customer, order no or staff..."
+              className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+          <div className="glass-card p-4 min-h-[280px]">
+            {usageList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Gift className="w-10 h-10 text-muted-foreground mb-3" />
+                <p className="text-foreground font-semibold">No free washes redeemed yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Applied rewards appear here with the date, plate and staff member
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Mobile cards */}
+                <ul className="sm:hidden space-y-2">
+                  {usageList.map((r) => (
+                    <li key={r.id} className="rounded-lg border border-border bg-secondary/40 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm font-semibold text-foreground">{r.plate}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(r.date).toLocaleDateString("en-GB")}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground mt-1 truncate">{r.customer}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {r.orderNumber} · applied by {r.staff}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                {/* Table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground border-b border-border">
+                        <th className="text-left font-medium py-2 pr-3">Wash date</th>
+                        <th className="text-left font-medium py-2 pr-3">Plate</th>
+                        <th className="text-left font-medium py-2 pr-3">Customer</th>
+                        <th className="text-left font-medium py-2 pr-3">Order</th>
+                        <th className="text-left font-medium py-2">Applied by</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageList.map((r) => (
+                        <tr key={r.id} className="border-b border-border/60 last:border-b-0">
+                          <td className="py-2.5 pr-3 text-foreground">
+                            {new Date(r.date).toLocaleDateString("en-GB")}
+                          </td>
+                          <td className="py-2.5 pr-3 font-mono text-foreground">{r.plate}</td>
+                          <td className="py-2.5 pr-3 text-foreground">{r.customer}</td>
+                          <td className="py-2.5 pr-3 text-muted-foreground">{r.orderNumber}</td>
+                          <td className="py-2.5 text-muted-foreground">{r.staff}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
 
       {/* Customer details modal */}

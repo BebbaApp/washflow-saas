@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ShieldAlert, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ShieldAlert, Plus, Trash2, Gift } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useInventory } from "@/hooks/useInventory";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface PendingOrder {
   id: string;
@@ -24,6 +25,12 @@ interface Props {
   order: PendingOrder | null;
   onCancel: () => void;
   onConfirmed: () => void;
+  /** Live balance due on the order (updates instantly once a free wash applies). */
+  balance?: number;
+  freeWashEligible?: boolean;
+  freeWashApplied?: boolean;
+  freeWashProgress?: { current: number; target: number };
+  onApplyFreeWash?: () => Promise<boolean> | void;
 }
 
 const NOTE_MAX = 160;
@@ -46,8 +53,19 @@ interface Extra {
   note: string;
 }
 
-export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
+export const CompleteWashDialog = ({
+  order,
+  onCancel,
+  onConfirmed,
+  balance,
+  freeWashEligible,
+  freeWashApplied,
+  freeWashProgress,
+  onApplyFreeWash,
+}: Props) => {
   const { items, previewConsumption, previewVehicleConsumption, commitWashConsumption, waterItemId } = useInventory();
+  const { formatPrice } = useCurrency();
+  const [applyingFree, setApplyingFree] = useState(false);
   const [overrideNote, setOverrideNote] = useState("");
   const [extras, setExtras] = useState<Extra[]>([]);
 
@@ -216,6 +234,41 @@ export const CompleteWashDialog = ({ order, onCancel, onConfirmed }: Props) => {
             </div>
           );
         })()}
+
+        {onApplyFreeWash && (freeWashEligible || freeWashApplied || freeWashProgress) && (
+          <div className="rounded-lg border border-border bg-secondary/40 p-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Balance due</p>
+              <p className={`text-lg font-extrabold ${balance === 0 ? "text-success" : "text-foreground"}`}>
+                {formatPrice(balance ?? 0)}
+              </p>
+              {!freeWashEligible && !freeWashApplied && freeWashProgress && (
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {freeWashProgress.current}/{freeWashProgress.target} washes to free wash
+                </p>
+              )}
+            </div>
+            {(freeWashEligible || freeWashApplied) && (
+              <button
+                type="button"
+                disabled={!freeWashEligible || freeWashApplied || applyingFree}
+                onClick={async () => {
+                  setApplyingFree(true);
+                  await onApplyFreeWash();
+                  setApplyingFree(false);
+                }}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-opacity ${
+                  freeWashApplied
+                    ? "bg-success/15 text-success border border-success/40"
+                    : "bg-warning text-warning-foreground hover:opacity-90"
+                } disabled:opacity-70`}
+              >
+                <Gift className="w-4 h-4" />
+                {freeWashApplied ? "FREE WASH APPLIED" : applyingFree ? "Applying…" : "Apply FREE WASH"}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Extras */}
         <div className="space-y-2">

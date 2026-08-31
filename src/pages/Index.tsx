@@ -23,6 +23,7 @@ import { ExpensesPage } from "@/components/ExpensesPage";
 import { AttendancePage } from "@/components/AttendancePage";
 import { SettingsPage } from "@/components/SettingsPage";
 import { CompleteWashDialog } from "@/components/CompleteWashDialog";
+import { useRewardEligibility } from "@/hooks/useRewardEligibility";
 import { ReceiptPreviewDialog } from "@/components/ReceiptPreviewDialog";
 import { useOrders } from "@/hooks/useOrders";
 import { useInventory } from "@/hooks/useInventory";
@@ -86,6 +87,12 @@ const Index = () => {
   const [profileOpen, setProfileOpen] = useState(false);
   const [printPreviewId, setPrintPreviewId] = useState<string | null>(null);
   const { orders, addOrder, updateStatus, updateNotes, approveDiscount, rejectDiscount } = useOrders();
+  const {
+    eligibleOrderIds: freeWashEligibleIds,
+    redeemedOrderIds: freeWashRedeemedIds,
+    progressByOrderId: freeWashProgressById,
+    applyFreeWash,
+  } = useRewardEligibility(orders);
   const { user, login, signup, logout, updateProfile, isAuthenticated, isAdmin, loading, authedEmail, authedNoRole } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { processCompletedOrders } = useInventory();
@@ -556,6 +563,15 @@ const Index = () => {
       <CompleteWashDialog
         order={pendingComplete}
         onCancel={() => setPendingComplete(null)}
+        balance={pendingComplete ? orders.find((o) => o.id === pendingComplete.id)?.servicePrice ?? 0 : 0}
+        freeWashEligible={pendingComplete ? freeWashEligibleIds.has(pendingComplete.id) : false}
+        freeWashApplied={pendingComplete ? freeWashRedeemedIds.has(pendingComplete.id) : false}
+        freeWashProgress={pendingComplete ? freeWashProgressById.get(pendingComplete.id) : undefined}
+        onApplyFreeWash={async () => {
+          if (!pendingComplete) return false;
+          const live = orders.find((o) => o.id === pendingComplete.id);
+          return live ? await applyFreeWash(live) : false;
+        }}
         onConfirmed={async () => {
           if (!pendingComplete) return;
           const id = pendingComplete.id;
