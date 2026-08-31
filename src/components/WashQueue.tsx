@@ -594,7 +594,12 @@ export const WashQueue = ({ orders, onUpdateStatus, onUpdateNotes, onApproveDisc
         onUpdateNotes={onUpdateNotes}
         onApproveDiscount={onApproveDiscount}
         onRejectDiscount={onRejectDiscount}
+        freeWashEligible={selectedId ? eligibleOrderIds.has(selectedId) : false}
+        freeWashApplied={selectedId ? redeemedOrderIds.has(selectedId) : false}
+        freeWashProgress={selectedId ? progressByOrderId.get(selectedId) : undefined}
+        onApplyFreeWash={applyFreeWash}
       />
+
 
 
       <AlertDialog
