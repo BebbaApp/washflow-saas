@@ -535,6 +535,7 @@ export const LoyaltyDashboard = () => {
         </div>
       </div>
 
+      {view !== "usage" && (<>
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((s) => (
@@ -758,6 +759,81 @@ export const LoyaltyDashboard = () => {
           </div>
         )}
       </div>
+
+
+      </>)}
+
+      {view === "usage" && (
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by plate, customer, order no or staff..."
+              className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+          <div className="glass-card p-4 min-h-[280px]">
+            {usageList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Gift className="w-10 h-10 text-muted-foreground mb-3" />
+                <p className="text-foreground font-semibold">No free washes redeemed yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Applied rewards appear here with the date, plate and staff member
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Mobile cards */}
+                <ul className="sm:hidden space-y-2">
+                  {usageList.map((r) => (
+                    <li key={r.id} className="rounded-lg border border-border bg-secondary/40 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm font-semibold text-foreground">{r.plate}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(r.date).toLocaleDateString("en-GB")}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground mt-1 truncate">{r.customer}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {r.orderNumber} · applied by {r.staff}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                {/* Table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground border-b border-border">
+                        <th className="text-left font-medium py-2 pr-3">Wash date</th>
+                        <th className="text-left font-medium py-2 pr-3">Plate</th>
+                        <th className="text-left font-medium py-2 pr-3">Customer</th>
+                        <th className="text-left font-medium py-2 pr-3">Order</th>
+                        <th className="text-left font-medium py-2">Applied by</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageList.map((r) => (
+                        <tr key={r.id} className="border-b border-border/60 last:border-b-0">
+                          <td className="py-2.5 pr-3 text-foreground">
+                            {new Date(r.date).toLocaleDateString("en-GB")}
+                          </td>
+                          <td className="py-2.5 pr-3 font-mono text-foreground">{r.plate}</td>
+                          <td className="py-2.5 pr-3 text-foreground">{r.customer}</td>
+                          <td className="py-2.5 pr-3 text-muted-foreground">{r.orderNumber}</td>
+                          <td className="py-2.5 text-muted-foreground">{r.staff}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
 
       {/* Customer details modal */}
