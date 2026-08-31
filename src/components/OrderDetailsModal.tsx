@@ -39,7 +39,7 @@ const statusMeta: Record<WashStatus, { label: string; classes: string; Icon: typ
   deleted: { label: "Deleted", classes: "bg-muted text-muted-foreground border-border", Icon: Clock },
 };
 
-export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount }: OrderDetailsModalProps) => {
+export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, onUpdateNotes, onApproveDiscount, onRejectDiscount, freeWashEligible, freeWashApplied, freeWashProgress, onApplyFreeWash }: OrderDetailsModalProps) => {
   const { formatPrice } = useCurrency();
   const { can } = usePermissions();
   const { user } = useAuth();
@@ -47,6 +47,8 @@ export const OrderDetailsModal = ({ order, open, onOpenChange, onUpdateStatus, o
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
+  const [applyingFree, setApplyingFree] = useState(false);
+
 
   useEffect(() => {
     setNotesDraft(order?.notes ?? "");
