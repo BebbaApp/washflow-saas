@@ -155,62 +155,19 @@ export function useRewardEligibility(orders: WashOrder[]) {
     }
     autoRedeemedRef.current.add(o.id);
 
-    let customerId =
-      customerLookup.byPhone[phoneKey(o.customerPhone)] ||
-      customerLookup.byName[nameKey(o.customer)];
-
-    if (!customerId) {
-      const { data, error } = await supabase
-        .from("customers")
-        .insert({ name: o.customer, phone: o.customerPhone || null, tenant_id: tenant.id })
-        .select("id")
-        .single();
-      if (error || !data) {
-        autoRedeemedRef.current.delete(o.id);
-        console.error("[useRewardEligibility] customer create failed", error);
-        toast.error(`Could not apply free wash: ${error?.message ?? "customer record failed"}`);
-        return false;
-      }
-      customerId = data.id;
-    }
-
-    const { error } = await supabase.from("loyalty_transactions").insert({
-      customer_id: customerId,
-      order_id: o.id,
-      tenant_id: tenant.id,
-      points: FREE_WASH_COST,
-      type: "redeemed",
-      description: `Free wash applied on order ${o.orderNumber}${
-        user ? ` by ${user.name || user.email}` : ""
-      }`,
+    // Redemption runs server-side: the client's active_tenant_id JWT claim can
+    // be stale, which makes the direct customer/loyalty inserts fail RLS.
+    const { data, error } = await supabase.functions.invoke("apply-free-wash", {
+      body: { tenant_id: tenant.id, order_id: o.id, points: FREE_WASH_COST },
     });
-    if (error && (error as any).code !== "23505") {
+    const errMsg = (error as any)?.message ?? (data as any)?.error;
+    if (error || (data as any)?.error) {
       autoRedeemedRef.current.delete(o.id);
-      console.error("[useRewardEligibility] redeem failed", error);
-      toast.error(`Could not apply free wash: ${error.message}`);
+      console.error("[useRewardEligibility] redeem failed", errMsg);
+      toast.error(`Could not apply free wash: ${errMsg ?? "unknown error"}`);
       return false;
     }
 
-
-    // Zero out the order's revenue: move remaining service_price into discount.
-    if (o.servicePrice > 0) {
-      const { data: current } = await supabase
-        .from("orders")
-        .select("service_price, discount")
-        .eq("id", o.id)
-        .maybeSingle();
-      const currentPrice = Number(current?.service_price ?? o.servicePrice) || 0;
-      const currentDiscount = Number(current?.discount ?? 0) || 0;
-      if (currentPrice > 0) {
-        await supabase
-          .from("orders")
-          .update({
-            service_price: 0,
-            discount: +(currentDiscount + currentPrice).toFixed(2),
-          })
-          .eq("id", o.id);
-      }
-    }
 
     toast.success(`🎁 Free wash applied for ${o.customer} (${o.orderNumber})`);
     await refresh();
