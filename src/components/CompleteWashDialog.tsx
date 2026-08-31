@@ -248,7 +248,7 @@ export const CompleteWashDialog = ({
                 </p>
               )}
             </div>
-            {(freeWashEligible || freeWashApplied) && (
+            {(freeWashEligible || freeWashApplied) ? (
               <button
                 type="button"
                 disabled={!freeWashEligible || freeWashApplied || applyingFree}
