@@ -506,8 +506,9 @@ export const LoyaltyDashboard = () => {
   return (
     <div className="space-y-5 -mt-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-end gap-3 -mt-12 mb-4 flex-wrap">
-        <div className="inline-flex items-center bg-card border border-border rounded-full p-1">
+      <div className="flex items-center justify-end gap-3 sm:-mt-12 mb-4 flex-wrap overflow-x-auto">
+        <div className="inline-flex items-center bg-card border border-border rounded-full p-1 shrink-0">
+
           <button
             onClick={() => setView("customers")}
             className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
