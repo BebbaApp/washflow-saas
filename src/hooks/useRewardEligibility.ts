@@ -40,6 +40,7 @@ interface CustomerLookup {
  * can show a "FREE WASH" badge on Active cards.
  */
 export function useRewardEligibility(orders: WashOrder[]) {
+  const { user } = useAuth();
   const { tenant } = useTenant();
   const [redeemedOrderIds, setRedeemedOrderIds] = useState<Set<string>>(new Set());
   const [redeemedTxns, setRedeemedTxns] = useState<Array<{ order_id: string | null; points: number }>>([]);
