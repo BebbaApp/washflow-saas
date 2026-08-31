@@ -235,7 +235,7 @@ export const CompleteWashDialog = ({
           );
         })()}
 
-        {onApplyFreeWash && (freeWashEligible || freeWashApplied || freeWashProgress) && (
+        {onApplyFreeWash && (
           <div className="rounded-lg border border-border bg-secondary/40 p-3 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Balance due</p>
