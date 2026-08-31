@@ -563,7 +563,10 @@ const Index = () => {
       <CompleteWashDialog
         order={pendingComplete}
         onCancel={() => setPendingComplete(null)}
-        balance={pendingComplete ? orders.find((o) => o.id === pendingComplete.id)?.servicePrice ?? 0 : 0}
+        balance={pendingComplete ? (() => {
+          const o = orders.find((x) => x.id === pendingComplete.id);
+          return Math.max(0, (o?.servicePrice ?? 0) - (o?.discount ?? 0));
+        })() : 0}
         freeWashEligible={pendingComplete ? freeWashEligibleIds.has(pendingComplete.id) : false}
         freeWashApplied={pendingComplete ? freeWashRedeemedIds.has(pendingComplete.id) : false}
         freeWashProgress={pendingComplete ? freeWashProgressById.get(pendingComplete.id) : undefined}
