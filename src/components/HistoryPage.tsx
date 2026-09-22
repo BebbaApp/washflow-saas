@@ -118,6 +118,7 @@ function localDateKey(date: Date) {
 
 function presetRange(preset: DatePreset, customFrom?: string, customTo?: string): { from?: Date; to?: Date } {
   const now = new Date();
+  if (preset === "today") return { from: startOfDay(now), to: endOfDay(now) };
   if (preset === "7d") return { from: startOfDay(addDays(now, -6)), to: endOfDay(now) };
   if (preset === "30d") return { from: startOfDay(addDays(now, -29)), to: endOfDay(now) };
   if (preset === "90d") return { from: startOfDay(addDays(now, -89)), to: endOfDay(now) };
