@@ -943,7 +943,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
             Daily totals <span className="normal-case text-[10px] text-muted-foreground/70">(filtered range)</span>
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {dailyTotals.map((d) => (
+            {(dailyExpanded ? dailyTotals : dailyTotals.slice(0, 4)).map((d) => (
               <div key={d.label} className="rounded-lg border border-border bg-secondary/30 p-3">
                 <p className="text-xs text-muted-foreground">{d.label}</p>
                 <p className="text-base font-bold text-foreground mt-1">{formatPrice(d.amount)}</p>
@@ -951,6 +951,16 @@ export const HistoryPage = (_props: HistoryPageProps) => {
               </div>
             ))}
           </div>
+          {dailyTotals.length > 4 && (
+            <button
+              onClick={() => setDailyExpanded((v) => !v)}
+              className="mt-3 text-xs font-semibold text-primary hover:underline"
+            >
+              {dailyExpanded
+                ? "Show less"
+                : `Show ${dailyTotals.length - 4} more day${dailyTotals.length - 4 !== 1 ? "s" : ""}`}
+            </button>
+          )}
         </div>
       )}
 
