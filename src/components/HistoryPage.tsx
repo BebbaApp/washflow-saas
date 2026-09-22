@@ -568,6 +568,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
 
   const datePresetLabel = useMemo(() => {
+    if (datePreset === "today") return "Today";
     if (datePreset === "all") return "All time";
     if (datePreset === "7d") return "Last 7 days";
     if (datePreset === "30d") return "Last 30 days";
