@@ -782,34 +782,101 @@ function ExpenseDetailsDialog({
 
 function ViewReceiptButton({ path, compact = false }: { path: string; compact?: boolean }) {
   const [loading, setLoading] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
-  const open = async () => {
+  const isPdf = /\.pdf($|\?)/i.test(path);
+
+  const handleOpen = async () => {
+    setOpen(true);
+    setError(null);
     setLoading(true);
     try {
-      const url = await getSignedReceiptUrl(path, 600);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-      else alert("Receipt is unavailable offline. Reconnect and try again.");
+      const signed = await getSignedReceiptUrl(path, 600);
+      if (signed) setUrl(signed);
+      else setError("Receipt is unavailable offline. Reconnect and try again.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load receipt.");
     } finally {
       setLoading(false);
     }
   };
 
+  const close = () => {
+    setOpen(false);
+    setUrl(null);
+    setError(null);
+  };
+
   return (
-    <button
-      type="button"
-      onClick={open}
-      disabled={loading}
-      className={
-        compact
-          ? "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-60"
-          : "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-background text-sm font-medium hover:bg-muted disabled:opacity-60"
-      }
-    >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-      View receipt
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={loading}
+        className={
+          compact
+            ? "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-60"
+            : "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-background text-sm font-medium hover:bg-muted disabled:opacity-60"
+        }
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+        View receipt
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4"
+          onClick={close}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <p className="text-sm font-semibold text-foreground">Receipt</p>
+              <div className="flex items-center gap-2">
+                {url && (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-primary hover:bg-primary/10"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Open
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={close}
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground"
+                  aria-label="Close receipt preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-muted/30 flex items-center justify-center min-h-[240px] p-3">
+              {loading ? (
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              ) : error ? (
+                <p className="text-sm text-red-500 text-center px-4">{error}</p>
+              ) : url ? (
+                isPdf ? (
+                  <iframe src={url} title="Receipt" className="w-full h-[70vh] rounded-md bg-background" />
+                ) : (
+                  <img src={url} alt="Expense receipt" className="max-w-full max-h-[70vh] rounded-md object-contain" />
+                )
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
+
 
 function DetailRow({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
   return (
