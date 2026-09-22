@@ -21,10 +21,11 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 
-type Tab = "dashboard" | "tenants" | "plans" | "users" | "expenses" | "events" | "backups" | "settings";
+type Tab = "dashboard" | "reports" | "tenants" | "plans" | "users" | "expenses" | "events" | "backups" | "settings";
 
 const items: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "tenants", label: "Tenants", icon: Building2 },
   { id: "plans", label: "Plans", icon: Package },
   { id: "users", label: "Users", icon: Users },
