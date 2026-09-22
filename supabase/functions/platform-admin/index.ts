@@ -585,6 +585,7 @@ Deno.serve(async (req) => {
           },
           top_services: topServices,
           expense_categories,
+          tenant_breakdown,
           series,
         });
       }
