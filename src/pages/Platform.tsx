@@ -1,6 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package, DatabaseBackup } from "lucide-react";
+import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package, DatabaseBackup, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useAppVersion } from "@/hooks/useAppVersion";
