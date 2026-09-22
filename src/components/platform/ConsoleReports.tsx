@@ -251,7 +251,7 @@ export function ConsoleReports() {
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All workspaces</SelectItem>
-                {tenants.map((t) => <SelectItem key={1} value={t.id}>{t.name}</SelectItem>)}
+                {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
