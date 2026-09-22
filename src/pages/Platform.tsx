@@ -13,6 +13,8 @@ import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import { ConsolePlans } from "@/components/platform/ConsolePlans";
 import { ConsoleBackups } from "@/components/platform/ConsoleBackups";
 import { ConsoleReports } from "@/components/platform/ConsoleReports";
+import { ConsoleTaxInvoices } from "@/components/platform/ConsoleTaxInvoices";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserMenu } from "@/components/UserMenu";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
