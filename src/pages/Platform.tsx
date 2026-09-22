@@ -137,7 +137,16 @@ export default function Platform() {
             {tab === "plans" && <ConsolePlans />}
             {tab === "users" && <UsersAdmin />}
             {tab === "expenses" && <ConsoleExpenses />}
-            {tab === "events" && <LicenseEventsAdmin />}
+            {tab === "events" && (
+              <Tabs defaultValue="invoices" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="invoices">Tax Invoices</TabsTrigger>
+                  <TabsTrigger value="log">Event Log</TabsTrigger>
+                </TabsList>
+                <TabsContent value="invoices"><ConsoleTaxInvoices /></TabsContent>
+                <TabsContent value="log"><LicenseEventsAdmin /></TabsContent>
+              </Tabs>
+            )}
             {tab === "backups" && <ConsoleBackups />}
             {tab === "settings" && <ConsoleSettings />}
           </main>
