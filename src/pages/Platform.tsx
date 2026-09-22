@@ -12,6 +12,7 @@ import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
 import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import { ConsolePlans } from "@/components/platform/ConsolePlans";
 import { ConsoleBackups } from "@/components/platform/ConsoleBackups";
+import { ConsoleReports } from "@/components/platform/ConsoleReports";
 import { UserMenu } from "@/components/UserMenu";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
