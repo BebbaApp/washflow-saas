@@ -33,7 +33,7 @@ interface HistoryPageProps {
 
 type Filter = "all" | "completed" | "cancelled" | "deleted";
 type CancelledSub = "all" | "with" | "without";
-type DatePreset = "all" | "7d" | "30d" | "90d" | "custom";
+type DatePreset = "today" | "all" | "7d" | "30d" | "90d" | "custom";
 
 const statusStyles: Record<string, string> = {
   completed: "bg-success/15 text-success",
@@ -118,6 +118,7 @@ function localDateKey(date: Date) {
 
 function presetRange(preset: DatePreset, customFrom?: string, customTo?: string): { from?: Date; to?: Date } {
   const now = new Date();
+  if (preset === "today") return { from: startOfDay(now), to: endOfDay(now) };
   if (preset === "7d") return { from: startOfDay(addDays(now, -6)), to: endOfDay(now) };
   if (preset === "30d") return { from: startOfDay(addDays(now, -29)), to: endOfDay(now) };
   if (preset === "90d") return { from: startOfDay(addDays(now, -89)), to: endOfDay(now) };
@@ -567,6 +568,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   };
 
   const datePresetLabel = useMemo(() => {
+    if (datePreset === "today") return "Today";
     if (datePreset === "all") return "All time";
     if (datePreset === "7d") return "Last 7 days";
     if (datePreset === "30d") return "Last 30 days";
@@ -711,10 +713,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   ];
 
   const datePresets: { id: DatePreset; label: string }[] = [
-    { id: "all", label: "All time" },
+    { id: "today", label: "Today" },
     { id: "7d", label: "7 days" },
     { id: "30d", label: "30 days" },
     { id: "90d", label: "90 days" },
+    { id: "all", label: "All time" },
   ];
 
   const clearAllFilters = () => {
