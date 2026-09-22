@@ -525,6 +525,34 @@ Deno.serve(async (req) => {
           .map(([category, amount]) => ({ category, amount }))
           .sort((a, b) => b.amount - a.amount);
 
+        // Per-tenant breakdown for consolidated reports
+        const tenantNames = new Map<string, string>();
+        const { data: tenantRows } = await admin.from("tenants").select("id, name")
+          .limit(500);
+        (tenantRows ?? []).forEach((t: any) => tenantNames.set(t.id, t.name));
+
+        const tenantMap = new Map<string, { id: string; name: string; revenue: number; expenses: number; orders: number; completed: number }>();
+        for (const r of rows) {
+          const tid = r.tenant_id;
+          if (!tid) continue;
+          const cur = tenantMap.get(tid) ?? { id: tid, name: tenantNames.get(tid) ?? tid.slice(0, 8), revenue: 0, expenses: 0, orders: 0, completed: 0 };
+          cur.orders += 1;
+          if (r.status === "completed") {
+            cur.completed += 1;
+            cur.revenue += Number(r.service_price ?? 0);
+          }
+          tenantMap.set(tid, cur);
+        }
+        for (const e of expenseRows) {
+          const tid = e.tenant_id;
+          if (!tid) continue;
+          const cur = tenantMap.get(tid) ?? { id: tid, name: tenantNames.get(tid) ?? tid.slice(0, 8), revenue: 0, expenses: 0, orders: 0, completed: 0 };
+          cur.expenses += Number(e.amount ?? 0);
+          tenantMap.set(tid, cur);
+        }
+        const tenant_breakdown = Array.from(tenantMap.values())
+          .sort((a, b) => b.revenue - a.revenue);
+
         // Daily revenue + expenses series
         const dayMap = new Map<string, { revenue: number; expenses: number }>();
         for (const r of completed) {
@@ -557,6 +585,7 @@ Deno.serve(async (req) => {
           },
           top_services: topServices,
           expense_categories,
+          tenant_breakdown,
           series,
         });
       }

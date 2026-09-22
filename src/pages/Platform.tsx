@@ -1,6 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package, DatabaseBackup } from "lucide-react";
+import { Building2, Users, ScrollText, Shield, Loader2, LayoutDashboard, Settings as SettingsIcon, Receipt, Package, DatabaseBackup, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -12,6 +12,7 @@ import { ConsoleSettings } from "@/components/platform/ConsoleSettings";
 import { ConsoleExpenses } from "@/components/platform/ConsoleExpenses";
 import { ConsolePlans } from "@/components/platform/ConsolePlans";
 import { ConsoleBackups } from "@/components/platform/ConsoleBackups";
+import { ConsoleReports } from "@/components/platform/ConsoleReports";
 import { UserMenu } from "@/components/UserMenu";
 import { HeaderClock } from "@/components/HeaderClock";
 import { SyncStatusPill } from "@/components/SyncStatusPill";
@@ -20,10 +21,11 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 
-type Tab = "dashboard" | "tenants" | "plans" | "users" | "expenses" | "events" | "backups" | "settings";
+type Tab = "dashboard" | "reports" | "tenants" | "plans" | "users" | "expenses" | "events" | "backups" | "settings";
 
 const items: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "tenants", label: "Tenants", icon: Building2 },
   { id: "plans", label: "Plans", icon: Package },
   { id: "users", label: "Users", icon: Users },
@@ -128,6 +130,7 @@ export default function Platform() {
           </header>
           <main className="flex-1 p-6 overflow-x-hidden">
             {tab === "dashboard" && <ConsoleDashboard />}
+            {tab === "reports" && <ConsoleReports />}
             {tab === "tenants" && <TenantsAdmin />}
             {tab === "plans" && <ConsolePlans />}
             {tab === "users" && <UsersAdmin />}
