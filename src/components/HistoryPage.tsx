@@ -33,7 +33,7 @@ interface HistoryPageProps {
 
 type Filter = "all" | "completed" | "cancelled" | "deleted";
 type CancelledSub = "all" | "with" | "without";
-type DatePreset = "all" | "7d" | "30d" | "90d" | "custom";
+type DatePreset = "today" | "all" | "7d" | "30d" | "90d" | "custom";
 
 const statusStyles: Record<string, string> = {
   completed: "bg-success/15 text-success",
