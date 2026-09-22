@@ -170,6 +170,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [counts, setCounts] = useState({ completed: 0, cancelled: 0, deleted: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [dailyExpanded, setDailyExpanded] = useState(false);
   const restoredScrollRef = useRef(false);
   const dailyFetchRunRef = useRef(0);
 
