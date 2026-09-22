@@ -152,6 +152,54 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_notification_settings: {
+        Row: {
+          auto_email_enabled: boolean
+          due_days: number
+          email_body: string
+          email_subject: string
+          from_email: string
+          from_name: string
+          id: boolean
+          send_day: number
+          sms_reminder_days: number
+          sms_reminders_enabled: boolean
+          sms_template: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_email_enabled?: boolean
+          due_days?: number
+          email_body?: string
+          email_subject?: string
+          from_email?: string
+          from_name?: string
+          id?: boolean
+          send_day?: number
+          sms_reminder_days?: number
+          sms_reminders_enabled?: boolean
+          sms_template?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_email_enabled?: boolean
+          due_days?: number
+          email_body?: string
+          email_subject?: string
+          from_email?: string
+          from_name?: string
+          id?: boolean
+          send_day?: number
+          sms_reminder_days?: number
+          sms_reminders_enabled?: boolean
+          sms_template?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
@@ -1795,6 +1843,87 @@ export type Database = {
             foreignKeyName: "tenant_settings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_tax_invoices: {
+        Row: {
+          created_at: string
+          currency: string
+          due_date: string | null
+          email_result: Json | null
+          email_sent_at: string | null
+          id: string
+          invoice_number: string
+          issue_date: string
+          period_end: string
+          period_start: string
+          plan_name: string
+          sms_result: Json | null
+          sms_sent_at: string | null
+          status: string
+          subtotal_cents: number
+          tenant_id: string
+          total_cents: number
+          updated_at: string
+          vat_cents: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          email_result?: Json | null
+          email_sent_at?: string | null
+          id?: string
+          invoice_number: string
+          issue_date?: string
+          period_end: string
+          period_start: string
+          plan_name: string
+          sms_result?: Json | null
+          sms_sent_at?: string | null
+          status?: string
+          subtotal_cents?: number
+          tenant_id: string
+          total_cents?: number
+          updated_at?: string
+          vat_cents?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          email_result?: Json | null
+          email_sent_at?: string | null
+          id?: string
+          invoice_number?: string
+          issue_date?: string
+          period_end?: string
+          period_start?: string
+          plan_name?: string
+          sms_result?: Json | null
+          sms_sent_at?: string | null
+          status?: string
+          subtotal_cents?: number
+          tenant_id?: string
+          total_cents?: number
+          updated_at?: string
+          vat_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_tax_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "platform_tenants_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_tax_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
