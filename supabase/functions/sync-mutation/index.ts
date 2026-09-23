@@ -188,8 +188,7 @@ Deno.serve(async (req) => {
       // still carry the retired global sequence, which previously allowed a
       // new tenant to receive numbers such as W-456. The server is the sole
       // allocator for every insert.
-      const { data: orderNumber, error: orderNumberError } = await admin.rpc("next_tenant_order_number", { _tenant: tenant_id });
-      if (orderNumberError) return json({ error: orderNumberError.message }, 500);
+      const orderNumber = await allocateOrderNumber(admin, tenant_id);
       row = { ...row, order_number: orderNumber };
     }
     let writeClient = admin;
@@ -240,8 +239,7 @@ Deno.serve(async (req) => {
       // number instead of wedging the queue.
       if (table === "orders" && result.error?.code === "23505" && /order_number/i.test(result.error.message ?? "")) {
         for (let attempt = 0; attempt < 25 && result.error; attempt++) {
-          const { data: retryNumber, error: retryError } = await admin.rpc("next_tenant_order_number", { _tenant: tenant_id });
-          if (retryError) return json({ error: retryError.message }, 500);
+          const retryNumber = await allocateOrderNumber(admin, tenant_id);
           row = { ...(row as Record<string, unknown>), order_number: retryNumber };
           result = await writeClient
             .from(table)
@@ -260,6 +258,32 @@ Deno.serve(async (req) => {
     return json({ error: (err as Error).message }, 500);
   }
 });
+
+async function allocateOrderNumber(admin: SupabaseAdmin, tenantId: string): Promise<string> {
+  const { data, error } = await admin.rpc("next_tenant_order_number", { _tenant: tenantId });
+  if (!error && typeof data === "string" && /^W-\d+$/i.test(data)) return data.toUpperCase();
+
+  // Some older counters can enter a permanently blocked range and the SQL
+  // allocator then aborts after its guard limit. Derive the next number from
+  // the tenant's actual rows so one damaged counter cannot wedge the outbox.
+  let highest = 0;
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const result = await admin
+      .from("orders")
+      .select("order_number")
+      .eq("tenant_id", tenantId)
+      .range(from, from + pageSize - 1);
+    if (result.error) throw new Error(result.error.message);
+    const rows = result.data ?? [];
+    for (const order of rows) {
+      const match = /^W-(\d+)$/i.exec(String(order.order_number ?? ""));
+      if (match) highest = Math.max(highest, Number(match[1]));
+    }
+    if (rows.length < pageSize) break;
+  }
+  return `W-${String(highest + 1).padStart(3, "0")}`;
+}
 
 async function canWriteTenant(
   admin: SupabaseAdmin,
