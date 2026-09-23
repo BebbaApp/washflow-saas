@@ -25,6 +25,7 @@ import {
 } from "@/offline/sync";
 import type { OutboxItem } from "@/offline/db";
 import { cn } from "@/lib/utils";
+import { SyncHealthDashboard } from "@/components/SyncHealthDashboard";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -136,7 +137,8 @@ export function SyncStatusPill({ className }: { className?: string }) {
           <span>{label}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] p-0">
+      <PopoverContent align="end" className="w-[360px] p-0 max-h-[85vh] overflow-y-auto">
+        <SyncHealthDashboard />
         <div className="border-b p-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold">Sync</div>

@@ -584,6 +584,7 @@ async function drainOutbox() {
       }
       if (error) throw error;
       await db.outbox.delete(it.id!);
+      bumpCompletedCount();
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       // Session ended mid-drain (sign-out / expiry): stop quietly and keep the
