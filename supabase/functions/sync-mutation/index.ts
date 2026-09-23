@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
       // number instead of wedging the queue.
       if (table === "orders" && result.error?.code === "23505" && /order_number/i.test(result.error.message ?? "")) {
         for (let attempt = 0; attempt < 25 && result.error; attempt++) {
-          const retryNumber = await allocateOrderNumber(admin, tenant_id);
+          const retryNumber = await allocateOrderNumber(admin, tenant_id, false);
           row = { ...(row as Record<string, unknown>), order_number: retryNumber };
           result = await writeClient
             .from(table)
@@ -259,9 +259,11 @@ Deno.serve(async (req) => {
   }
 });
 
-async function allocateOrderNumber(admin: SupabaseAdmin, tenantId: string): Promise<string> {
-  const { data, error } = await admin.rpc("next_tenant_order_number", { _tenant: tenantId });
-  if (!error && typeof data === "string" && /^W-\d+$/i.test(data)) return data.toUpperCase();
+async function allocateOrderNumber(admin: SupabaseAdmin, tenantId: string, tryCounter = true): Promise<string> {
+  if (tryCounter) {
+    const { data, error } = await admin.rpc("next_tenant_order_number", { _tenant: tenantId });
+    if (!error && typeof data === "string" && /^W-\d+$/i.test(data)) return data.toUpperCase();
+  }
 
   // Some older counters can enter a permanently blocked range and the SQL
   // allocator then aborts after its guard limit. Derive the next number from
