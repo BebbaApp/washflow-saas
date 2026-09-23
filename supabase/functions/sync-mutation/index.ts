@@ -232,6 +232,25 @@ Deno.serve(async (req) => {
         .upsert(row, { onConflict: "id" })
         .select("*")
         .single();
+
+      // The per-tenant counter can fall behind the real max (rows created by
+      // other paths, restores, renumbering). In that case the allocator hands
+      // back a number that already exists and every retry fails identically,
+      // blocking the whole outbox. Re-allocate and retry until we get a free
+      // number instead of wedging the queue.
+      if (table === "orders" && result.error?.code === "23505" && /order_number/i.test(result.error.message ?? "")) {
+        for (let attempt = 0; attempt < 25 && result.error; attempt++) {
+          const { data: retryNumber, error: retryError } = await admin.rpc("next_tenant_order_number", { _tenant: tenant_id });
+          if (retryError) return json({ error: retryError.message }, 500);
+          row = { ...(row as Record<string, unknown>), order_number: retryNumber };
+          result = await writeClient
+            .from(table)
+            .upsert(row, { onConflict: "id" })
+            .select("*")
+            .single();
+          if (result.error && !(result.error.code === "23505" && /order_number/i.test(result.error.message ?? ""))) break;
+        }
+      }
     }
 
     if (result.error) return json({ error: result.error.message }, 500);
