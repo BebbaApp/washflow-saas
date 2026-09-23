@@ -68,6 +68,8 @@ const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => P
     return Array.isArray(rows) ? rows : [];
   },
   attendance_records: async (tenantId: string) => {
+    const { data: s } = await supabase.auth.getSession();
+    if (!s?.session) return [];
     const { data, error } = await supabase.functions.invoke("manage-staff", {
       body: { action: "list_attendance_records", tenant_id: tenantId },
     });
@@ -76,6 +78,8 @@ const edgeFallbackPullers: Partial<Record<MirroredTable, (tenantId: string) => P
     return Array.isArray(rows) ? rows : [];
   },
   staff_face_enrollments: async (tenantId: string) => {
+    const { data: s } = await supabase.auth.getSession();
+    if (!s?.session) return [];
     const { data, error } = await supabase.functions.invoke("manage-staff", {
       body: { action: "list_face_enrollments", tenant_id: tenantId },
     });
