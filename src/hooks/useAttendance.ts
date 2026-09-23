@@ -80,6 +80,8 @@ const PROFILES_CACHE_KEY = "wf_attendance_profiles_cache";
 const LAST_FACE_ENROLLMENT_KEY_PREFIX = "wf_last_face_enrollment:";
 
 async function pullFaceEnrollmentsViaStaffFunction(tenantId: string) {
+  const { data: s } = await supabase.auth.getSession();
+    if (!s?.session) return [];
   const { data, error } = await supabase.functions.invoke("manage-staff", {
     body: { action: "list_face_enrollments", tenant_id: tenantId },
   });
@@ -89,6 +91,8 @@ async function pullFaceEnrollmentsViaStaffFunction(tenantId: string) {
 }
 
 async function pullAttendanceRecordsViaStaffFunction(tenantId: string) {
+  const { data: s } = await supabase.auth.getSession();
+    if (!s?.session) return [];
   const { data, error } = await supabase.functions.invoke("manage-staff", {
     body: { action: "list_attendance_records", tenant_id: tenantId },
   });
