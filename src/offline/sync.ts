@@ -584,6 +584,7 @@ async function drainOutbox() {
       }
       if (error) throw error;
       await db.outbox.delete(it.id!);
+      bumpCompletedCount();
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       // Session ended mid-drain (sign-out / expiry): stop quietly and keep the
@@ -944,4 +945,23 @@ if (typeof window !== "undefined") {
       void backgroundPull();
     }
   });
+}
+
+// ---- Sync health counters (local, per device) ----
+const COMPLETED_KEY = "washflow_sync_completed";
+export function getCompletedStats(): { total: number; since: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(COMPLETED_KEY) || "null");
+    if (v && typeof v.total === "number") return v;
+  } catch { /* ignore */ }
+  return { total: 0, since: Date.now() };
+}
+function bumpCompletedCount() {
+  try {
+    const s = getCompletedStats();
+    localStorage.setItem(COMPLETED_KEY, JSON.stringify({ total: s.total + 1, since: s.since }));
+  } catch { /* ignore */ }
+}
+export function resetCompletedStats() {
+  try { localStorage.setItem(COMPLETED_KEY, JSON.stringify({ total: 0, since: Date.now() })); } catch { /* ignore */ }
 }
