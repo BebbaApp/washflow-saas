@@ -273,8 +273,9 @@ async function allocateOrderNumber(admin: SupabaseAdmin, tenantId: string, tryCo
   for (let from = 0; ; from += pageSize) {
     const result = await admin
       .from("orders")
-      .select("order_number")
+      .select("id,order_number")
       .eq("tenant_id", tenantId)
+      .order("id", { ascending: true })
       .range(from, from + pageSize - 1);
     if (result.error) throw new Error(result.error.message);
     const rows = result.data ?? [];
