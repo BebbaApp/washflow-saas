@@ -65,11 +65,11 @@ const monthBounds = (month: string) => {
 };
 
 const fmtMoney = (cents: number, currency: string) =>
-  `${currency} ${(cents / 100).toFixed(2)}`;
+  `${currency === "ZAR" || currency === "R" ? "R" : currency === "USD" ? "$" : `${currency} `}${(cents / 100).toFixed(2)}`;
 
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
-    day: "2-digit", month: "long", year: "numeric", timeZone: "UTC",
+    day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC",
   });
 
 const fillTemplate = (tpl: string, vars: Record<string, string>) =>
@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
           <table style="font-size:13px;margin-bottom:28px"><tr><td>Invoice number</td><td style="padding-left:20px;font-weight:bold">${h("invoice_number")}</td></tr>
             <tr><td>Date of issue</td><td style="padding-left:20px;font-weight:bold">${h("issue_date")}</td></tr>
             <tr><td>Date due</td><td style="padding-left:20px;font-weight:bold">${h("due_date")}</td></tr></table>
-          <table style="width:100%;margin-bottom:30px;vertical-align:top"><tr>
+          <table style="width:100%;margin-bottom:30px"><tr>
             <td style="width:50%;vertical-align:top"><strong>${h("company_name")}</strong><br><span style="white-space:pre-line">${h("address")}</span><br>${h("contact_phone")}<br>${h("contact_email")}</td>
             <td style="width:50%;vertical-align:top"><strong>Bill to</strong><br>${h("tenant_name")}<br><span style="white-space:pre-line">${h("billing_address")}</span><br>${escapeHtml(to)}</td>
           </tr></table>

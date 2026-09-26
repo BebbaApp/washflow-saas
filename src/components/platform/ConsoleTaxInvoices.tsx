@@ -64,7 +64,7 @@ const fmtDate = (iso: string | null) => {
   if (!iso) return "-";
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 };
 
 const monthLabel = (month: string) => {
@@ -247,18 +247,20 @@ export function ConsoleTaxInvoices() {
 
     const blockTop = 164;
     doc.setFont("helvetica", "bold").setFontSize(9);
-    doc.text(platform?.company_name || "Washflow", m, blockTop);
+    const senderName = doc.splitTextToSize(platform?.company_name || "Washflow", middle - m - 28) as string[];
+    const senderNameEnd = blockTop + senderName.length * 12;
+    senderName.forEach((line, index) => doc.text(line, m, blockTop + index * 12));
     doc.text("Bill to", middle, blockTop);
     const senderEnd = writeBlock([
       platform?.address ?? "", platform?.contact_phone ?? "", platform?.contact_email ?? "",
-    ], m, blockTop + 17, middle - m - 28);
+    ], m, senderNameEnd + 5, middle - m - 28);
     const recipientEnd = writeBlock([
       inv.tenant_name, inv.billing_address ?? "", inv.contact_email,
     ], middle, blockTop + 17, right - middle);
 
     const dueY = Math.max(senderEnd, recipientEnd) + 28;
     doc.setFont("helvetica", "bold").setFontSize(16);
-    doc.text(`${money(inv.total_cents, inv.currency)} due ${fmtDate(inv.due_date)}`, m, dueY);
+    doc.text(`${money(inv.total_cents, inv.currency)} due ${fmtDate(inv.due_date)}`, m, dueY, { maxWidth: right - m });
 
     const tableY = dueY + 38;
     autoTable(doc, {
@@ -285,6 +287,10 @@ export function ConsoleTaxInvoices() {
     });
 
     let summaryY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 18;
+    if (summaryY + 5 * 19 > height - 70) {
+      doc.addPage();
+      summaryY = 65;
+    }
     const summaryLeft = middle + 28;
     const summary: [string, string, boolean][] = [
       ["Subtotal", money(inv.subtotal_cents, inv.currency), false],
