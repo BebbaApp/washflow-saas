@@ -301,9 +301,16 @@ export function ConsoleTaxInvoices() {
     ];
     summary.forEach(([label, amount, emphatic]) => {
       doc.setDrawColor(218, 221, 225).setLineWidth(0.5).line(summaryLeft, summaryY - 12, right, summaryY - 12);
-      doc.setFont("helvetica", emphatic ? "bold" : "normal").setFontSize(9);
-      doc.text(label, summaryLeft + 2, summaryY);
-      doc.text(amount, right - 2, summaryY, { align: "right" });
+      if (emphatic) {
+        doc.setTextColor(192, 28, 28);
+        doc.setFont("helvetica", "bold").setFontSize(11);
+        doc.text(`${label}  ${amount}`, right - 2, summaryY, { align: "right" });
+        doc.setTextColor(24, 28, 33);
+      } else {
+        doc.setFont("helvetica", "normal").setFontSize(9);
+        doc.text(label, summaryLeft + 2, summaryY);
+        doc.text(amount, right - 2, summaryY, { align: "right" });
+      }
       summaryY += 19;
     });
 
