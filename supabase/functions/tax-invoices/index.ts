@@ -160,13 +160,17 @@ Deno.serve(async (req) => {
 
     const decorate = async (rows: any[]) => {
       const tenantIds = [...new Set(rows.map((r) => r.tenant_id))];
-      const [{ data: tenants }, contacts] = await Promise.all([
+      const [{ data: tenants }, contacts, { data: receiptSettings }] = await Promise.all([
         tenantIds.length
           ? admin.from("tenants").select("id,name,slug,status").in("id", tenantIds)
           : Promise.resolve({ data: [] as any[] }),
         tenantContacts(tenantIds),
+        tenantIds.length
+          ? admin.from("receipt_settings").select("tenant_id,address").in("tenant_id", tenantIds)
+          : Promise.resolve({ data: [] as { tenant_id: string; address: string }[] }),
       ]);
       const tmap = new Map((tenants ?? []).map((t: any) => [t.id, t]));
+      const addresses = new Map((receiptSettings ?? []).map((s: any) => [s.tenant_id, s.address]));
       return rows.map((r) => ({
         ...r,
         tenant_name: tmap.get(r.tenant_id)?.name ?? "Unknown workspace",
@@ -175,6 +179,7 @@ Deno.serve(async (req) => {
         contact_email: contacts.get(r.tenant_id)?.email ?? "",
         contact_phone: contacts.get(r.tenant_id)?.phone ?? "",
         contact_name: contacts.get(r.tenant_id)?.name ?? "",
+        billing_address: addresses.get(r.tenant_id) ?? "",
       }));
     };
 
@@ -249,8 +254,9 @@ Deno.serve(async (req) => {
       const { data: inv, error } = await admin
         .from("tenant_tax_invoices").select("*").eq("id", invoiceId).single();
       if (error || !inv) throw new Error(error?.message ?? "Invoice not found");
-      const [settings, platform, contacts] = await Promise.all([
+      const [settings, platform, contacts, { data: receipt }] = await Promise.all([
         loadSettings(), loadPlatform(), tenantContacts([inv.tenant_id]),
+        admin.from("receipt_settings").select("address").eq("tenant_id", inv.tenant_id).maybeSingle(),
       ]);
       const { data: tenant } = await admin
         .from("tenants").select("name").eq("id", inv.tenant_id).single();
@@ -283,28 +289,38 @@ Deno.serve(async (req) => {
         contact_email: platform.contact_email ?? "",
         contact_phone: platform.contact_phone ?? "",
         address: platform.address ?? "",
+        billing_address: receipt?.address ?? "",
       };
 
       const subject = fillTemplate(settings.email_subject ?? "Tax invoice {{invoice_number}}", vars);
       const bodyText = fillTemplate(settings.email_body ?? "", vars);
+      const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+      const h = (key: keyof typeof vars) => escapeHtml(vars[key]);
+      const vatRate = inv.subtotal_cents > 0
+        ? Math.round((inv.vat_cents / inv.subtotal_cents) * 10000) / 100 : 0;
       const html = `
-        <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto;color:#111">
-          <h2 style="margin:0 0 4px">${vars.company_name}</h2>
-          <div style="font-size:12px;color:#555;white-space:pre-line">${vars.address}
-${vars.contact_phone} ${vars.contact_email}</div>
-          <hr style="margin:16px 0;border:none;border-top:1px solid #ddd" />
-          <h3 style="margin:0 0 12px">Tax Invoice ${vars.invoice_number}</h3>
-          <p style="white-space:pre-line">${bodyText}</p>
-          <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">
-            <tr><td style="padding:6px 0;color:#555">Billed to</td><td style="text-align:right">${vars.tenant_name}</td></tr>
-            <tr><td style="padding:6px 0;color:#555">Billing period</td><td style="text-align:right">${vars.period}</td></tr>
-            <tr><td style="padding:6px 0;color:#555">Issue date</td><td style="text-align:right">${vars.issue_date}</td></tr>
-            <tr><td style="padding:6px 0;color:#555">Due date</td><td style="text-align:right">${vars.due_date}</td></tr>
-            <tr><td style="padding:6px 0;color:#555">Plan</td><td style="text-align:right">${vars.plan_name}</td></tr>
-            <tr><td style="padding:6px 0;color:#555">Subtotal</td><td style="text-align:right">${vars.subtotal}</td></tr>
-            <tr><td style="padding:6px 0;color:#555">VAT</td><td style="text-align:right">${vars.vat}</td></tr>
-            <tr><td style="padding:10px 0;font-weight:bold;border-top:1px solid #ddd">Total due</td>
-                <td style="text-align:right;font-weight:bold;border-top:1px solid #ddd">${vars.total}</td></tr>
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto;color:#181c21;font-size:14px">
+          <h1 style="font-size:24px;margin:0 0 20px">Invoice</h1>
+          <table style="font-size:13px;margin-bottom:28px"><tr><td>Invoice number</td><td style="padding-left:20px;font-weight:bold">${h("invoice_number")}</td></tr>
+            <tr><td>Date of issue</td><td style="padding-left:20px;font-weight:bold">${h("issue_date")}</td></tr>
+            <tr><td>Date due</td><td style="padding-left:20px;font-weight:bold">${h("due_date")}</td></tr></table>
+          <table style="width:100%;margin-bottom:30px;vertical-align:top"><tr>
+            <td style="width:50%;vertical-align:top"><strong>${h("company_name")}</strong><br><span style="white-space:pre-line">${h("address")}</span><br>${h("contact_phone")}<br>${h("contact_email")}</td>
+            <td style="width:50%;vertical-align:top"><strong>Bill to</strong><br>${h("tenant_name")}<br><span style="white-space:pre-line">${h("billing_address")}</span><br>${escapeHtml(to)}</td>
+          </tr></table>
+          <h2 style="font-size:19px;margin:0 0 24px">${h("total")} due ${h("due_date")}</h2>
+          <p style="white-space:pre-line">${escapeHtml(bodyText)}</p>
+          <table style="width:100%;border-collapse:collapse;margin-top:24px;font-size:13px">
+            <thead><tr style="border-bottom:1px solid #181c21;text-align:left"><th style="padding:10px 3px">Description</th><th>Qty</th><th>Unit price</th><th>Tax</th><th style="text-align:right">Amount</th></tr></thead>
+            <tbody><tr><td style="padding:12px 3px">${h("plan_name")} subscription<br>${h("period")}</td><td>1</td><td>${h("subtotal")}</td><td>${vatRate}%</td><td style="text-align:right">${h("subtotal")}</td></tr></tbody>
+          </table>
+          <table style="width:52%;margin-left:auto;border-collapse:collapse;font-size:13px">
+            <tr style="border-top:1px solid #ddd"><td>Subtotal</td><td style="text-align:right">${h("subtotal")}</td></tr>
+            <tr style="border-top:1px solid #ddd"><td>Total excluding tax</td><td style="text-align:right">${h("subtotal")}</td></tr>
+            <tr style="border-top:1px solid #ddd"><td>VAT (${vatRate}%)</td><td style="text-align:right">${h("vat")}</td></tr>
+            <tr style="border-top:1px solid #ddd"><td>Total</td><td style="text-align:right">${h("total")}</td></tr>
+            <tr style="border-top:1px solid #ddd;font-weight:bold"><td>Amount due</td><td style="text-align:right">${h("total")}</td></tr>
           </table>
         </div>`;
 
