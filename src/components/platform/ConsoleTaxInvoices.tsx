@@ -24,6 +24,7 @@ interface Invoice {
   tenant_name: string;
   contact_email: string;
   contact_phone: string;
+  billing_address?: string;
   invoice_number: string;
   period_start: string;
   period_end: string;
@@ -63,7 +64,7 @@ const fmtDate = (iso: string | null) => {
   if (!iso) return "-";
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 };
 
 const monthLabel = (month: string) => {
@@ -83,7 +84,7 @@ const monthOptions = () => {
   return out;
 };
 
-const money = (cents: number, currency: string) => `${currency}${(cents / 100).toFixed(2)}`;
+const money = (cents: number, currency: string) => `${currency === "ZAR" ? "R" : currency === "USD" ? "$" : currency === "R" ? "R" : `${currency} `}${(cents / 100).toFixed(2)}`;
 
 const statusVariant = (s: string) =>
   s === "paid" ? "default" : s === "sent" ? "secondary" : s === "void" ? "destructive" : "outline";
@@ -212,53 +213,106 @@ export function ConsoleTaxInvoices() {
 
   const downloadPdf = (inv: Invoice) => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const m = 48;
-    let y = 56;
-    doc.setFontSize(18).setFont("helvetica", "bold");
-    doc.text(platform?.company_name || "Washflow", m, y);
-    doc.setFontSize(9).setFont("helvetica", "normal");
-    y += 16;
-    [platform?.address, platform?.contact_phone, platform?.contact_email]
-      .filter(Boolean)
-      .forEach((line) => { doc.text(String(line), m, y); y += 12; });
+    const width = doc.internal.pageSize.getWidth();
+    const height = doc.internal.pageSize.getHeight();
+    const m = 42;
+    const right = width - m;
+    const middle = width / 2 + 8;
+    const vatRate = inv.subtotal_cents > 0
+      ? Math.round((inv.vat_cents / inv.subtotal_cents) * 10000) / 100 : 0;
+    const writeBlock = (lines: string[], x: number, start: number, maxWidth: number) => {
+      let cursor = start;
+      doc.setFont("helvetica", "normal").setFontSize(9);
+      for (const line of lines.filter(Boolean)) {
+        for (const part of doc.splitTextToSize(line, maxWidth) as string[]) {
+          doc.text(part, x, cursor);
+          cursor += 12;
+        }
+      }
+      return cursor;
+    };
 
-    doc.setFontSize(16).setFont("helvetica", "bold");
-    doc.text("TAX INVOICE", doc.internal.pageSize.getWidth() - m, 56, { align: "right" });
-    doc.setFontSize(10).setFont("helvetica", "normal");
-    doc.text(inv.invoice_number, doc.internal.pageSize.getWidth() - m, 74, { align: "right" });
-
-    y += 18;
-    doc.setFont("helvetica", "bold").text("Billed to", m, y);
-    doc.setFont("helvetica", "normal");
-    y += 14;
-    doc.text(inv.tenant_name, m, y);
-    if (inv.contact_email) { y += 12; doc.text(inv.contact_email, m, y); }
-
-    y += 26;
-    autoTable(doc, {
-      startY: y,
-      head: [["Description", "Period", "Amount"]],
-      body: [[
-        `${inv.plan_name} subscription`,
-        `${fmtDate(inv.period_start)} - ${fmtDate(inv.period_end)}`,
-        money(inv.subtotal_cents, inv.currency),
-      ]],
-      foot: [
-        ["", "Subtotal", money(inv.subtotal_cents, inv.currency)],
-        ["", `VAT (${platform?.vat_rate ?? 0}%)`, money(inv.vat_cents, inv.currency)],
-        ["", "Total due", money(inv.total_cents, inv.currency)],
-      ],
-      theme: "grid",
-      headStyles: { fillColor: [30, 41, 59] },
-      footStyles: { fillColor: [241, 245, 249], textColor: 20, fontStyle: "bold" },
-      columnStyles: { 2: { halign: "right" } },
-      margin: { left: m, right: m },
+    doc.setTextColor(24, 28, 33);
+    doc.setFont("helvetica", "bold").setFontSize(20).text("Invoice", m, 55);
+    const metadata: [string, string][] = [
+      ["Invoice number", inv.invoice_number],
+      ["Date of issue", fmtDate(inv.issue_date)],
+      ["Date due", fmtDate(inv.due_date)],
+    ];
+    metadata.forEach(([label, value], index) => {
+      const row = 82 + index * 17;
+      doc.setFont("helvetica", "normal").setFontSize(9).text(label, m, row);
+      doc.setFont("helvetica", "bold").text(value, m + 96, row);
     });
 
-    const endY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 24;
-    doc.setFontSize(10);
-    doc.text(`Issue date: ${fmtDate(inv.issue_date)}`, m, endY);
-    doc.text(`Due date: ${fmtDate(inv.due_date)}`, m, endY + 14);
+    const blockTop = 164;
+    doc.setFont("helvetica", "bold").setFontSize(9);
+    const senderName = doc.splitTextToSize(platform?.company_name || "Washflow", middle - m - 28) as string[];
+    const senderNameEnd = blockTop + senderName.length * 12;
+    senderName.forEach((line, index) => doc.text(line, m, blockTop + index * 12));
+    doc.text("Bill to", middle, blockTop);
+    const senderEnd = writeBlock([
+      platform?.address ?? "", platform?.contact_phone ?? "", platform?.contact_email ?? "",
+    ], m, senderNameEnd + 5, middle - m - 28);
+    const recipientEnd = writeBlock([
+      inv.tenant_name, inv.billing_address ?? "", inv.contact_email,
+    ], middle, blockTop + 17, right - middle);
+
+    const dueY = Math.max(senderEnd, recipientEnd) + 28;
+    doc.setFont("helvetica", "bold").setFontSize(16);
+    doc.text(`${money(inv.total_cents, inv.currency)} due ${fmtDate(inv.due_date)}`, m, dueY, { maxWidth: right - m });
+
+    const tableY = dueY + 38;
+    autoTable(doc, {
+      startY: tableY,
+      head: [["Description", "Qty", "Unit price", "Tax", "Amount"]],
+      body: [[
+        `${inv.plan_name} subscription\n${fmtDate(inv.period_start)} - ${fmtDate(inv.period_end)}`,
+        "1",
+        money(inv.subtotal_cents, inv.currency),
+        `${vatRate}%`,
+        money(inv.subtotal_cents, inv.currency),
+      ]],
+      theme: "plain",
+      styles: { font: "helvetica", fontSize: 9, textColor: [24, 28, 33], cellPadding: { top: 9, bottom: 9, left: 2, right: 2 } },
+      headStyles: { fontStyle: "normal", lineColor: [24, 28, 33], lineWidth: { bottom: 0.7 } },
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 32, halign: "right" },
+        2: { cellWidth: 72, halign: "right" },
+        3: { cellWidth: 42, halign: "right" },
+        4: { cellWidth: 80, halign: "right" },
+      },
+      margin: { left: m, right: m, bottom: 110 },
+    });
+
+    let summaryY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 18;
+    if (summaryY + 5 * 19 > height - 70) {
+      doc.addPage();
+      summaryY = 65;
+    }
+    const summaryLeft = middle + 28;
+    const summary: [string, string, boolean][] = [
+      ["Subtotal", money(inv.subtotal_cents, inv.currency), false],
+      ["Total excluding tax", money(inv.subtotal_cents, inv.currency), false],
+      [`VAT (${vatRate}%)`, money(inv.vat_cents, inv.currency), false],
+      ["Total", money(inv.total_cents, inv.currency), false],
+      ["Amount due", money(inv.total_cents, inv.currency), true],
+    ];
+    summary.forEach(([label, amount, emphatic]) => {
+      doc.setDrawColor(218, 221, 225).setLineWidth(0.5).line(summaryLeft, summaryY - 12, right, summaryY - 12);
+      doc.setFont("helvetica", emphatic ? "bold" : "normal").setFontSize(9);
+      doc.text(label, summaryLeft + 2, summaryY);
+      doc.text(amount, right - 2, summaryY, { align: "right" });
+      summaryY += 19;
+    });
+
+    const pages = doc.getNumberOfPages();
+    for (let page = 1; page <= pages; page++) {
+      doc.setPage(page);
+      doc.setDrawColor(218, 221, 225).line(m, height - 55, right, height - 55);
+      doc.setFont("helvetica", "normal").setFontSize(8).text(`Page ${page} of ${pages}`, right, height - 38, { align: "right" });
+    }
     doc.save(`${inv.invoice_number}.pdf`);
   };
 
