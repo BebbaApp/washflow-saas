@@ -13,9 +13,20 @@ const subs = new Set<(c: string, ready: boolean) => void>();
 async function fetchOnce(): Promise<string> {
   if (inflight) return inflight;
   inflight = (async () => {
-    const { data } = await supabase.functions.invoke("platform-admin", {
+    // Only ask the server once someone is signed in — otherwise it rejects
+    // the request (401) and the app can blank-screen.
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess?.session) {
+      inflight = null;
+      return cached ?? "USD";
+    }
+    const { data, error } = await supabase.functions.invoke("platform-admin", {
       body: { action: "get_platform_settings" },
     });
+    if (error) {
+      inflight = null;
+      return cached ?? "USD";
+    }
     const c = (data as any)?.settings?.currency || cached || "USD";
     const changed = c !== cached || !resolved;
     cached = c;
