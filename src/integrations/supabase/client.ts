@@ -28,6 +28,22 @@ async function handleStaleSession() {
 }
 
 const customFetch: typeof fetch = async (input, init) => {
+  // Short-circuit admin-only function calls made before sign-in: the server
+  // would reject them with 401 and surface a blank-screen runtime error.
+  try {
+    const u = typeof input === "string" ? input : (input as Request).url;
+    if (u.includes("/functions/v1/platform-admin")) {
+      const { data: cur } = await supabase.auth.getSession();
+      if (!cur?.session) {
+        return new Response(JSON.stringify({ error: "Not signed in" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
   const res = await fetch(input as any, init);
   try {
     const url = typeof input === "string" ? input : (input as Request).url;
