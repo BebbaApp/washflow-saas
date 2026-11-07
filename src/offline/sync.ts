@@ -330,7 +330,7 @@ async function pullTable(tenantId: string, table: MirroredTable) {
     let rows = (data as any[]) ?? [];
     let usedFallback = false;
     const fallbackPull = edgeFallbackPullers[table];
-    if ((rows.length === 0 || table === "orders") && fallbackPull) {
+    if (rows.length === 0 && fallbackPull) {
       const fallbackRows = await fallbackPull(tenantId);
       if (fallbackRows.length > 0) {
         rows = fallbackRows;
@@ -679,7 +679,7 @@ export async function startSync(tenantId: string) {
  *  RLS blocks realtime `postgres_changes` events for the current user. */
 function startEdgePolling(tenantId: string) {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  const POLL_MS = 8000;
+  const POLL_MS = 60000;
   pollTimer = setInterval(() => {
     if (currentTenant !== tenantId) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
