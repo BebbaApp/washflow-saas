@@ -1,6 +1,6 @@
 {
   "productName": "Washflow",
-  "version": "1.0.42",
+  "version": "1.0.43",
   "identifier": "com.aumsoft.washflow",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -40,7 +40,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "Aumsoft Technology (Pty) Ltd",
+    "publisher": "Aumsoft Technology",
     "category": "Business",
     "shortDescription": "Car Wash Management System",
     "windows": {
