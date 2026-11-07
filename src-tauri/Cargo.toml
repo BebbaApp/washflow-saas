@@ -1,8 +1,8 @@
 [package]
 name = "washflow"
-version = "1.0.42"
+version = "1.0.43"
 description = "Washflow Car Wash Management System"
-authors = ["Aumsoft Technology (Pty) Ltd"]
+authors = ["Aumsoft Technology"]
 license = "MIT"
 repository = "https://github.com/BebbaApp/washflow-saas"
 edition = "2021"
